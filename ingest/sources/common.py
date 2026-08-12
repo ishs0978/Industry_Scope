@@ -16,7 +16,10 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 DEFAULT_TIMEOUT = 45
 CURRENT_BATCH_ID: ContextVar[str | None] = ContextVar("ingest_batch_id", default=None)
-SECRET_QUERY = re.compile(r"([?&](?:api_key|api-key|registrationkey)=)[^&\s]+", re.IGNORECASE)
+# Stop at URL separators and at string delimiters. Error details are serialized
+# to JSON before redaction, so consuming a closing quote would corrupt the JSON
+# persisted to ingest_runs and mask the original source failure.
+SECRET_QUERY = re.compile(r"([?&](?:api_key|api-key|registrationkey)=)[^&\s\"']+", re.IGNORECASE)
 
 
 @dataclass

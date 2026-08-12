@@ -69,6 +69,9 @@ def test_all_expected_sources_reported():
 
 def test_ingest_errors_redact_api_credentials():
     assert redact_secrets("https://example.test?api_key=secret&x=1") == "https://example.test?api_key=[REDACTED]&x=1"
+    assert redact_secrets(
+        '{"error": "https://example.test?api-key=secret", "months_attempted": []}'
+    ) == '{"error": "https://example.test?api-key=[REDACTED]", "months_attempted": []}'
 
 
 def test_source_failure_rolls_back_before_logging_and_continues(monkeypatch):
