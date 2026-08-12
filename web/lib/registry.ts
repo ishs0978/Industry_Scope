@@ -7,7 +7,7 @@ let cached: Sector[] | null = null;
 
 export function sectors(): Sector[] {
   if (cached) return cached;
-  const registryPath = path.resolve(process.cwd(), "..", "ingest", "config", "sectors.yaml");
+  const registryPath = path.resolve(process.cwd(), "config", "sectors.yaml");
   const document = YAML.parse(fs.readFileSync(registryPath, "utf8")) as { sectors: Sector[] };
   cached = document.sectors;
   return cached;
@@ -16,4 +16,3 @@ export function sectors(): Sector[] {
 export function sectorBySlug(slug: string): Sector | undefined {
   return sectors().find((sector) => sector.slug === slug);
 }
-

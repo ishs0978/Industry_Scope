@@ -16,7 +16,7 @@ function emptyPayload(sector: Sector, reason = EMPTY_SOURCE_REASON): IndustryPay
 }
 
 function macroIdsForSector(slug: string): string[] {
-  const mapPath = path.resolve(process.cwd(), "..", "ingest", "config", "fred_map.yaml");
+  const mapPath = path.resolve(process.cwd(), "config", "fred_map.yaml");
   const config = YAML.parse(fs.readFileSync(mapPath, "utf8")) as {
     common?: { series_id: string }[];
     risk_free?: { series_id: string }[];

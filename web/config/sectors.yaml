@@ -1,0 +1,180 @@
+sectors:
+  - slug: energy
+    name: Energy
+    aliases: [oil and gas, oilfield services, petroleum, midstream]
+    primary_etf: XLE
+    comparison_etfs: [OIH, XOP, AMLP]
+    news_keywords: [energy sector, crude oil, natural gas, oilfield, pipeline]
+    sic_prefixes: ['13', '29']
+    naics_code: '211'
+
+  - slug: semiconductors
+    name: Semiconductors
+    aliases: [chips, chipmakers, semiconductor equipment, integrated circuits]
+    primary_etf: SMH
+    comparison_etfs: [SOXX, XSD]
+    news_keywords: [semiconductor, chipmaker, chip fabrication, chip equipment]
+    sic_prefixes: ['3559', '3674']
+    naics_code: '334413'
+
+  - slug: ai-robotics
+    name: AI & Robotics
+    aliases: [artificial intelligence, robotics, automation, autonomous systems]
+    primary_etf: BOTZ
+    comparison_etfs: [ROBO, IRBO, ARKQ]
+    news_keywords: [artificial intelligence, industrial robot, robotics, automation]
+    sic_prefixes: ['3569', '3571', '7372']
+    naics_code: '333998'
+
+  - slug: software-cloud
+    name: Software & Cloud
+    aliases: [cloud software, enterprise software, saas, cloud computing]
+    primary_etf: IGV
+    comparison_etfs: [WCLD, SKYY]
+    news_keywords: [cloud computing, enterprise software, software company, SaaS]
+    sic_prefixes: ['737']
+    naics_code: '518210'
+
+  - slug: cybersecurity
+    name: Cybersecurity
+    aliases: [cyber security, information security, network security, infosec]
+    primary_etf: CIBR
+    comparison_etfs: [HACK, BUG]
+    news_keywords: [cybersecurity, cyberattack, data breach, network security]
+    sic_prefixes: ['7372', '7373']
+    naics_code: '541512'
+
+  - slug: banks
+    name: Banks
+    aliases: [banking, financial institutions, regional banks, commercial banks]
+    primary_etf: XLF
+    comparison_etfs: [KRE, KBE]
+    news_keywords: [banking sector, regional bank, commercial bank, bank lending]
+    sic_prefixes: ['60', '61', '62']
+    naics_code: '522110'
+
+  - slug: healthcare-pharma
+    name: Healthcare & Pharmaceuticals
+    aliases: [health care, pharmaceuticals, biotech, medical products]
+    primary_etf: XLV
+    comparison_etfs: [IBB, XBI]
+    news_keywords: [healthcare sector, pharmaceutical, biotechnology, drug approval]
+    sic_prefixes: ['283', '384', '80']
+    naics_code: '325412'
+
+  - slug: defense-aerospace
+    name: Defense & Aerospace
+    aliases: [aerospace, defense contractors, military technology, aviation]
+    primary_etf: ITA
+    comparison_etfs: [XAR, PPA]
+    news_keywords: [defense contractor, aerospace industry, military procurement, aircraft manufacturing]
+    sic_prefixes: ['372', '376', '381']
+    naics_code: '336414'
+
+  - slug: homebuilders
+    name: Homebuilders
+    aliases: [home building, residential construction, housing construction, builders]
+    primary_etf: XHB
+    comparison_etfs: [ITB]
+    news_keywords: [homebuilder, residential construction, housing starts, building permits]
+    sic_prefixes: ['15', '16', '17']
+    naics_code: '236115'
+
+  - slug: industrials
+    name: Industrials
+    aliases: [industrial companies, machinery, manufacturing, capital goods]
+    primary_etf: XLI
+    comparison_etfs: [PAVE]
+    news_keywords: [industrial production, capital goods, industrial machinery, manufacturing sector]
+    sic_prefixes: ['35', '36', '37']
+    naics_code: '333'
+
+  - slug: consumer-discretionary
+    name: Consumer Discretionary
+    aliases: [discretionary spending, retail, autos, leisure]
+    primary_etf: XLY
+    comparison_etfs: [XRT]
+    news_keywords: [consumer spending, discretionary retail, auto sales, leisure industry]
+    sic_prefixes: ['53', '55', '56', '57', '58', '70', '78']
+    naics_code: '44-45'
+
+  - slug: consumer-staples
+    name: Consumer Staples
+    aliases: [staples, essential goods, food and beverage, household products]
+    primary_etf: XLP
+    comparison_etfs: []
+    news_keywords: [consumer staples, packaged food, household products, grocery sales]
+    sic_prefixes: ['20', '21', '54']
+    naics_code: '445'
+
+  - slug: utilities
+    name: Utilities
+    aliases: [electric utilities, power utilities, regulated utilities, electricity providers]
+    primary_etf: XLU
+    comparison_etfs: []
+    news_keywords: [utility sector, electric utility, power grid, regulated utility]
+    sic_prefixes: ['49']
+    naics_code: '221'
+
+  - slug: real-estate
+    name: Real Estate
+    aliases: [reits, property, commercial real estate, realty]
+    primary_etf: XLRE
+    comparison_etfs: [VNQ]
+    news_keywords: [real estate investment trust, commercial real estate, property market, REIT]
+    sic_prefixes: ['65']
+    naics_code: '531'
+
+  - slug: materials-mining
+    name: Materials & Mining
+    aliases: [basic materials, mining, metals and mining, raw materials]
+    primary_etf: XLB
+    comparison_etfs: [XME]
+    news_keywords: [mining industry, industrial metals, raw materials, basic materials]
+    sic_prefixes: ['10', '12', '14', '26']
+    naics_code: '212'
+
+  - slug: gold-metals
+    name: Gold & Precious Metals
+    aliases: [gold, precious metals, gold miners, silver]
+    primary_etf: GLD
+    comparison_etfs: [GDX, SIL]
+    news_keywords: [gold price, gold mining, precious metals, silver price]
+    sic_prefixes: ['104', '1094']
+    naics_code: '212221'
+
+  - slug: clean-energy
+    name: Clean Energy
+    aliases: [renewable energy, solar, wind power, green energy]
+    primary_etf: ICLN
+    comparison_etfs: [TAN, FAN]
+    news_keywords: [clean energy, renewable energy, solar power, wind power]
+    sic_prefixes: ['4911', '4931']
+    naics_code: '221114'
+
+  - slug: uranium-nuclear
+    name: Uranium & Nuclear
+    aliases: [nuclear energy, uranium, nuclear power, uranium mining]
+    primary_etf: URA
+    comparison_etfs: [NLR]
+    news_keywords: [uranium market, nuclear power, nuclear reactor, uranium mining]
+    sic_prefixes: ['1094', '2819']
+    naics_code: '212291'
+
+  - slug: communication-services
+    name: Communication Services
+    aliases: [telecom, telecommunications, media, internet services]
+    primary_etf: XLC
+    comparison_etfs: []
+    news_keywords: [telecommunications, communication services, wireless carrier, media company]
+    sic_prefixes: ['48']
+    naics_code: '517'
+
+  - slug: transport-shipping
+    name: Transportation & Shipping
+    aliases: [transportation, shipping, freight, logistics]
+    primary_etf: IYT
+    comparison_etfs: []
+    news_keywords: [freight transport, shipping industry, logistics, cargo airline]
+    sic_prefixes: ['40', '42', '44', '45']
+    naics_code: '483'
