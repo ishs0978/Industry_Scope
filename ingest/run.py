@@ -92,6 +92,12 @@ def ensure_attempt_logged(
     batch_id: str | None = None,
 ) -> None:
     """Cover failures occurring before a source enters its own logged_run block."""
+    # A source may fail while PostgreSQL is in the aborted-transaction state
+    # (for example, after a rejected bulk insert).  Failure reporting must use
+    # a fresh transaction or it can mask the original error and stop every
+    # source that follows.
+    if hasattr(connection, "rollback"):
+        connection.rollback()
     with connection.cursor() as cursor:
         if batch_id:
             cursor.execute(
@@ -144,6 +150,8 @@ def run_all(connection: Any, *, today: date | None = None, force_all: bool = Fal
             try:
                 source.runner(connection)
             except Exception as exc:
+                if hasattr(connection, "rollback"):
+                    connection.rollback()
                 ensure_attempt_logged(connection, source.name, started_at, exc, batch_id)
                 failures.append({"source": source.name, "reason": f"{type(exc).__name__}: {exc}"})
                 print(f"[{source.name}] failed: {exc}", file=sys.stderr, flush=True)
@@ -151,6 +159,8 @@ def run_all(connection: Any, *, today: date | None = None, force_all: bool = Fal
                 print(f"[{source.name}] complete", flush=True)
     finally:
         try:
+            if hasattr(connection, "rollback"):
+                connection.rollback()
             finish_pending(
                 connection, batch_id, EXPECTED_SOURCES, status="failed",
                 message="Source did not reach a terminal status",

@@ -48,8 +48,12 @@ def run(connection: Any) -> None:
     with logged_run(connection, "gdelt") as result:
         failures: dict[str, str] = {}
         backlog: dict[str, str] = {}
+        upstream_blocked = False
         max_ranges = int(os.environ.get("GDELT_MAX_RANGES_PER_SECTOR", "1"))
         for sector in load_sectors():
+            if upstream_blocked:
+                backlog[sector.slug] = "upstream unavailable; deferred"
+                continue
             with connection.cursor() as cursor:
                 cursor.execute("SELECT max(date) FROM news_volume WHERE sector_slug=%s", (sector.slug,))
                 latest = cursor.fetchone()[0]
@@ -68,6 +72,14 @@ def run(connection: Any) -> None:
                         rows.append((sector.slug, day, volume.get(day), tone.get(day)))
                 except Exception as exc:
                     failures[f"{sector.slug}:{start}:{end}"] = str(exc)
+                    response = getattr(exc, "response", None)
+                    # A 429, or an HTML/empty response that cannot be decoded
+                    # as JSON, applies to the shared GDELT endpoint rather than
+                    # one sector. Stop hammering it and let the next run retry.
+                    if getattr(response, "status_code", None) == 429 or isinstance(
+                        exc, (ValueError, requests.exceptions.JSONDecodeError)
+                    ):
+                        upstream_blocked = True
                     break
                 start = end + timedelta(days=1)
                 ranges += 1

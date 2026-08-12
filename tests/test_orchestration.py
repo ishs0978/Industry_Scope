@@ -2,6 +2,7 @@ from datetime import date
 
 from datetime import datetime, timezone
 
+import ingest.run as orchestrator
 from ingest.run import EXPECTED_SOURCES, ScheduledSource, due, finish_pending, seed_expected_sources
 from ingest.sources.common import redact_secrets
 
@@ -68,3 +69,37 @@ def test_all_expected_sources_reported():
 
 def test_ingest_errors_redact_api_credentials():
     assert redact_secrets("https://example.test?api_key=secret&x=1") == "https://example.test?api_key=[REDACTED]&x=1"
+
+
+def test_source_failure_rolls_back_before_logging_and_continues(monkeypatch):
+    calls = []
+
+    class Connection:
+        def rollback(self):
+            calls.append("rollback")
+
+    def broken(connection):
+        calls.append("broken")
+        raise RuntimeError("transaction aborted")
+
+    def healthy(connection):
+        calls.append("healthy")
+
+    monkeypatch.setattr(
+        orchestrator,
+        "SOURCES",
+        (ScheduledSource("broken", broken, "daily"), ScheduledSource("healthy", healthy, "daily")),
+    )
+    monkeypatch.setattr(orchestrator, "seed_expected_sources", lambda *args: None)
+    monkeypatch.setattr(orchestrator, "finish_pending", lambda *args, **kwargs: None)
+
+    def record_failure(connection, source, started_at, error, batch_id=None):
+        assert calls[-1] == "rollback"
+        calls.append(f"logged:{source}")
+
+    monkeypatch.setattr(orchestrator, "ensure_attempt_logged", record_failure)
+
+    failures = orchestrator.run_all(Connection(), today=date(2026, 8, 12), force_all=True)
+
+    assert failures == [{"source": "broken", "reason": "RuntimeError: transaction aborted"}]
+    assert calls[:4] == ["broken", "rollback", "logged:broken", "healthy"]
