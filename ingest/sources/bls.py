@@ -51,12 +51,12 @@ def _period_date(year: str, period: str) -> date | None:
 
 
 def run(connection: Any) -> None:
-    api_key = os.environ.get("BLS_API_KEY")
-    if not api_key:
-        raise SourceUnavailable("BLS_API_KEY is not set")
-    series = configured_series()
-    current_year = date.today().year
     with logged_run(connection, "bls") as result:
+        api_key = os.environ.get("BLS_API_KEY")
+        if not api_key:
+            raise SourceUnavailable("BLS_API_KEY is not set")
+        series = configured_series()
+        current_year = date.today().year
         failures: dict[str, str] = {}
         api_to_configs: dict[str, list[tuple[str, dict[str, str]]]] = {}
         for storage_id, config in series.items():

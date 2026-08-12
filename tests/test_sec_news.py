@@ -3,6 +3,7 @@ from datetime import date
 from ingest.sources.form_d import sector_for_sic
 from ingest.sources.nyt import matching_headlines
 from ingest.sources.sec_xbrl import normalize_company_facts
+from ingest.sources.sec_xbrl import sec_session
 
 
 def test_sec_facts_keep_latest_filing_and_missing_tags_blank():
@@ -33,3 +34,7 @@ def test_nyt_matching_stores_only_allowed_metadata():
     assert rows
     assert all("must not be stored" not in str(row) for row in rows)
 
+
+def test_sec_clients_require_contact_user_agent(monkeypatch):
+    monkeypatch.setenv("SEC_USER_AGENT", "IndustryScope qa@example.com")
+    assert sec_session().headers["User-Agent"] == "IndustryScope qa@example.com"

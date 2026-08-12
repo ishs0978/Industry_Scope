@@ -193,29 +193,83 @@ export function relativeStrength(asset: SeriesPoint[], benchmark: SeriesPoint[])
 }
 
 export function calendarYearReturns(points: SeriesPoint[]): Record<string, number> {
-  const byYear = new Map<string, SeriesPoint[]>();
-  for (const point of sorted(points)) {
-    const year = point.date.slice(0, 4);
-    byYear.set(year, [...(byYear.get(year) ?? []), point]);
-  }
+  const values = sorted(points);
+  if (values.length < 2) return {};
   return Object.fromEntries(
-    [...byYear.entries()]
-      .filter(([, values]) => values.length >= 2 && values[0].value > 0)
-      .map(([year, values]) => [year, values.at(-1)!.value / values[0].value - 1]),
+    calendarPeriodReturns(values, values[0].date, values.at(-1)!.date)
+      .map((period) => [period.year, period.value]),
   );
+}
+
+export type CalendarPeriodReturn = {
+  year: string;
+  label: string;
+  partial: boolean;
+  value: number;
+};
+
+function monthDay(value: string): string {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+    .format(new Date(`${value.slice(0, 10)}T00:00:00Z`));
+}
+
+/** Partition one adjusted-close series into multiplicatively reconciling periods. */
+export function calendarPeriodReturns(
+  points: SeriesPoint[],
+  start: string,
+  end: string,
+): CalendarPeriodReturn[] {
+  const values = sorted(points).filter((point) => point.date >= start && point.date <= end);
+  if (values.length < 2) return [];
+  const factors = new Map<string, number>();
+  for (let index = 1; index < values.length; index += 1) {
+    const previous = values[index - 1].value;
+    if (previous <= 0) continue;
+    const year = values[index].date.slice(0, 4);
+    factors.set(year, (factors.get(year) ?? 1) * (values[index].value / previous));
+  }
+  const effectiveStart = values[0].date > start ? values[0].date : start;
+  const effectiveEnd = values.at(-1)!.date < end ? values.at(-1)!.date : end;
+  return [...factors.entries()].map(([year, factor]) => {
+    const startsPartial = effectiveStart.slice(0, 4) === year && effectiveStart > `${year}-01-01`;
+    const endsPartial = effectiveEnd.slice(0, 4) === year && effectiveEnd < `${year}-12-31`;
+    let label = year;
+    if (startsPartial && endsPartial) label = `${year} (${monthDay(effectiveStart)}–${monthDay(effectiveEnd)})`;
+    else if (startsPartial) label = `${year} (from ${monthDay(effectiveStart)})`;
+    else if (endsPartial) label = `${year} (through ${monthDay(effectiveEnd)})`;
+    return { year, label, partial: startsPartial || endsPartial, value: factor - 1 };
+  });
 }
 
 export function concentration(weights: number[]): { top10Weight: number; hhi: number } {
   const valid = weights.filter((weight) => Number.isFinite(weight) && weight >= 0).sort((a, b) => b - a);
+  const total = valid.reduce((sum, weight) => sum + weight, 0);
+  const normalized = total > 0 ? valid.map((weight) => weight / total) : [];
   return {
-    top10Weight: valid.slice(0, 10).reduce((sum, weight) => sum + weight, 0),
-    hhi: valid.reduce((sum, weight) => sum + weight ** 2, 0),
+    top10Weight: normalized.slice(0, 10).reduce((sum, weight) => sum + weight, 0),
+    hhi: normalized.reduce((sum, weight) => sum + weight ** 2, 0),
   };
 }
 
 export type HoldingWeight = { ticker: string; weight: number };
+export function holdingsSnapshotIssue(holdings: HoldingWeight[], concentrated = false): string | null {
+  const valid = holdings.filter((holding) => Number.isFinite(holding.weight) && holding.weight >= 0);
+  const total = valid.reduce((sum, holding) => sum + holding.weight, 0);
+  const top = [...valid].sort((a, b) => b.weight - a.weight).slice(0, 3);
+  const issues: string[] = [];
+  if (valid.length < 5) issues.push(`only ${valid.length} rows parsed`);
+  if (total < 0.98 || total > 1.02) issues.push(`weights total ${(total * 100).toFixed(2)}%`);
+  if (!concentrated && top[0]?.weight > 0.60) issues.push(`largest weight ${(top[0].weight * 100).toFixed(2)}%`);
+  return issues.length
+    ? `Stored snapshot failed validation (${issues.join(", ")}); top rows: ${top.map((row) => `${row.ticker} ${(row.weight * 100).toFixed(2)}%`).join(", ")}.`
+    : null;
+}
+
 export function holdingsOverlap(funds: Record<string, HoldingWeight[]>): Record<string, Record<string, number>> {
-  const entries = Object.entries(funds);
+  const entries = Object.entries(funds).map(([ticker, holdings]) => {
+    const total = holdings.reduce((sum, holding) => sum + holding.weight, 0);
+    return [ticker, total > 0 ? holdings.map((holding) => ({ ...holding, weight: holding.weight / total })) : []] as const;
+  });
   const matrix: Record<string, Record<string, number>> = {};
   for (const [tickerA, holdingsA] of entries) {
     matrix[tickerA] = {};
@@ -229,4 +283,3 @@ export function holdingsOverlap(funds: Record<string, HoldingWeight[]>): Record<
   }
   return matrix;
 }
-

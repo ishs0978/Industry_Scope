@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
+import re
 from typing import Any, Iterator
 
 import requests
@@ -13,6 +15,8 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 
 DEFAULT_TIMEOUT = 45
+CURRENT_BATCH_ID: ContextVar[str | None] = ContextVar("ingest_batch_id", default=None)
+SECRET_QUERY = re.compile(r"([?&](?:api_key|api-key|registrationkey)=)[^&\s]+", re.IGNORECASE)
 
 
 @dataclass
@@ -24,6 +28,22 @@ class SourceResult:
 
 class SourceUnavailable(RuntimeError):
     """Raised when a named upstream source cannot provide usable data."""
+
+
+def set_batch_id(batch_id: str) -> Token[str | None]:
+    return CURRENT_BATCH_ID.set(batch_id)
+
+
+def reset_batch_id(token: Token[str | None]) -> None:
+    CURRENT_BATCH_ID.reset(token)
+
+
+def redact_secrets(value: str) -> str:
+    return SECRET_QUERY.sub(r"\1[REDACTED]", value)
+
+
+def safe_details(value: dict[str, Any]) -> str:
+    return redact_secrets(json.dumps(value))
 
 
 @retry(
@@ -38,7 +58,8 @@ def request(
     url: str,
     **kwargs: Any,
 ) -> requests.Response:
-    response = session.request(method, url, timeout=DEFAULT_TIMEOUT, **kwargs)
+    kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
+    response = session.request(method, url, **kwargs)
     response.raise_for_status()
     return response
 
@@ -48,21 +69,43 @@ def logged_run(connection: Any, source: str) -> Iterator[SourceResult]:
     """Record success or failure for every source attempt, then re-raise failures."""
     started_at = datetime.now(timezone.utc)
     result = SourceResult(source=source)
+    batch_id = CURRENT_BATCH_ID.get()
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO ingest_runs (source, started_at, status)
-            VALUES (%s, %s, 'running')
-            RETURNING id
-            """,
-            (source, started_at),
-        )
-        run_id = cursor.fetchone()[0]
+        run_id = None
+        if batch_id:
+            cursor.execute(
+                """
+                UPDATE ingest_runs
+                SET started_at = %s, status = 'running'
+                WHERE id = (
+                    SELECT id FROM ingest_runs
+                    WHERE source = %s AND batch_id = %s AND status = 'pending'
+                    ORDER BY id DESC LIMIT 1
+                )
+                RETURNING id
+                """,
+                (started_at, source, batch_id),
+            )
+            row = cursor.fetchone()
+            run_id = row[0] if row else None
+        if run_id is None:
+            cursor.execute(
+                """
+                INSERT INTO ingest_runs (source, started_at, status, batch_id)
+                VALUES (%s, %s, 'running', %s)
+                RETURNING id
+                """,
+                (source, started_at, batch_id),
+            )
+            run_id = cursor.fetchone()[0]
     connection.commit()
 
     try:
         yield result
     except Exception as exc:
+        # Clear any aborted transaction before attempting to record the failure.
+        if hasattr(connection, "rollback"):
+            connection.rollback()
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -77,8 +120,8 @@ def logged_run(connection: Any, source: str) -> Iterator[SourceResult]:
                 (
                     datetime.now(timezone.utc),
                     result.rows_written,
-                    f"{type(exc).__name__}: {exc}"[:4000],
-                    json.dumps(result.details),
+                    redact_secrets(f"{type(exc).__name__}: {exc}")[:4000],
+                    safe_details(result.details),
                     run_id,
                 ),
             )
@@ -99,7 +142,7 @@ def logged_run(connection: Any, source: str) -> Iterator[SourceResult]:
                 (
                     datetime.now(timezone.utc),
                     result.rows_written,
-                    json.dumps(result.details),
+                    safe_details(result.details),
                     run_id,
                 ),
             )
@@ -120,4 +163,3 @@ def upsert_rows(
             cursor.executemany(query, rows[start : start + page_size])
     connection.commit()
     return len(rows)
-

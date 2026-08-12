@@ -1,3 +1,102 @@
+holdings_feeds:
+  AMLP: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  ARKQ: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  BOTZ: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  BUG: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  CIBR: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  FAN: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  GDX: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  GLD: {provider: unsupported, reason: No compatible issuer holdings feed is configured; the SSGA ETF library URL returns 404}
+  HACK: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  IBB: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  ICLN: {provider: unsupported, reason: iShares endpoint returns HTML; no compatible holdings feed/parser is configured}
+  IGV: {provider: unsupported, reason: iShares endpoint returns HTML; no compatible holdings feed/parser is configured}
+  IRBO: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  ITA: {provider: unsupported, reason: iShares endpoint returns HTML; no compatible holdings feed/parser is configured}
+  ITB: {provider: unsupported, reason: iShares endpoint returns HTML; no compatible holdings feed/parser is configured}
+  IYT: {provider: unsupported, reason: iShares endpoint returns HTML; no compatible holdings feed/parser is configured}
+  KBE: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  KRE:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-kre.xlsx
+    concentrated: false
+  NLR: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  OIH: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  PAVE: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  PPA: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  ROBO: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  SIL: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  SKYY: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  SMH: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  SOXX: {provider: unsupported, reason: iShares endpoint returns HTML; no compatible holdings feed/parser is configured}
+  SPY:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-spy.xlsx
+    concentrated: false
+  TAN: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  URA: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  VNQ: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  WCLD: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  XAR:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xar.xlsx
+    concentrated: false
+  XBI: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  XHB:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xhb.xlsx
+    concentrated: false
+  XLB:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlb.xlsx
+    concentrated: false
+  XLC:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlc.xlsx
+    concentrated: false
+  XLE:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xle.xlsx
+    concentrated: false
+  XLF:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlf.xlsx
+    concentrated: false
+  XLI:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xli.xlsx
+    concentrated: false
+  XLP:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlp.xlsx
+    concentrated: false
+  XLRE:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlre.xlsx
+    concentrated: false
+  XLU:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlu.xlsx
+    concentrated: false
+  XLV:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlv.xlsx
+    concentrated: false
+  XLY:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xly.xlsx
+    concentrated: false
+  XME: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  XOP:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xop.xlsx
+    concentrated: false
+  XRT: {provider: unsupported, reason: No compatible issuer holdings feed/parser is configured}
+  XSD:
+    provider: state_street
+    url: https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xsd.xlsx
+    concentrated: false
+
 sectors:
   - slug: energy
     name: Energy
@@ -178,4 +277,3 @@ sectors:
     news_keywords: [freight transport, shipping industry, logistics, cargo airline]
     sic_prefixes: ['40', '42', '44', '45']
     naics_code: '483'
-

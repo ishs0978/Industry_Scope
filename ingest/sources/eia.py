@@ -36,11 +36,11 @@ def fetch_series(session: requests.Session, api_key: str, config: dict[str, str]
 
 
 def run(connection: Any) -> None:
-    api_key = os.environ.get("EIA_API_KEY")
-    if not api_key:
-        raise SourceUnavailable("EIA_API_KEY is not set")
-    session = requests.Session()
     with logged_run(connection, "eia") as result:
+        api_key = os.environ.get("EIA_API_KEY")
+        if not api_key:
+            raise SourceUnavailable("EIA_API_KEY is not set")
+        session = requests.Session()
         failures: dict[str, str] = {}
         for config in EIA_SERIES:
             series_id = f"EIA:{config['series']}"
@@ -71,4 +71,3 @@ def run(connection: Any) -> None:
         result.details = {"series_errors": failures, "rig_counts": "Unavailable from EIA v2; no value stored"}
         if failures:
             raise SourceUnavailable(f"EIA failed for {len(failures)} series")
-

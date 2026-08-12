@@ -58,11 +58,11 @@ def fetch_observations(session: requests.Session, api_key: str, series_id: str) 
 
 
 def run(connection: Any) -> None:
-    api_key = os.environ.get("FRED_API_KEY")
-    if not api_key:
-        raise SourceUnavailable("FRED_API_KEY is not set")
-    session = requests.Session()
     with logged_run(connection, "fred") as result:
+        api_key = os.environ.get("FRED_API_KEY")
+        if not api_key:
+            raise SourceUnavailable("FRED_API_KEY is not set")
+        session = requests.Session()
         invalid: list[str] = []
         for series_id, configured in load_series_map().items():
             metadata = validate_series(session, api_key, series_id)
@@ -113,4 +113,3 @@ def run(connection: Any) -> None:
                 )
             connection.commit()
         result.details = {"invalid_series_dropped": invalid}
-
