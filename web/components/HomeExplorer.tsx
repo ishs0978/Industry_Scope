@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
+import { formatPercent } from "@/lib/format";
 import type { Sector } from "@/lib/types";
 
 type Performance = Record<string, { prices: { date: string; value: number }[]; error?: string }>;
@@ -58,7 +59,7 @@ export default function HomeExplorer({ sectors, performance }: { sectors: Sector
             const ytd = prices.length > 1 && prices[0].value > 0 ? prices.at(-1)!.value / prices[0].value - 1 : null;
             return <Link className="sector-card" href={`/industry/${sector.slug}`} key={sector.slug}>
               <div className="sector-card-top"><h3>{sector.name}</h3><span className="ticker">{sector.primary_etf}</span></div>
-              <div className={`return ${ytd !== null && ytd < 0 ? "negative" : ""}`}>{ytd === null ? "Unavailable" : `${(ytd * 100).toFixed(1)}%`} <small>YTD</small></div>
+              <div className={`return ${ytd !== null && ytd < 0 ? "negative" : ""}`}>{ytd === null ? "Unavailable" : formatPercent(ytd)} <small>YTD</small></div>
               <div className="mini-chart">{prices.length > 1 && <ResponsiveContainer width="100%" height="100%"><LineChart data={prices}><Line dataKey="value" dot={false} stroke={ytd !== null && ytd < 0 ? "#a4463f" : "#1d6b4d"} strokeWidth={1.6} /></LineChart></ResponsiveContainer>}</div>
             </Link>;
           })}
@@ -67,4 +68,3 @@ export default function HomeExplorer({ sectors, performance }: { sectors: Sector
     </main>
   );
 }
-

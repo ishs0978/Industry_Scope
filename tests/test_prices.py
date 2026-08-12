@@ -1,8 +1,9 @@
 from datetime import date
 
 import pandas as pd
+import pytest
 
-from ingest.sources.prices import configured_tickers, normalize_prices
+from ingest.sources.prices import configured_tickers, metadata_values, normalize_prices
 
 
 def test_configured_tickers_include_every_fund_and_spy():
@@ -26,3 +27,13 @@ def test_normalize_prices_preserves_real_values_and_missing_volume():
         ("TEST", date(2024, 1, 3), 101.0, 101.5, None),
     ]
 
+
+def test_metadata_uses_available_expense_ratio_fallbacks():
+    name, ratio, assets, issuer = metadata_values({
+        "shortName": "Example ETF",
+        "netExpenseRatio": 0.35,
+        "netAssets": 68_100_000_000,
+        "fundFamily": "Example",
+    })
+    assert (name, assets, issuer) == ("Example ETF", 68_100_000_000, "Example")
+    assert ratio == pytest.approx(0.0035)

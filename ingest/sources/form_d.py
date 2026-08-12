@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from datetime import date
+import os
 import re
+import time
 from typing import Any
 from xml.etree import ElementTree
 
 from ingest.registry import load_sectors
-from ingest.sources.common import SourceUnavailable, logged_run, upsert_rows
+from ingest.sources.common import SourceUnavailable, logged_run, request, upsert_rows
 from ingest.sources.sec_xbrl import SecRateLimiter, fetch_json, sec_session
 
 
@@ -68,43 +70,72 @@ def parse_form_d_xml(xml_text: str, accession_no: str, filed_date: date, cik: st
 
 
 def run(connection: Any) -> None:
-    session = sec_session()
-    limiter = SecRateLimiter()
-    today = date.today()
-    quarter = (today.month - 1) // 3 + 1
     with logged_run(connection, "form_d") as result:
+        session = sec_session()
+        limiter = SecRateLimiter()
+        today = date.today()
+        quarter = (today.month - 1) // 3 + 1
+        request_timeout = float(os.environ.get("SEC_REQUEST_TIMEOUT_SECONDS", "20"))
+        max_seconds = float(os.environ.get("FORM_D_MAX_SECONDS", "180"))
+        max_filings = int(os.environ.get("FORM_D_MAX_FILINGS", "250"))
+        deadline = time.monotonic() + max_seconds
         limiter.wait()
         index_url = f"https://www.sec.gov/Archives/edgar/full-index/{today.year}/QTR{quarter}/master.idx"
-        response = session.get(index_url, timeout=45)
-        response.raise_for_status()
-        records = full_index_rows(response.text)
+        response = request(session, "GET", index_url, timeout=request_timeout)
+        records = sorted(full_index_rows(response.text), key=lambda item: item["filed"], reverse=True)
         with connection.cursor() as cursor:
             cursor.execute("SELECT accession_no FROM form_d")
             existing = {row[0] for row in cursor.fetchall()}
         failures: dict[str, str] = {}
-        rows = []
-        for record in records:
+        timed_out = False
+        submissions_by_cik: dict[str, dict[str, Any]] = {}
+        candidates = [record for record in records if record["filename"].rsplit("/", 1)[-1].replace(".txt", "") not in existing]
+        limited = candidates[:max_filings]
+        for index, record in enumerate(limited):
+            if time.monotonic() >= deadline:
+                timed_out = True
+                result.details = {
+                    "filing_errors": failures,
+                    "index": index_url,
+                    "timed_out": True,
+                    "remaining_filings": len(candidates) - index,
+                }
+                break
             accession = record["filename"].rsplit("/", 1)[-1].replace(".txt", "")
-            if accession in existing:
-                continue
             try:
                 limiter.wait()
-                filing = session.get(f"https://www.sec.gov/Archives/{record['filename']}", timeout=45)
-                filing.raise_for_status()
+                filing = request(
+                    session, "GET", f"https://www.sec.gov/Archives/{record['filename']}",
+                    timeout=request_timeout,
+                )
                 cik10 = record["cik"].zfill(10)
-                submissions = fetch_json(session, limiter, f"https://data.sec.gov/submissions/CIK{cik10}.json")
+                submissions = submissions_by_cik.get(cik10)
+                if submissions is None:
+                    submissions = fetch_json(
+                        session, limiter, f"https://data.sec.gov/submissions/CIK{cik10}.json",
+                        timeout=request_timeout,
+                    )
+                    submissions_by_cik[cik10] = submissions
                 sic = str(submissions.get("sic")) if submissions.get("sic") else None
-                rows.append(parse_form_d_xml(filing.text, accession, date.fromisoformat(record["filed"]), cik10, sic))
+                row = parse_form_d_xml(filing.text, accession, date.fromisoformat(record["filed"]), cik10, sic)
+                result.rows_written += upsert_rows(
+                    connection,
+                    """INSERT INTO form_d (accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount,amount_sold,state)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (accession_no) DO NOTHING""",
+                    [row],
+                )
             except Exception as exc:
                 failures[accession] = str(exc)
-        result.rows_written = upsert_rows(
-            connection,
-            """INSERT INTO form_d (accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount,amount_sold,state)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (accession_no) DO NOTHING""",
-            rows,
-        )
-        result.details = {"filing_errors": failures, "index": index_url}
+        result.details = {
+            **result.details,
+            "filing_errors": failures,
+            "index": index_url,
+            "candidate_filings": len(candidates),
+            "processed_limit": max_filings,
+            "more_available": len(candidates) > len(limited),
+        }
         if failures:
             raise SourceUnavailable(f"Form D failed for {len(failures)} filings")
-
+        if timed_out:
+            raise SourceUnavailable(f"Form D exceeded its {max_seconds:.0f}-second run budget")

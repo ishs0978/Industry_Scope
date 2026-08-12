@@ -15,7 +15,7 @@ function emptyPayload(sector: Sector, reason = EMPTY_SOURCE_REASON): IndustryPay
   };
 }
 
-function macroIdsForSector(slug: string): string[] {
+export function macroIdsForSector(slug: string): string[] {
   const mapPath = path.resolve(process.cwd(), "config", "fred_map.yaml");
   const config = YAML.parse(fs.readFileSync(mapPath, "utf8")) as {
     common?: { series_id: string }[];
@@ -27,7 +27,30 @@ function macroIdsForSector(slug: string): string[] {
   ].map((item) => item.series_id);
 }
 
-const serializable = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+export function macroSourceAllowed(slug: string, source: string): boolean {
+  return source.toUpperCase() !== "EIA" || slug === "energy";
+}
+
+export function gateMacroByFreshness<
+  TMeta extends { series_id: string; source: string },
+  TPoint extends { series_id: string },
+>(
+  meta: TMeta[],
+  series: TPoint[],
+  freshness: { source: string; status: string }[],
+): { meta: TMeta[]; series: TPoint[] } {
+  const failed = new Set(freshness.filter((run) => run.status === "failed").map((run) => run.source.toLowerCase()));
+  const visibleMeta = meta.filter((item) => !failed.has(item.source.toLowerCase()));
+  const visibleIds = new Set(visibleMeta.map((item) => item.series_id));
+  return { meta: visibleMeta, series: series.filter((item) => visibleIds.has(item.series_id)) };
+}
+
+export const serializable = <T>(value: T): T => JSON.parse(
+  JSON.stringify(value).replace(
+    /([?&](?:api_key|api-key|registrationkey)=)[^&"\s]+/gi,
+    "$1[REDACTED]",
+  ),
+) as T;
 
 export async function getIndustryPayload(slug: string): Promise<IndustryPayload | null> {
   const sector = sectorBySlug(slug);
@@ -37,6 +60,7 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
   const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 4, idle_timeout: 20 });
   const tickers = [sector.primary_etf, ...sector.comparison_etfs, "SPY"];
   const macroIds = macroIdsForSector(slug);
+  const includeEia = macroSourceAllowed(slug, "EIA");
   const errors: SourceError[] = [];
   try {
     const [
@@ -48,9 +72,9 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
       sql`SELECT fund_ticker,as_of,constituent_ticker,constituent_name,weight::float,sub_sector
           FROM holdings WHERE fund_ticker = ANY(${tickers}) ORDER BY fund_ticker,as_of,weight DESC`,
       sql`SELECT series_id,label,units,frequency,source,last_release_date,next_release_date,realtime_start,as_of FROM macro_meta
-          WHERE series_id = ANY(${macroIds}) OR series_id LIKE 'EIA:%' OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY source,label`,
+          WHERE series_id = ANY(${macroIds}) OR (${includeEia} AND series_id LIKE 'EIA:%') OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY source,label`,
       sql`SELECT series_id,date,value::float FROM macro_series
-          WHERE series_id = ANY(${macroIds}) OR series_id LIKE 'EIA:%' OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY series_id,date`,
+          WHERE series_id = ANY(${macroIds}) OR (${includeEia} AND series_id LIKE 'EIA:%') OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY series_id,date`,
       sql`SELECT cf.cik,cf.ticker,cf.fiscal_period,cf.metric,cf.value::float,cf.filed_date FROM company_facts cf
           WHERE cf.ticker IN (SELECT constituent_ticker FROM holdings WHERE fund_ticker=${sector.primary_etf} AND as_of=(SELECT max(as_of) FROM holdings WHERE fund_ticker=${sector.primary_etf}))`,
       sql`SELECT ticker,market_cap::float,as_of FROM company_meta WHERE ticker IN
@@ -59,13 +83,19 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
       sql`SELECT id,sector_slug,published_date,source,headline,abstract,section,url FROM headlines WHERE sector_slug=${slug} ORDER BY published_date`,
       sql`SELECT sector_slug,date,article_volume::float,avg_tone::float FROM news_volume WHERE sector_slug=${slug} ORDER BY date`,
       sql`SELECT id,start_date,end_date,sectors,title,blurb,source_url,impact FROM events WHERE sectors && ARRAY[${slug},'all']::text[] ORDER BY start_date`,
-      sql`SELECT DISTINCT ON (source) source,started_at,finished_at,status,rows_written,error_message,details FROM ingest_runs ORDER BY source,started_at DESC`,
+      sql`SELECT DISTINCT ON (source) source,started_at,finished_at,status,rows_written,error_message,details
+          FROM ingest_runs WHERE source NOT LIKE 'holdings:%' ORDER BY source,started_at DESC`,
     ]);
     for (const run of freshness) {
       if (run.status === "failed") errors.push({ source: run.source, reason: run.error_message ?? "Last ingest failed" });
     }
+    const macro = gateMacroByFreshness(
+      macroMeta as unknown as IndustryPayload["macro"]["meta"],
+      macroSeries as unknown as IndustryPayload["macro"]["series"],
+      freshness as unknown as IndustryPayload["freshness"],
+    );
     return serializable({
-      sector, prices, etfMeta, holdings, macro: { meta: macroMeta, series: macroSeries },
+      sector, prices, etfMeta, holdings, macro,
       companyFacts, companyMeta, formD, headlines, newsVolume, events, freshness, errors,
     } as unknown as IndustryPayload);
   } catch (error) {

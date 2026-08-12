@@ -15,6 +15,7 @@ from ingest.sources.common import SourceUnavailable, logged_run, request, upsert
 
 
 PriceLoader = Callable[[str, date | None], pd.DataFrame]
+REFRESH_LOOKBACK_DAYS = 400
 
 
 def configured_tickers() -> tuple[str, ...]:
@@ -97,7 +98,9 @@ def ingest_ticker(
     stooq_loader: PriceLoader = stooq_prices,
 ) -> tuple[int, str]:
     latest = latest_price_date(connection, ticker)
-    start = latest + timedelta(days=1) if latest else None
+    # Re-fetch a trailing window so transient upstream omissions and adjusted-
+    # close revisions are repaired instead of becoming permanent database gaps.
+    start = latest - timedelta(days=REFRESH_LOOKBACK_DAYS) if latest else None
     try:
         frame = yahoo_loader(ticker, start)
         provider = "yahoo"
@@ -126,14 +129,24 @@ def ingest_ticker(
     return written, provider
 
 
+def metadata_values(info: dict[str, Any]) -> tuple[Any, Any, Any, Any]:
+    name = info.get("longName") or info.get("shortName")
+    expense_ratio = info.get("annualReportExpenseRatio")
+    if expense_ratio is None:
+        provider_percent = info.get("netExpenseRatio")
+        if provider_percent is None:
+            provider_percent = info.get("expenseRatio")
+        expense_ratio = float(provider_percent) / 100 if provider_percent is not None else None
+    aum = info.get("totalAssets") or info.get("netAssets")
+    issuer = info.get("fundFamily")
+    return name, expense_ratio, aum, issuer
+
+
 def ingest_etf_meta(connection: Any, ticker: str) -> int:
     info = yf.Ticker(ticker).info
     if not info:
         raise SourceUnavailable(f"Yahoo Finance returned no metadata for {ticker}")
-    name = info.get("longName") or info.get("shortName")
-    expense_ratio = info.get("annualReportExpenseRatio")
-    aum = info.get("totalAssets")
-    issuer = info.get("fundFamily")
+    name, expense_ratio, aum, issuer = metadata_values(info)
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -169,12 +182,19 @@ def run(connection: Any) -> None:
 
     with logged_run(connection, "etf_meta") as result:
         errors: dict[str, str] = {}
+        unavailable_expense_ratios: list[str] = []
         for ticker in configured_tickers():
             try:
                 result.rows_written += ingest_etf_meta(connection, ticker)
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT expense_ratio FROM etf_meta WHERE ticker=%s", (ticker,))
+                    if cursor.fetchone()[0] is None:
+                        unavailable_expense_ratios.append(ticker)
             except Exception as exc:
                 errors[ticker] = str(exc)
-        result.details = {"ticker_errors": errors}
+        result.details = {
+            "ticker_errors": errors,
+            "expense_ratio_unavailable_from_yahoo": unavailable_expense_ratios,
+        }
         if errors:
             raise SourceUnavailable(f"ETF metadata failed for {len(errors)} ticker(s)")
-

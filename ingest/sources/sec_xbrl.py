@@ -44,9 +44,15 @@ def sec_session() -> requests.Session:
     return session
 
 
-def fetch_json(session: requests.Session, limiter: SecRateLimiter, url: str) -> dict[str, Any]:
+def fetch_json(
+    session: requests.Session,
+    limiter: SecRateLimiter,
+    url: str,
+    *,
+    timeout: float = 45,
+) -> dict[str, Any]:
     limiter.wait()
-    return request(session, "GET", url).json()
+    return request(session, "GET", url, timeout=timeout).json()
 
 
 def ticker_cik_map(session: requests.Session, limiter: SecRateLimiter) -> dict[str, str]:
@@ -57,22 +63,30 @@ def ticker_cik_map(session: requests.Session, limiter: SecRateLimiter) -> dict[s
     }
 
 
-def primary_constituents(connection: Any) -> tuple[str, ...]:
+def primary_constituents(connection: Any, limit: int | None = None) -> tuple[str, ...]:
     primary = [sector.primary_etf for sector in load_sectors()]
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT DISTINCT h.constituent_ticker
-            FROM holdings h
-            JOIN (
+            WITH constituents AS (
+                SELECT DISTINCT h.constituent_ticker
+                FROM holdings h
+                JOIN (
                 SELECT fund_ticker, max(as_of) AS as_of
                 FROM holdings WHERE fund_ticker = ANY(%s) GROUP BY fund_ticker
-            ) latest USING (fund_ticker, as_of)
-            WHERE h.constituent_ticker ~ '^[A-Z][A-Z0-9.-]*$'
+                ) latest USING (fund_ticker, as_of)
+                WHERE h.constituent_ticker ~ '^[A-Z][A-Z0-9.-]*$'
+            )
+            SELECT constituents.constituent_ticker
+            FROM constituents
+            LEFT JOIN company_facts ON company_facts.ticker=constituents.constituent_ticker
+            GROUP BY constituents.constituent_ticker
+            ORDER BY max(company_facts.filed_date) ASC NULLS FIRST, constituents.constituent_ticker
+            LIMIT %s
             """,
-            (primary,),
+            (primary, limit),
         )
-        return tuple(sorted(row[0] for row in cursor.fetchall()))
+        return tuple(row[0] for row in cursor.fetchall())
 
 
 def normalize_company_facts(payload: dict[str, Any], ticker: str) -> list[tuple[Any, ...]]:
@@ -128,13 +142,15 @@ def ingest_market_cap(connection: Any, ticker: str) -> int:
 
 
 def run(connection: Any) -> None:
-    session = sec_session()
-    limiter = SecRateLimiter()
     with logged_run(connection, "sec_xbrl") as result:
+        session = sec_session()
+        limiter = SecRateLimiter()
+        max_companies = int(os.environ.get("SEC_XBRL_MAX_COMPANIES_PER_RUN", "100"))
         mapping = ticker_cik_map(session, limiter)
         missing_cik: list[str] = []
         failures: dict[str, str] = {}
-        for ticker in primary_constituents(connection):
+        companies = primary_constituents(connection, max_companies)
+        for ticker in companies:
             cik = mapping.get(ticker.replace(".", "-")) or mapping.get(ticker)
             if not cik:
                 missing_cik.append(ticker)
@@ -153,7 +169,11 @@ def run(connection: Any) -> None:
                 result.rows_written += ingest_market_cap(connection, ticker)
             except Exception as exc:
                 failures[ticker] = str(exc)
-        result.details = {"missing_cik": missing_cik, "company_errors": failures}
+        result.details = {
+            "missing_cik": missing_cik,
+            "company_errors": failures,
+            "companies_attempted": len(companies),
+            "per_run_limit": max_companies,
+        }
         if failures:
             raise SourceUnavailable(f"SEC XBRL failed for {len(failures)} companies")
-

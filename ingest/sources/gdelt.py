@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+import os
 from typing import Any
 
 import requests
@@ -46,13 +47,19 @@ def run(connection: Any) -> None:
     today = date.today()
     with logged_run(connection, "gdelt") as result:
         failures: dict[str, str] = {}
+        backlog: dict[str, str] = {}
+        max_ranges = int(os.environ.get("GDELT_MAX_RANGES_PER_SECTOR", "1"))
         for sector in load_sectors():
             with connection.cursor() as cursor:
                 cursor.execute("SELECT max(date) FROM news_volume WHERE sector_slug=%s", (sector.slug,))
                 latest = cursor.fetchone()[0]
-            start = latest + timedelta(days=1) if latest else date(2017, 1, 1)
+            start = latest + timedelta(days=1) if latest else today - timedelta(days=89)
             rows = []
+            ranges = 0
             while start <= today:
+                if ranges >= max_ranges:
+                    backlog[sector.slug] = start.isoformat()
+                    break
                 end = min(start + timedelta(days=89), today)
                 try:
                     volume = fetch_mode(session, sector, "timelinevolraw", start, end)
@@ -63,6 +70,7 @@ def run(connection: Any) -> None:
                     failures[f"{sector.slug}:{start}:{end}"] = str(exc)
                     break
                 start = end + timedelta(days=1)
+                ranges += 1
             result.rows_written += upsert_rows(
                 connection,
                 """INSERT INTO news_volume (sector_slug,date,article_volume,avg_tone)
@@ -70,7 +78,6 @@ def run(connection: Any) -> None:
                 article_volume=EXCLUDED.article_volume,avg_tone=EXCLUDED.avg_tone""",
                 rows,
             )
-        result.details = {"range_errors": failures}
+        result.details = {"range_errors": failures, "backfill_resumes_at": backlog}
         if failures:
             raise SourceUnavailable(f"GDELT failed for {len(failures)} sector ranges")
-
