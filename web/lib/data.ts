@@ -69,16 +69,39 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
     ] = await Promise.all([
       sql`SELECT ticker,date,adj_close::float,close::float,volume FROM prices WHERE ticker = ANY(${tickers}) ORDER BY date`,
       sql`SELECT ticker,name,expense_ratio::float,aum::float,issuer,as_of,holdings_status,holdings_error FROM etf_meta WHERE ticker = ANY(${tickers})`,
-      sql`SELECT fund_ticker,as_of,constituent_ticker,constituent_name,weight::float,sub_sector
-          FROM holdings WHERE fund_ticker = ANY(${tickers}) ORDER BY fund_ticker,as_of,weight DESC`,
+      sql`WITH valid_snapshots AS (
+            SELECT fund_ticker,as_of
+            FROM holdings
+            WHERE fund_ticker = ANY(${tickers})
+            GROUP BY fund_ticker,as_of
+            HAVING count(*) >= 5 AND sum(weight) BETWEEN 0.98 AND 1.02
+          ), latest_valid AS (
+            SELECT DISTINCT ON (fund_ticker) fund_ticker,as_of
+            FROM valid_snapshots ORDER BY fund_ticker,as_of DESC
+          )
+          SELECT h.fund_ticker,h.as_of,h.constituent_ticker,h.constituent_name,h.weight::float,h.sub_sector
+          FROM holdings h JOIN latest_valid latest USING (fund_ticker,as_of)
+          ORDER BY h.fund_ticker,h.weight DESC`,
       sql`SELECT series_id,label,units,frequency,source,last_release_date,next_release_date,realtime_start,as_of FROM macro_meta
           WHERE series_id = ANY(${macroIds}) OR (${includeEia} AND series_id LIKE 'EIA:%') OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY source,label`,
       sql`SELECT series_id,date,value::float FROM macro_series
           WHERE series_id = ANY(${macroIds}) OR (${includeEia} AND series_id LIKE 'EIA:%') OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY series_id,date`,
       sql`SELECT cf.cik,cf.ticker,cf.fiscal_period,cf.metric,cf.value::float,cf.filed_date FROM company_facts cf
-          WHERE cf.ticker IN (SELECT constituent_ticker FROM holdings WHERE fund_ticker=${sector.primary_etf} AND as_of=(SELECT max(as_of) FROM holdings WHERE fund_ticker=${sector.primary_etf}))`,
+          WHERE cf.ticker IN (
+            SELECT constituent_ticker FROM holdings
+            WHERE fund_ticker=${sector.primary_etf} AND as_of=(
+              SELECT as_of FROM holdings WHERE fund_ticker=${sector.primary_etf}
+              GROUP BY as_of HAVING count(*) >= 5 AND sum(weight) BETWEEN 0.98 AND 1.02
+              ORDER BY as_of DESC LIMIT 1
+            )
+          )`,
       sql`SELECT ticker,market_cap::float,as_of FROM company_meta WHERE ticker IN
-          (SELECT constituent_ticker FROM holdings WHERE fund_ticker=${sector.primary_etf} AND as_of=(SELECT max(as_of) FROM holdings WHERE fund_ticker=${sector.primary_etf}))`,
+          (SELECT constituent_ticker FROM holdings
+           WHERE fund_ticker=${sector.primary_etf} AND as_of=(
+             SELECT as_of FROM holdings WHERE fund_ticker=${sector.primary_etf}
+             GROUP BY as_of HAVING count(*) >= 5 AND sum(weight) BETWEEN 0.98 AND 1.02
+             ORDER BY as_of DESC LIMIT 1
+           ))`,
       sql`SELECT accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount::float,amount_sold::float,state FROM form_d WHERE sector_slug=${slug} ORDER BY filed_date`,
       sql`SELECT id,sector_slug,published_date,source,headline,abstract,section,url FROM headlines WHERE sector_slug=${slug} ORDER BY published_date`,
       sql`SELECT sector_slug,date,article_volume::float,avg_tone::float FROM news_volume WHERE sector_slug=${slug} ORDER BY date`,
