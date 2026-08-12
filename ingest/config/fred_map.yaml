@@ -1,0 +1,59 @@
+common:
+  - {series_id: VIXCLS, label: CBOE Volatility Index, units: Index, frequency: Daily}
+  - {series_id: DTWEXBGS, label: Trade Weighted U.S. Dollar Index, units: Index, frequency: Daily}
+sectors:
+  energy:
+    - {series_id: DCOILWTICO, label: WTI Crude Oil Spot Price, units: Dollars per Barrel, frequency: Daily}
+    - {series_id: DHHNGSP, label: Henry Hub Natural Gas Spot Price, units: Dollars per MMBtu, frequency: Daily}
+    - {series_id: GASREGW, label: U.S. Regular Gasoline Price, units: Dollars per Gallon, frequency: Weekly}
+  semiconductors:
+    - {series_id: IPG3344S, label: Semiconductor Industrial Production, units: Index, frequency: Monthly}
+  ai-robotics:
+    - {series_id: A939RX0Q048SBEA, label: Real Private Fixed Investment in Information Processing Equipment, units: Billions of Chained Dollars, frequency: Quarterly}
+  software-cloud:
+    - {series_id: IIPUSNETIQ, label: Investment in Software, units: Billions of Dollars, frequency: Quarterly}
+  cybersecurity:
+    - {series_id: IIPUSNETIQ, label: Investment in Software, units: Billions of Dollars, frequency: Quarterly}
+  banks:
+    - {series_id: DGS10, label: 10-Year Treasury Yield, units: Percent, frequency: Daily}
+    - {series_id: T10Y2Y, label: 10Y Minus 2Y Treasury Spread, units: Percent, frequency: Daily}
+    - {series_id: DFF, label: Effective Federal Funds Rate, units: Percent, frequency: Daily}
+    - {series_id: BAMLH0A0HYM2, label: U.S. High Yield Option-Adjusted Spread, units: Percent, frequency: Daily}
+  healthcare-pharma:
+    - {series_id: HLTHSCPCHCSA, label: Health Care Services CPI, units: Index, frequency: Monthly}
+  defense-aerospace:
+    - {series_id: A091RC1Q027SBEA, label: Federal Defense Consumption and Investment, units: Billions of Dollars, frequency: Quarterly}
+  homebuilders:
+    - {series_id: HOUST, label: Housing Starts, units: Thousands of Units, frequency: Monthly}
+    - {series_id: PERMIT, label: Building Permits, units: Thousands of Units, frequency: Monthly}
+    - {series_id: MORTGAGE30US, label: 30-Year Fixed Mortgage Rate, units: Percent, frequency: Weekly}
+    - {series_id: CSUSHPINSA, label: S&P CoreLogic Case-Shiller U.S. Home Price Index, units: Index, frequency: Monthly}
+  industrials:
+    - {series_id: INDPRO, label: Industrial Production, units: Index, frequency: Monthly}
+    - {series_id: PPIACO, label: Producer Price Index, units: Index, frequency: Monthly}
+  consumer-discretionary:
+    - {series_id: RSXFS, label: Retail and Food Services Sales, units: Millions of Dollars, frequency: Monthly}
+    - {series_id: UMCSENT, label: Consumer Sentiment, units: Index, frequency: Monthly}
+    - {series_id: TOTALSA, label: Light Vehicle Sales, units: Millions of Units, frequency: Monthly}
+  consumer-staples:
+    - {series_id: CPIUFDSL, label: CPI Food, units: Index, frequency: Monthly}
+  utilities:
+    - {series_id: APU000072610, label: Average Electricity Price, units: Cents per Kilowatt-hour, frequency: Monthly}
+  real-estate:
+    - {series_id: CREACBM027SBOG, label: Commercial Real Estate Loans, units: Billions of Dollars, frequency: Weekly}
+  materials-mining:
+    - {series_id: INDPRO, label: Industrial Production, units: Index, frequency: Monthly}
+    - {series_id: PPIACO, label: Producer Price Index, units: Index, frequency: Monthly}
+  gold-metals:
+    - {series_id: GOLDAMGBD228NLBM, label: Gold Fixing Price, units: U.S. Dollars per Troy Ounce, frequency: Daily}
+  clean-energy:
+    - {series_id: IPG2211A2N, label: Renewable Electric Power Generation, units: Index, frequency: Monthly}
+  uranium-nuclear:
+    - {series_id: IPG221113A, label: Nuclear Electric Power Generation, units: Index, frequency: Monthly}
+  communication-services:
+    - {series_id: PCU517311517311, label: Wired Telecommunications Producer Prices, units: Index, frequency: Monthly}
+  transport-shipping:
+    - {series_id: TSIFRGHT, label: Freight Transportation Services Index, units: Index, frequency: Monthly}
+risk_free:
+  - {series_id: DGS3MO, label: 3-Month Treasury Yield, units: Percent, frequency: Daily}
+

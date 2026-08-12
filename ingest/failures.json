@@ -1,0 +1,6 @@
+[
+  {
+    "source": "database",
+    "reason": "DATABASE_URL is required"
+  }
+]

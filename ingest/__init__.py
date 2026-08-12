@@ -1,0 +1,2 @@
+"""IndustryScope ingestion package."""
+
