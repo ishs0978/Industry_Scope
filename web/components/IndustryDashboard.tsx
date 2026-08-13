@@ -244,7 +244,10 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       <WorkbookButton payload={payload} start={start} end={end} />
     </div>
 
-    {payload.errors.map((error) => <div className="source-error" key={`${error.source}:${error.reason}`}><strong>{error.source}</strong>: {error.reason}</div>)}
+    {payload.errors.length > 0 && <details className="source-errors-summary">
+      <summary><strong>{payload.errors.length} data {payload.errors.length === 1 ? "source is" : "sources are"} temporarily unavailable</strong> · failed data is automatically suppressed</summary>
+      <div className="source-errors-list">{payload.errors.map((error) => <div key={`${error.source}:${error.reason}`}><strong>{error.source}</strong>: {error.reason}</div>)}</div>
+    </details>}
     <div className="freshness">{payload.freshness.map((item) => <div className={`freshness-item ${item.status === "failed" ? "failed" : ""}`} key={item.source}><strong>{item.source}</strong> · {item.details.skipped ? "skipped (not due)" : item.status} · {shortDate(item.finished_at ?? item.started_at)}</div>)}</div>
 
     <section className="panel" id="performance">

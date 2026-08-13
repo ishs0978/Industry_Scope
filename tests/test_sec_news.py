@@ -1,7 +1,7 @@
 from datetime import date
 
 from ingest.sources.form_d import sector_for_sic
-from ingest.sources.nyt import matching_headlines
+from ingest.sources.nyt import completed_archive_months, matching_headlines
 from ingest.sources.sec_xbrl import normalize_company_facts
 from ingest.sources.sec_xbrl import sec_session
 
@@ -33,6 +33,12 @@ def test_nyt_matching_stores_only_allowed_metadata():
     rows = matching_headlines(documents)
     assert rows
     assert all("must not be stored" not in str(row) for row in rows)
+
+
+def test_nyt_archive_excludes_incomplete_current_month():
+    months = completed_archive_months(date(2026, 8, 12), {(2026, 6)})
+    assert months[:3] == [(2026, 7), (2026, 5), (2026, 4)]
+    assert (2026, 8) not in months
 
 
 def test_sec_clients_require_contact_user_agent(monkeypatch):

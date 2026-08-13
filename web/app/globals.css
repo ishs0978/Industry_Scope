@@ -64,7 +64,10 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .range-bar button.active { background: var(--lime); border-color: var(--lime); color: var(--ink); }
 .range-bar input { background: #ffffff12; border: 1px solid #ffffff44; color: white; padding: 7px; }
 .download-button { margin-left: auto; }
-.freshness { border: 1px solid var(--line); display: flex; gap: 18px; overflow-x: auto; padding: 12px 16px; white-space: nowrap; }
+.source-errors-summary { background: #fff7e4; border: 1px solid #e5c882; color: #704a0f; font-size: 12px; }
+.source-errors-summary summary { cursor: pointer; padding: 12px 16px; }
+.source-errors-list { border-top: 1px solid #e5c882; display: grid; gap: 8px; padding: 12px 16px; }
+.freshness { border: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 16px; }
 .freshness-item { color: var(--muted); font-size: 11px; }
 .freshness-item strong { color: var(--ink); }
 .freshness-item.failed strong { color: var(--amber); }
@@ -121,4 +124,3 @@ th:first-child, td:first-child, .left { text-align: left; }
   .as-of { margin-top: 12px; text-align: left; }
   .download-button { margin-left: 0; width: 100%; }
 }
-

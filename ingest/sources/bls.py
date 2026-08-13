@@ -103,6 +103,13 @@ def run(connection: Any) -> None:
                             (storage_id, config["label"], config["units"], max(row[1] for row in storage_rows)),
                         )
                     connection.commit()
-        result.details = {"series_errors": failures, "api_key_used": bool(api_key)}
-        if failures:
+        result.details = {
+            "series_errors": failures,
+            "api_key_used": bool(api_key),
+            "partial": bool(failures),
+        }
+        # BLS does not publish every CES measure for every industry level. A
+        # batch with thousands of valid observations is successful with
+        # unavailable-series details; fail only when nothing usable arrived.
+        if failures and result.rows_written == 0:
             raise SourceUnavailable(f"BLS returned no data for {len(failures)} series")

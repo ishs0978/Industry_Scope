@@ -13,7 +13,6 @@ from ingest.sources.common import SourceUnavailable, logged_run, request, upsert
 
 EIA_SERIES = (
     {"route": "petroleum/stoc/wstk", "series": "WCESTUS1", "label": "U.S. Crude Oil Inventories", "units": "Thousand Barrels"},
-    {"route": "petroleum/crd/crpdn", "series": "WCRFPUS2", "label": "U.S. Field Production of Crude Oil", "units": "Thousand Barrels per Day"},
     {"route": "petroleum/pnp/wiup", "series": "WPULEUS3", "label": "U.S. Refinery Utilization", "units": "Percent"},
 )
 

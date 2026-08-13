@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date
 import hashlib
 import os
 import time
@@ -59,6 +59,16 @@ def matching_headlines(documents: list[dict[str, Any]]) -> list[tuple[Any, ...]]
     return rows
 
 
+def completed_archive_months(today: date, cached: set[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Return completed NYT archive months, newest first."""
+    return [
+        (year, month)
+        for year in range(today.year, 1972, -1)
+        for month in range((today.month if year == today.year else 12), 0, -1)
+        if (year, month) < (today.year, today.month) and (year, month) not in cached
+    ]
+
+
 def run(connection: Any) -> None:
     with logged_run(connection, "nyt") as result:
         api_key = os.environ.get("NYT_API_KEY")
@@ -71,15 +81,11 @@ def run(connection: Any) -> None:
             cached = {(row[0], row[1]) for row in cursor.fetchall()}
         bucket = TokenBucket()
         failures: dict[str, str] = {}
-        available = [
-            (year, month)
-            for year in range(today.year, 1972, -1)
-            for month in range((today.month if year == today.year else 12), 0, -1)
-            if (year, month) == (today.year, today.month) or (year, month) not in cached
-        ]
+        # The Archive API publishes completed monthly bundles. The current,
+        # still-open month returns 403 and belongs to the Article Search API.
+        available = completed_archive_months(today, cached)
         selected = available[:max_months]
         for year, month in selected:
-            is_current = (year, month) == (today.year, today.month)
             try:
                 bucket.take()
                 response = request(
@@ -103,7 +109,7 @@ def run(connection: Any) -> None:
                         VALUES (%s,%s,now(),%s,%s) ON CONFLICT (year,month) DO UPDATE SET
                         fetched_at=EXCLUDED.fetched_at,historical_complete=EXCLUDED.historical_complete,
                         document_count=EXCLUDED.document_count""",
-                        (year, month, not is_current, len(documents)),
+                        (year, month, True, len(documents)),
                     )
                 connection.commit()
             except Exception as exc:
