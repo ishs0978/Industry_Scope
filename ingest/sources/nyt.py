@@ -14,6 +14,9 @@ from ingest.registry import Sector, load_sectors
 from ingest.sources.common import SourceUnavailable, logged_run, request, upsert_rows
 
 
+DEFAULT_MAX_MONTHS_PER_RUN = 1
+
+
 class TokenBucket:
     def __init__(self, interval_seconds: float = 12.5):
         self.interval = interval_seconds
@@ -75,7 +78,7 @@ def run(connection: Any) -> None:
         if not api_key:
             raise SourceUnavailable("NYT_API_KEY is not set")
         today = date.today()
-        max_months = int(os.environ.get("NYT_MAX_MONTHS_PER_RUN", "6"))
+        max_months = int(os.environ.get("NYT_MAX_MONTHS_PER_RUN", str(DEFAULT_MAX_MONTHS_PER_RUN)))
         with connection.cursor() as cursor:
             cursor.execute("SELECT year, month FROM nyt_archive_months WHERE historical_complete")
             cached = {(row[0], row[1]) for row in cursor.fetchall()}
