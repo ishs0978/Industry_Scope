@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   annualizedVolatility, beta, cagr, calendarPeriodReturns, calendarYearReturns, concentration,
-  correlation, cumulativeReturn, holdingsOverlap, holdingsSnapshotIssue, maxDrawdown, relativeStrength,
-  rollingCorrelation, rollingVolatility, sharpeRatio, type SeriesPoint,
+  correlation, cumulativeReturn, holdingsOverlap, holdingsSnapshotIssue, investmentValue, maxDrawdown,
+  relativeStrength, rollingCorrelation, rollingVolatility, sharpeRatio, type SeriesPoint,
 } from "./metrics";
 
 const series = (values: number[], start = Date.UTC(2020, 0, 1)): SeriesPoint[] =>
@@ -15,6 +15,16 @@ describe("return and risk metrics", () => {
     const points = [{ date: "2020-01-01", value: 100 }, { date: "2021-01-01", value: 121 }];
     expect(cumulativeReturn(points)).toBeCloseTo(0.21);
     expect(cagr(points)).toBeCloseTo(0.21, 2);
+  });
+
+  it("represents growth as the USD value of a starting investment", () => {
+    expect(investmentValue([
+      { date: "2025-01-01", value: 50 },
+      { date: "2025-01-02", value: 75 },
+    ])).toEqual([
+      { date: "2025-01-01", value: 100 },
+      { date: "2025-01-02", value: 150 },
+    ]);
   });
 
   it("computes annualized sample volatility and Sharpe", () => {

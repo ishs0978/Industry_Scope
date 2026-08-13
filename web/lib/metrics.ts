@@ -58,6 +58,17 @@ export function cumulativeReturn(points: SeriesPoint[]): number | null {
   return values.at(-1)!.value / values[0].value - 1;
 }
 
+/** Dollar value of a hypothetical investment, using adjusted-close prices. */
+export function investmentValue(points: SeriesPoint[], startingBalance = 100): SeriesPoint[] {
+  const values = sorted(points);
+  if (!values.length || values[0].value <= 0 || startingBalance < 0) return [];
+  const initialPrice = values[0].value;
+  return values.map((point) => ({
+    date: point.date,
+    value: startingBalance * (point.value / initialPrice),
+  }));
+}
+
 export function cagr(points: SeriesPoint[]): number | null {
   const values = sorted(points);
   if (values.length < 2 || values[0].value <= 0 || values.at(-1)!.value <= 0) return null;

@@ -14,6 +14,7 @@ export default function MethodologyPage() {
     <h2>Performance metrics</h2>
     <ul>
       <li>Cumulative return is ending adjusted close divided by beginning adjusted close, less one.</li>
+      <li>The “Value of $100 invested” chart converts that same adjusted-close ratio into a hypothetical U.S.-dollar balance. It is a mathematical illustration, not a forecast, recommendation, or record of an actual investment.</li>
       <li>Calendar-period returns use the same adjusted-close observations and window boundaries as cumulative return. Daily return factors are assigned to the year in which they end, so compounding every displayed period reproduces the headline. Stub years are labeled with their partial dates.</li>
       <li>CAGR annualizes total return using elapsed calendar days and 365.25 days per year.</li>
       <li>Volatility is the sample standard deviation of daily returns multiplied by √252.</li>
@@ -24,7 +25,10 @@ export default function MethodologyPage() {
     </ul>
 
     <h2>Macroeconomic and operating data</h2>
-    <p>FRED series are validated before collection. Invalid series are logged and omitted. FRED metadata includes its latest update/release date and realtime-start vintage field. EIA indicators cover petroleum inventories, production, and refinery utilization. BLS CES data provides industry payroll employment and average hourly earnings where a published industry mapping exists. Every chart shows its own source release or as-of date.</p>
+    <p>FRED series are validated before collection. Invalid series are logged and omitted. FRED metadata includes its latest update/release date and realtime-start vintage field. EIA indicators cover petroleum inventories and refinery utilization. BLS CES data provides industry payroll employment and average hourly earnings where a published industry mapping exists. Every chart shows its own source release or as-of date.</p>
+
+    <h2>Dashboard summaries</h2>
+    <p>Plain-language summaries are generated only from the selected dashboard rows and the formulas documented above. They do not import third-party opinions, analyst commentary, forecasts, or generated market narratives. Portfolio weights total approximately 100% by construction; an overlap matrix diagonal is labeled “Self” because a fund compared with itself is always 100%.</p>
 
     <h2>SEC fundamentals and private capital</h2>
     <p>Company facts come from SEC XBRL Company Facts and Frames endpoints with the SEC-required descriptive User-Agent and a rate below ten requests per second. Missing XBRL tags stay blank. They are never converted to zero. Form D filings come from EDGAR full indexes and primary XML submissions; offering amounts are shown only when reported.</p>

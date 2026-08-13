@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line,
+  Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, Line,
   LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   annualizedVolatility, beta, calendarPeriodReturns, concentration, correlation,
-  cumulativeReturn, holdingsOverlap, holdingsSnapshotIssue, maxDrawdown, rollingVolatility,
+  cumulativeReturn, holdingsOverlap, holdingsSnapshotIssue, investmentValue, maxDrawdown, rollingVolatility,
   sharpeRatio, type HoldingWeight, type SeriesPoint,
 } from "@/lib/metrics";
 import { formatMoney as money, formatNumber as number, formatPercent as percent, formatUnitValue as unitValue } from "@/lib/format";
@@ -25,15 +25,12 @@ function points(payload: IndustryPayload, ticker: string, start: string, end: st
     .map((row) => ({ date: row.date, value: row.adj_close }));
 }
 
-function normalizedPerformance(payload: IndustryPayload, tickers: string[], start: string, end: string) {
+function investmentPerformance(payload: IndustryPayload, tickers: string[], start: string, end: string) {
   const rows = new Map<string, Record<string, string | number>>();
   for (const ticker of tickers) {
-    const series = points(payload, ticker, start, end);
-    const first = series[0]?.value;
-    if (!first) continue;
-    for (const point of series) {
+    for (const point of investmentValue(points(payload, ticker, start, end))) {
       const row = rows.get(point.date) ?? { date: point.date };
-      row[ticker] = (point.value / first) * 100;
+      row[ticker] = point.value;
       rows.set(point.date, row);
     }
   }
@@ -180,7 +177,9 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   const primary = points(payload, payload.sector.primary_etf, start, end);
   const spy = points(payload, "SPY", start, end);
   const riskFree = payload.macro.series.filter((row) => row.series_id === "DGS3MO" && row.value !== null).map((row) => ({ date: row.date, value: row.value! }));
-  const performance = normalizedPerformance(payload, tickers, start, end);
+  const performance = investmentPerformance(payload, tickers, start, end);
+  const primaryInvestment = investmentValue(primary);
+  const spyInvestment = investmentValue(spy);
   const drawdown = drawdownSeries(primary);
   const maximumDrawdown = maxDrawdown(primary);
   const selected = validatedFundHoldings(payload, fund, end);
@@ -191,16 +190,17 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   }));
   const overlap = holdingsOverlap(holdingsByFund);
   const concentrationStats = concentration(selectedHoldings.map((holding) => holding.weight));
+  const reportedTop10Weight = [...selectedHoldings]
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 10)
+    .reduce((sum, holding) => sum + holding.weight, 0);
   const factsAsOfEnd = payload.companyFacts.filter((fact) => fact.filed_date <= end);
   const factsPayload = { ...payload, companyFacts: factsAsOfEnd };
   const comps = compsRows(factsPayload);
   const marginTrends = marginTrend(factsPayload);
   const rollingVol = rollingVolatility(primary);
-  const subSectors = [...selectedHoldings.reduce((groups, holding) => {
-    const key = holding.sub_sector ?? "Unclassified";
-    groups.set(key, (groups.get(key) ?? 0) + holding.weight);
-    return groups;
-  }, new Map<string, number>())].map(([name, weight]) => ({ name, weight })).sort((a, b) => b.weight - a.weight);
+  const reportedWeightTotal = selectedHoldings.reduce((sum, holding) => sum + holding.weight, 0);
+  const largestHolding = [...selectedHoldings].sort((a, b) => b.weight - a.weight)[0];
   const snapshotDate = selected.rows.length ? asOfLabel(selected.rows.map((row) => row.as_of)) : null;
   const snapshotAgeDays = snapshotDate && snapshotDate !== "unavailable"
     ? Math.floor((Date.now() - Date.parse(`${snapshotDate}T00:00:00Z`)) / DAY)
@@ -252,13 +252,17 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
 
     <section className="panel" id="performance">
       <SectionHead index="01" title="Performance" description="Adjusted-close performance and risk metrics recalculate in the browser whenever the date range changes." asOf={asOfLabel(payload.prices.map((row) => row.date))} />
+      <div className="insight-grid">
+        <div className="insight-card"><div className="insight-label">What happened</div><p><strong>$100 invested in {payload.sector.primary_etf}</strong> became <strong>{primaryInvestment.length ? money(primaryInvestment.at(-1)!.value) : "—"}</strong> over the selected window.</p>{spyInvestment.length > 0 && <p className="insight-detail">The same $100 in SPY became {money(spyInvestment.at(-1)!.value)}.</p>}</div>
+        <div className="insight-card"><div className="insight-label">How to read the risk</div><p>Volatility describes day-to-day variability. Beta compares moves with SPY, where 1.00 means equal sensitivity.</p>{maximumDrawdown && <p className="insight-detail">Largest peak-to-trough decline: {percent(maximumDrawdown.maxDrawdown)}.</p>}</div>
+      </div>
       <div className="stat-grid">
         <div className="stat"><div className="stat-label">Cumulative return</div><div className="stat-value">{percent(cumulativeReturn(primary))}</div></div>
         <div className="stat"><div className="stat-label">Annualized volatility</div><div className="stat-value">{percent(annualizedVolatility(primary))}</div></div>
         <div className="stat"><div className="stat-label">Beta vs. SPY</div><div className="stat-value">{number(beta(primary, spy))}</div></div>
         <div className="stat"><div className="stat-label">Sharpe · DGS3MO</div><div className="stat-value">{number(sharpeRatio(primary, riskFree))}</div></div>
       </div>
-      <div className="chart-shell"><div className="chart-title">Growth of 100</div>{performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [number(Number(value)), String(name)]} /><Legend /><EventBands events={payload.events} start={start} end={end} />{tickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}</LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
+      <div className="chart-shell"><div className="chart-title">Value of $100 invested</div>{performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} /><Legend /><EventBands events={payload.events} start={start} end={end} />{tickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}</LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
       <div className="chart-grid">
         <div className="chart-shell"><div className="chart-title">Drawdown</div>{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
         <div className="chart-shell"><div className="chart-title">Rolling 60-day annualized volatility</div>{rollingVol.length ? <ResponsiveContainer width="100%" height={260}><LineChart data={rollingVol}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Line dataKey="value" dot={false} stroke="#b97816" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
@@ -273,14 +277,17 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       {compositionFunds.length > 0 && <select className="fund-selector" value={fund} onChange={(event) => setFund(event.target.value)}>{compositionFunds.map((ticker) => <option key={ticker}>{ticker}</option>)}</select>}
       {selected.failure ? <div className="source-error">Holdings · {fund} · {selected.failure}</div> : <>
       {snapshotAgeDays !== null && snapshotAgeDays > 7 && <div className="source-error">Holdings · {fund} · stale snapshot dated {snapshotDate}.</div>}
+      <div className="insight-grid">
+        <div className="insight-card"><div className="insight-label">What the fund owns</div><p><strong>{fund}</strong> reports {selectedHoldings.length.toLocaleString()} holdings covering <strong>{percent(reportedWeightTotal)}</strong> of portfolio weight.{largestHolding && <> Its largest position is <strong>{largestHolding.constituent_ticker} at {percent(largestHolding.weight)}</strong>.</>}</p></div>
+        <div className="insight-card"><div className="insight-label">Why 100% appears</div><p>Portfolio weights are slices of one whole, so a complete snapshot totals approximately 100%. In overlap, <strong>Self</strong> means a fund compared with itself and is always 100% by definition.</p></div>
+      </div>
       <div className="stat-grid">
-        <div className="stat"><div className="stat-label">Top-10 weight</div><div className="stat-value">{selectedHoldings.length ? percent(concentrationStats.top10Weight) : "—"}</div></div>
+        <div className="stat"><div className="stat-label">Top-10 reported weight</div><div className="stat-value">{selectedHoldings.length ? percent(reportedTop10Weight) : "—"}</div></div>
         <div className="stat"><div className="stat-label">HHI</div><div className="stat-value">{selectedHoldings.length ? concentrationStats.hhi.toFixed(2) : "—"}</div></div>
         <div className="stat"><div className="stat-label">Expense ratio</div><div className="stat-value">{payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio === null ? "Unavailable from Yahoo Finance" : percent(payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio ?? null, 2)}</div></div>
         <div className="stat"><div className="stat-label">Assets</div><div className="stat-value">{payload.etfMeta.find((item) => item.ticker === fund)?.aum ? money(payload.etfMeta.find((item) => item.ticker === fund)!.aum!) : "—"}</div></div>
       </div>
-      {selectedHoldings.length ? <div className="data-table-wrap"><table><thead><tr><th>Holding</th><th>Ticker</th><th>Sub-sector</th><th>Weight</th></tr></thead><tbody>{selectedHoldings.slice(0, 25).map((holding) => <tr key={holding.constituent_ticker}><td>{holding.constituent_name ?? holding.constituent_ticker}</td><td>{holding.constituent_ticker}</td><td>{holding.sub_sector ?? "—"}</td><td>{percent(holding.weight, 2)}</td></tr>)}</tbody></table></div> : <div className="source-error">Holdings · {payload.etfMeta.find((item) => item.ticker === fund)?.holdings_error ?? "No issuer snapshot is available."}</div>}
-      {subSectors.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><div className="chart-title">Sub-sector breakdown</div><ResponsiveContainer width="100%" height={260}><BarChart data={subSectors.slice(0, 12)} layout="vertical"><CartesianGrid stroke="#e4e6df" horizontal={false} /><XAxis type="number" tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} /><YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Bar dataKey="weight" fill="#1d6b4d" /></BarChart></ResponsiveContainer></div>}
+      {selectedHoldings.length ? <div className="data-table-wrap"><table><thead><tr><th>Holding</th><th>Ticker</th><th>Weight</th></tr></thead><tbody>{selectedHoldings.slice(0, 25).map((holding) => <tr key={holding.constituent_ticker}><td>{holding.constituent_name ?? holding.constituent_ticker}</td><td>{holding.constituent_ticker}</td><td>{percent(holding.weight, 2)}</td></tr>)}</tbody></table></div> : <div className="source-error">Holdings · {payload.etfMeta.find((item) => item.ticker === fund)?.holdings_error ?? "No issuer snapshot is available."}</div>}
       <OverlapMatrix matrix={overlap} funds={Object.keys(holdingsByFund)} />
       </>}
     </section>
@@ -335,7 +342,7 @@ function OverlapMatrix({ matrix, funds }: { matrix: Record<string, Record<string
   if (valid.length < 2) return null;
   let best: [string, string, number] | null = null;
   valid.forEach((a, i) => valid.slice(i + 1).forEach((b) => { const value = matrix[a][b]; if (!best || value > best[2]) best = [a, b, value]; }));
-  return <div style={{ marginTop: 28 }}><div className="chart-title">Pairwise holdings overlap</div>{best && <p className="panel-description">{best[0]} and {best[1]} share {(best[2] * 100).toFixed(2)}% of holdings by weight.</p>}<div className="overlap-grid" style={{ gridTemplateColumns: `80px repeat(${valid.length}, minmax(54px, 1fr))` }}><span />{valid.map((fund) => <strong key={fund}>{fund}</strong>)}{valid.flatMap((row) => [<strong key={`${row}:label`}>{row}</strong>, ...valid.map((column) => { const value = matrix[row][column]; return <div className="overlap-cell" key={`${row}:${column}`} style={{ background: `rgba(29,107,77,${.08 + Math.min(value, 1) * .7})` }}>{percent(value)}</div>; })])}</div></div>;
+  return <div style={{ marginTop: 28 }}><div className="chart-title">Pairwise holdings overlap</div>{best && <p className="panel-description">{best[0]} and {best[1]} share {(best[2] * 100).toFixed(2)}% of holdings by weight. Diagonal cells are self-comparisons.</p>}<div className="overlap-grid" style={{ gridTemplateColumns: `80px repeat(${valid.length}, minmax(54px, 1fr))` }}><span />{valid.map((fund) => <strong key={fund}>{fund}</strong>)}{valid.flatMap((row) => [<strong key={`${row}:label`}>{row}</strong>, ...valid.map((column) => { const value = matrix[row][column]; const self = row === column; return <div className={`overlap-cell${self ? " self" : ""}`} title={self ? "Self-overlap is 100% by definition" : `${row} and ${column}: ${percent(value)}`} key={`${row}:${column}`} style={{ background: `rgba(29,107,77,${.08 + Math.min(value, 1) * .7})` }}>{self ? "Self" : percent(value)}</div>; })])}</div></div>;
 }
 
 type CompRow = ReturnType<typeof compsRows>[number];
