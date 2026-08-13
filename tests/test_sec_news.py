@@ -1,5 +1,6 @@
 from datetime import date
 
+import ingest.sources.nyt as nyt_source
 from ingest.sources.form_d import sector_for_sic
 from ingest.sources.nyt import DEFAULT_MAX_MONTHS_PER_RUN, completed_archive_months, matching_headlines
 from ingest.sources.sec_xbrl import normalize_company_facts
@@ -43,6 +44,28 @@ def test_nyt_archive_excludes_incomplete_current_month():
 
 def test_nyt_backfill_is_bounded_to_one_month_per_run():
     assert DEFAULT_MAX_MONTHS_PER_RUN == 1
+
+
+def test_nyt_registry_is_loaded_once_per_archive(monkeypatch):
+    original = nyt_source.load_sectors
+    calls = 0
+
+    def counted_load():
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(nyt_source, "load_sectors", counted_load)
+    documents = [{
+        "_id": f"nyt://article/{index}",
+        "pub_date": "2026-07-01T00:00:00Z",
+        "headline": {"main": "Semiconductor industry expands"},
+        "abstract": "", "snippet": "", "section_name": "Business",
+        "web_url": f"https://www.nytimes.com/example-{index}",
+    } for index in range(2)]
+
+    assert nyt_source.matching_headlines(documents)
+    assert calls == 1
 
 
 def test_sec_clients_require_contact_user_agent(monkeypatch):

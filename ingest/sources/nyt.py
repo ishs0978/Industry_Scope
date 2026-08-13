@@ -38,14 +38,20 @@ def keyword_hits(document: dict[str, Any], sector: Sector) -> int:
 
 def matching_headlines(documents: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
     rows = []
+    sectors = load_sectors()
     for document in documents:
         headline_field = document.get("headline") or {}
         headline = headline_field.get("main") if isinstance(headline_field, dict) else str(headline_field)
         if not headline or not document.get("web_url") or not document.get("pub_date"):
             continue
-        normalized = {**document, "headline": headline}
+        search_text = " ".join(
+            str(value or "") for value in (headline, document.get("abstract"), document.get("snippet"))
+        ).lower()
         matches = sorted(
-            ((keyword_hits(normalized, sector), sector) for sector in load_sectors()),
+            (
+                (sum(1 for keyword in sector.news_keywords if keyword.lower() in search_text), sector)
+                for sector in sectors
+            ),
             key=lambda item: -item[0],
         )
         for hits, sector in matches:
