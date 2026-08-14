@@ -7,16 +7,73 @@ from ingest.run import EXPECTED_SOURCES, ScheduledSource, due, finish_pending, s
 from ingest.sources.common import redact_secrets
 
 
+class ElapsedCursor:
+    def __init__(self, elapsed_days):
+        self.elapsed_days = elapsed_days
+        self.queries = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def execute(self, query, params=None):
+        self.queries.append(query)
+
+    def fetchone(self):
+        return (self.elapsed_days,)
+
+
+class ElapsedConnection:
+    """Stands in for a database that last succeeded `elapsed_days` ago."""
+
+    def __init__(self, elapsed_days):
+        self.cursors = []
+        self.elapsed_days = elapsed_days
+
+    def cursor(self):
+        cursor = ElapsedCursor(self.elapsed_days)
+        self.cursors.append(cursor)
+        return cursor
+
+
 def test_daily_sources_are_always_due():
     source = ScheduledSource("daily", lambda connection: None, "daily")
-    assert due(source, date(2026, 8, 12))
+    assert due(source, ElapsedConnection(0))
 
 
-def test_weekly_sources_run_on_monday_or_force():
+def test_weekly_sources_are_due_a_week_after_their_last_success():
     source = ScheduledSource("weekly", lambda connection: None, "weekly")
-    assert due(source, date(2026, 8, 10))
-    assert not due(source, date(2026, 8, 12))
-    assert due(source, date(2026, 8, 12), force_all=True)
+    assert not due(source, ElapsedConnection(6.2))
+    assert due(source, ElapsedConnection(7.0))
+    assert due(source, ElapsedConnection(31.0))
+
+
+def test_weekly_sources_catch_up_after_a_missed_slot():
+    # The old weekday check meant a missed Monday waited a full week with no
+    # retry. Elapsed time since the last success has to drive this instead.
+    source = ScheduledSource("weekly", lambda connection: None, "weekly")
+    assert due(source, ElapsedConnection(8.5))
+
+
+def test_weekly_source_that_never_succeeded_is_due():
+    source = ScheduledSource("weekly", lambda connection: None, "weekly")
+    assert due(source, ElapsedConnection(None))
+
+
+def test_force_all_overrides_cadence():
+    source = ScheduledSource("weekly", lambda connection: None, "weekly")
+    assert due(source, ElapsedConnection(0.0), force_all=True)
+
+
+def test_due_ignores_runs_that_were_only_skipped():
+    # A skipped source is recorded as a success with details.skipped, so the
+    # lookup must exclude those or a weekly source never comes due again.
+    source = ScheduledSource("weekly", lambda connection: None, "weekly")
+    connection = ElapsedConnection(9.0)
+    due(source, connection)
+    assert "skipped" in connection.cursors[0].queries[0]
 
 
 class LifecycleCursor:
