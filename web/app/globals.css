@@ -165,3 +165,8 @@ th:first-child, td:first-child, .left { text-align: left; }
 .caption-more:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .caption-more-body { margin-top: 6px !important; }
 @media (prefers-reduced-motion: reduce) { .term-body, .caption-more-body { transition: none; } }
+
+.peer-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 8px 12px; }
+.chip { background: none; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); cursor: pointer; font-size: 12px; padding: 6px 12px; }
+.chip.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
