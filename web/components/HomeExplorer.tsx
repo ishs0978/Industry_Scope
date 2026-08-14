@@ -51,7 +51,8 @@ export default function HomeExplorer({ sectors, performance }: { sectors: Sector
       </section>
 
       <section>
-        <div className="section-heading"><h2>Industry registry</h2><span className="eyebrow">20 sectors</span></div>
+        <div className="section-heading"><h2>Industry registry</h2><span className="eyebrow">{sectors.length} sectors</span></div>
+        <p className="grid-note">This registry mixes broad GICS sector funds with narrower thematic funds. Semiconductors, Technology, Software &amp; Cloud, AI &amp; Robotics and Cybersecurity overlap heavily by design, so compare them against each other rather than adding them together.</p>
         {performance.__error?.error && <div className="source-error">Neon Postgres: {performance.__error.error}</div>}
         <div className="sector-grid">
           {sectors.map((sector) => {

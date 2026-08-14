@@ -17,13 +17,24 @@ sectors:
     sic_prefixes: ['3559', '3674']
     naics_code: '334413'
 
+  - slug: technology
+    name: Technology
+    aliases: [tech, information technology, technology sector, big tech]
+    primary_etf: XLK
+    comparison_etfs: []
+    news_keywords: [technology sector, information technology, tech company, computer hardware]
+    sic_prefixes: ['357', '367']
+    naics_code: '334'
+
   - slug: ai-robotics
     name: AI & Robotics
     aliases: [artificial intelligence, robotics, automation, autonomous systems]
     primary_etf: BOTZ
     comparison_etfs: [ROBO, IRBO, ARKQ]
+    # 7372 (prepackaged software) was claimed here and by cybersecurity. It now
+    # resolves to software-cloud through its '737' prefix; see sector_for_sic.
     news_keywords: [artificial intelligence, industrial robot, robotics, automation]
-    sic_prefixes: ['3569', '3571', '7372']
+    sic_prefixes: ['3569', '3571']
     naics_code: '333998'
 
   - slug: software-cloud
@@ -41,7 +52,9 @@ sectors:
     primary_etf: CIBR
     comparison_etfs: [HACK, BUG]
     news_keywords: [cybersecurity, cyberattack, data breach, network security]
-    sic_prefixes: ['7372', '7373']
+    # 7372 is shared ground with software; 7373 (computer integrated systems
+    # design) is the narrower code this sector can claim without collision.
+    sic_prefixes: ['7373']
     naics_code: '541512'
 
   - slug: banks
@@ -72,7 +85,7 @@ sectors:
     naics_code: '336414'
 
   - slug: homebuilders
-    name: Homebuilders
+    name: Homebuilding & Building Products
     aliases: [home building, residential construction, housing construction, builders]
     primary_etf: XHB
     comparison_etfs: [ITB]
@@ -135,12 +148,16 @@ sectors:
     naics_code: '212'
 
   - slug: gold-metals
-    name: Gold & Precious Metals
+    name: Gold & Precious Metals (bullion and miners)
     aliases: [gold, precious metals, gold miners, silver]
-    primary_etf: GLD
-    comparison_etfs: [GDX, SIL]
+    # Led by the miners, which are operating companies with SEC filings. GLD is
+    # a physically backed bullion trust and is kept as a comparison, not as the
+    # face of an industry.
+    primary_etf: GDX
+    comparison_etfs: [GLD, SIL]
     news_keywords: [gold price, gold mining, precious metals, silver price]
-    sic_prefixes: ['104', '1094']
+    # 1094 is uranium-radium-vanadium ore and belongs to uranium-nuclear.
+    sic_prefixes: ['104']
     naics_code: '212221'
 
   - slug: clean-energy
@@ -149,7 +166,9 @@ sectors:
     primary_etf: ICLN
     comparison_etfs: [TAN, FAN]
     news_keywords: [clean energy, renewable energy, solar power, wind power]
-    sic_prefixes: ['4911', '4931']
+    # 4911 is electric services generally. Claiming it here routed every
+    # electric utility filing to clean energy and left utilities empty.
+    sic_prefixes: ['4931']
     naics_code: '221114'
 
   - slug: uranium-nuclear

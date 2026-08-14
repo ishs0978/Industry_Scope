@@ -81,11 +81,11 @@ class RecordingConnection:
         self.commits += 1
 
 
-def test_sector_registry_sync_upserts_all_20_rows():
+def test_sector_registry_sync_upserts_all_21_rows():
     connection = RecordingConnection()
     count = sync_sector_registry(connection)
 
-    assert count == 20
-    assert len(connection.recording_cursor.rows) == 20
+    assert count == 21
+    assert len(connection.recording_cursor.rows) == 21
     assert "ON CONFLICT (slug) DO UPDATE" in connection.recording_cursor.query
     assert connection.commits == 1

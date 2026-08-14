@@ -15,6 +15,15 @@ from ingest.sources.sec_xbrl import SecRateLimiter, fetch_json, sec_session
 
 
 def sector_for_sic(sic_code: str | None) -> str | None:
+    """Resolve a SIC code to one sector by longest matching prefix.
+
+    The registry rejects two sectors claiming an identical prefix, so the
+    longest match is always unambiguous. Nested prefixes are intentional and
+    resolve to the more specific sector: 7373 is cybersecurity while the rest of
+    737, including 7372, is software-cloud; 3674 is semiconductors while the
+    rest of 367 is technology; 4931 is clean-energy while the rest of 49,
+    including 4911, is utilities.
+    """
     if not sic_code:
         return None
     matches = [

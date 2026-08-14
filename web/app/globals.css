@@ -44,6 +44,7 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 
 .section-heading { align-items: end; border-bottom: 1px solid var(--ink); display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 12px; }
 .section-heading h2 { font-family: Georgia, serif; font-size: clamp(28px, 3vw, 42px); font-weight: 500; }
+.grid-note { color: var(--muted); font-size: 14px; margin: -8px 0 20px; max-width: 62ch; }
 .sector-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
 .sector-card { background: var(--panel); min-height: 190px; padding: 22px; transition: background .2s, transform .2s; }
 .sector-card:hover { background: #edf2e8; transform: translateY(-2px); }
