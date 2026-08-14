@@ -190,3 +190,18 @@ th:first-child, td:first-child, .left { text-align: left; }
 /* A late monthly print is not a crash, so it gets a quieter treatment than .source-error. */
 .source-stale, .freshness-item.stale strong { color: var(--amber); }
 .source-stale::before { content: "⚠ "; }
+
+.visually-hidden { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+.event-rail { border-top: 1px solid var(--line); height: 26px; margin: 6px 8px 0; position: relative; }
+.event-marker { background: var(--muted); border: 0; border-radius: 2px; cursor: pointer; height: 14px; padding: 0; position: absolute; top: 6px; transform: translateX(-50%); width: 4px; }
+.event-marker.negative { background: var(--red); }
+.event-marker.positive { background: var(--green); }
+.event-marker.mixed { background: var(--amber); }
+.event-marker:hover, .event-marker:focus-visible { height: 20px; outline: 2px solid var(--green); outline-offset: 2px; top: 3px; }
+.timeline-group { border-bottom: 1px solid var(--ink); font-family: Georgia, serif; font-size: 20px; font-weight: 500; margin: 28px 0 12px; padding-bottom: 8px; }
+.timeline-item.event { border-left: 2px solid var(--muted); padding-left: 14px; }
+.timeline-item.event.negative { border-left-color: var(--red); }
+.timeline-item.event.positive { border-left-color: var(--green); }
+.timeline-item.event.mixed { border-left-color: var(--amber); }
+.month-divider { background: var(--paper); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; letter-spacing: .08em; padding: 8px 0; position: sticky; text-transform: uppercase; top: 56px; z-index: 4; }
+.show-more { margin-top: 16px; }

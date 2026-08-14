@@ -19,6 +19,7 @@ import WorkbookButton from "./WorkbookButton";
 const COLORS = ["#1d6b4d", "#143142", "#b97816", "#7d5a91", "#a4463f"];
 const DAY = 86_400_000;
 const MACRO_VISIBLE = 4;
+const COVERAGE_PAGE = 20;
 // SPY is a benchmark, not a peer, so it is drawn thin, grey and dashed.
 const BENCHMARK_STROKE = "#8a8f85";
 // Axes rendered raw ISO strings. "Mar '24" is what a reader can actually scan.
@@ -152,6 +153,38 @@ function EventWindowReturns({ payload, event, onClose }: {
     <p className="event-window-note">Returns over an event window are coincident, not causal. Many things move a sector at once.</p>
     {event.source_url && <a href={event.source_url} target="_blank" rel="noreferrer">Source ↗</a>}
   </div>;
+}
+
+/**
+ * The horizontal half of the timeline. Headlines are text of varying length and
+ * belong in a vertical list; events have dates and durations, so they belong on
+ * an axis. This rail shares the news chart's x-scale, which is where checking
+ * whether a coverage spike matches a known event actually happens.
+ */
+function EventRail({ events, start, end, onSelect }: {
+  events: IndustryPayload["events"]; start: string; end: string; onSelect: (id: string) => void;
+}) {
+  const span = Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`);
+  if (span <= 0 || !events.length) return null;
+  return <div aria-label="Events in this window" className="event-rail" role="group">
+    {events.map((event) => {
+      const offset = ((Date.parse(`${event.start_date}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / span) * 100;
+      return <button
+        className={`event-marker ${event.impact}`}
+        key={event.id}
+        onClick={() => onSelect(event.id)}
+        style={{ left: `${Math.min(Math.max(offset, 0), 100)}%` }}
+        title={`${event.start_date} · ${event.title}`}
+      >
+        <span className="visually-hidden">{event.title}</span>
+      </button>;
+    })}
+  </div>;
+}
+
+function monthLabel(value: string): string {
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${String(value).slice(0, 7)}-01T00:00:00Z`));
 }
 
 function SectionHead({ index, title, term, description, asOf }: { index: string; title: string; term: string; description: string; asOf: string }) {
@@ -432,10 +465,28 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   );
   const gdeltRun = payload.freshness.find((run) => run.source === "gdelt");
 
-  const timeline = useMemo(() => [
-    ...describedEvents(payload.events, start, end).map((event) => ({ kind: "event" as const, date: event.start_date, item: event })),
-    ...payload.headlines.filter((item) => item.published_date.slice(0, 10) >= start && item.published_date.slice(0, 10) <= end).map((item) => ({ kind: "headline" as const, date: item.published_date, item })),
-  ].sort((a, b) => b.date.localeCompare(a.date)), [payload.events, payload.headlines, start, end]);
+  // Events and headlines are no longer interleaved by date. There are few
+  // events and many headlines, and the events are the higher-value content.
+  const timelineEvents = useMemo(
+    () => [...describedEvents(payload.events, start, end)].sort((a, b) => b.start_date.localeCompare(a.start_date)),
+    [payload.events, start, end],
+  );
+  const coverage = useMemo(
+    () => payload.headlines
+      .filter((item) => item.published_date.slice(0, 10) >= start && item.published_date.slice(0, 10) <= end)
+      .sort((a, b) => b.published_date.localeCompare(a.published_date)),
+    [payload.headlines, start, end],
+  );
+  // The list had no cap, so a 3-year window rendered hundreds of items and the
+  // page became unscrollable.
+  const [coverageShown, setCoverageShown] = useState(COVERAGE_PAGE);
+  const visibleCoverage = coverage.slice(0, coverageShown);
+  const selectEvent = (id: string) => {
+    setSelectedEventId(id);
+    const target = typeof document === "undefined" ? null : document.getElementById(`event-${id}`);
+    const reduced = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+  };
 
   return <main>
     <section className="industry-hero">
@@ -543,9 +594,31 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     <section className="panel" id="timeline">
       <SectionHead index="06" title="News and events" term="GDELT volume and NYT headlines" description="Quantitative GDELT activity above; human-curated events and verbatim NYT headlines below." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
       {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {gdeltRun.error_message ?? "Last ingest failed"} · coverage below may be incomplete.</div>}
-      <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" definition={CHART_COPY.news.definition} />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} labelFormatter={(value) => fullDate(String(value))} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}<ChartCaption lines={CHART_COPY.news.lines} more={CHART_COPY.news.more} /><ChartFreshness payload={payload} source="gdelt" dataThrough={newsInRange.at(-1)?.date} /></div>
-      <div className="timeline-list">{timeline.map((entry) => entry.kind === "event" ? <article className="timeline-item event" key={`e:${entry.item.id}`}><div className="timeline-date">{entry.item.start_date}{entry.item.end_date && entry.item.end_date !== entry.item.start_date ? ` – ${entry.item.end_date}` : ""} · CURATED EVENT</div><h3>{entry.item.title}</h3><p>{entry.item.blurb}</p>{entry.item.source_url && <a href={entry.item.source_url} target="_blank" rel="noreferrer">Source ↗</a>}</article> : <article className="timeline-item" key={`h:${entry.item.id}`}><div className="timeline-date">{stamp(entry.item.published_date)}{relativeTime(entry.item.published_date) ? ` · ${relativeTime(entry.item.published_date)}` : ""} · {entry.item.source}{entry.item.section ? ` · ${entry.item.section}` : ""}</div><h3><a href={entry.item.url} target="_blank" rel="noreferrer">{entry.item.headline} ↗</a></h3>{entry.item.abstract && <p>{entry.item.abstract}</p>}</article>)}</div>
-      {!timeline.length && <div className="source-error">Timeline sources: no events or headlines are available for this window.</div>}
+      <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" definition={CHART_COPY.news.definition} />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} labelFormatter={(value) => fullDate(String(value))} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><EventBands events={payload.events} start={start} end={end} /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}<EventRail events={timelineEvents} start={start} end={end} onSelect={selectEvent} /><ChartCaption lines={CHART_COPY.news.lines} more={CHART_COPY.news.more} /><ChartFreshness payload={payload} source="gdelt" dataThrough={newsInRange.at(-1)?.date} /></div>
+      {timelineEvents.length > 0 && <>
+        <h3 className="timeline-group">Events</h3>
+        <div className="timeline-list">{timelineEvents.map((event) => <article className={`timeline-item event ${event.impact}`} id={`event-${event.id}`} key={`e:${event.id}`}>
+          <div className="timeline-date">{event.start_date}{event.end_date && event.end_date !== event.start_date ? ` – ${event.end_date}` : ""} · CURATED EVENT</div>
+          <h3>{event.title}</h3>
+          <p>{event.blurb}</p>
+          <button className="chip" onClick={() => setSelectedEventId(selectedEvent?.id === event.id ? null : event.id)}>Return over this window</button>
+          {event.source_url && <a href={event.source_url} target="_blank" rel="noreferrer">Source ↗</a>}
+        </article>)}</div>
+      </>}
+      {coverage.length > 0 && <>
+        <h3 className="timeline-group">Coverage</h3>
+        <div className="timeline-list">{visibleCoverage.map((item, index) => <div key={`h:${item.id}`}>
+          {(index === 0 || item.published_date.slice(0, 7) !== visibleCoverage[index - 1].published_date.slice(0, 7))
+            && <div className="month-divider">{monthLabel(item.published_date)}</div>}
+          <article className="timeline-item">
+            <div className="timeline-date">{stamp(item.published_date)}{relativeTime(item.published_date) ? ` · ${relativeTime(item.published_date)}` : ""} · {item.source}{item.section ? ` · ${item.section}` : ""}</div>
+            <h3><a href={item.url} target="_blank" rel="noreferrer">{item.headline} ↗</a></h3>
+            {item.abstract && <p>{item.abstract}</p>}
+          </article>
+        </div>)}</div>
+        {coverageShown < coverage.length && <button className="chip show-more" onClick={() => setCoverageShown(coverageShown + COVERAGE_PAGE)}>Show more ({coverage.length - coverageShown} remaining)</button>}
+      </>}
+      {!timelineEvents.length && !coverage.length && <div className="source-error">No events or headlines in this window. Try a longer range.</div>}
     </section>
   </main>;
 }
