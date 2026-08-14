@@ -185,3 +185,8 @@ th:first-child, td:first-child, .left { text-align: left; }
 .hero-stat-value .up { color: var(--green); }
 .hero-stat-value .down { color: var(--red); }
 @media (max-width: 900px) { .hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.chart-freshness { color: var(--muted); font-size: 11px; margin: 8px 8px 4px; text-align: right; }
+/* A late monthly print is not a crash, so it gets a quieter treatment than .source-error. */
+.source-stale, .freshness-item.stale strong { color: var(--amber); }
+.source-stale::before { content: "⚠ "; }

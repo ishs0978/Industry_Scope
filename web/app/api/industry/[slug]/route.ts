@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getIndustryPayload } from "@/lib/data";
 
-export const revalidate = 86400;
+// The live Excel template refreshes against this endpoint, so a 24-hour window
+// meant pressing Refresh in Excel could return day-old data with no indication.
+export const revalidate = 3600;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -18,9 +20,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const payload = await getIndustryPayload(slug);
   if (!payload) return NextResponse.json({ error: { source: "sector registry", reason: `Unknown sector: ${slug}` } }, { status: 404, headers: cors });
   const status = payload.errors.some((error) => error.source === "Neon Postgres") ? 503 : 200;
-  return NextResponse.json(payload, {
+  // generated_at lets the workbook show when this response was built.
+  return NextResponse.json({ ...payload, generated_at: new Date().toISOString() }, {
     status,
-    headers: { ...cors, "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=3600" },
+    headers: { ...cors, "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=3600" },
   });
 }
 

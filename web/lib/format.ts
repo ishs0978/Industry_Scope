@@ -36,6 +36,53 @@ export function formatNumber(value: number | null): string {
     : value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * The one timestamp format. Always prints the zone: a bare time with no zone is
+ * not a timestamp, and every date on this site is meaningful only in market
+ * time.
+ */
+export function stamp(value: string | null | undefined): string {
+  if (!value) return "unavailable";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "unavailable";
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric", month: "short", year: "numeric",
+    hour: "numeric", minute: "2-digit",
+    timeZone: "America/New_York", timeZoneName: "short",
+  }).format(parsed);
+}
+
+/** Date only, for series observations that carry no time of day. */
+export function stampDate(value: string | null | undefined): string {
+  if (!value) return "unavailable";
+  const parsed = new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return "unavailable";
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  }).format(parsed);
+}
+
+const HOUR = 3_600_000;
+
+/** "3 hours ago" for anything inside 48 hours, otherwise null. */
+export function relativeTime(value: string | null | undefined, now = Date.now()): string | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return null;
+  const elapsed = now - parsed;
+  if (elapsed < 0 || elapsed > 48 * HOUR) return null;
+  const hours = Math.floor(elapsed / HOUR);
+  if (hours < 1) return "less than an hour ago";
+  if (hours === 1) return "1 hour ago";
+  return `${hours} hours ago`;
+}
+
+export function isStale(value: string | null | undefined, hours = 48, now = Date.now()): boolean {
+  if (!value) return true;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) || now - parsed > hours * HOUR;
+}
+
 export function formatUnitValue(value: number, units?: string | null): string {
   if (!Number.isFinite(value)) return "—";
   const label = units?.trim();
