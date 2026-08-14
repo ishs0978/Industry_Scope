@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from io import StringIO
+import os
 from typing import Any, Callable
 
 import pandas as pd
@@ -101,11 +102,21 @@ def ingest_ticker(
     *,
     yahoo_loader: PriceLoader = yahoo_prices,
     stooq_loader: PriceLoader = stooq_prices,
+    full_refresh: bool = False,
 ) -> tuple[int, str]:
     latest = latest_price_date(connection, ticker)
     # Re-fetch a trailing window so transient upstream omissions and adjusted-
     # close revisions are repaired instead of becoming permanent database gaps.
-    start = latest - timedelta(days=REFRESH_LOOKBACK_DAYS) if latest else None
+    #
+    # Yahoo recomputes adjusted close across the entire history every time a
+    # dividend is paid, so rows older than the window keep whatever adjustment
+    # factor they were first written with. Any span crossing that boundary then
+    # compares two different bases. A full refresh rewrites the whole series onto
+    # one basis; it is gated behind FORCE_ALL because it is expensive.
+    if full_refresh:
+        start = None
+    else:
+        start = latest - timedelta(days=REFRESH_LOOKBACK_DAYS) if latest else None
     try:
         frame = yahoo_loader(ticker, start)
         provider = "yahoo"
@@ -184,14 +195,20 @@ def run(connection: Any) -> None:
     with logged_run(connection, "prices") as result:
         providers: dict[str, str] = {}
         errors: dict[str, str] = {}
+        full_refresh = os.environ.get("FORCE_ALL") == "1"
         for ticker in configured_tickers():
             try:
-                written, provider = ingest_ticker(connection, ticker)
+                written, provider = ingest_ticker(connection, ticker, full_refresh=full_refresh)
                 result.rows_written += written
                 providers[ticker] = provider
             except Exception as exc:
                 errors[ticker] = str(exc)
-        result.details = {"providers": providers, "ticker_errors": errors}
+        result.details = {
+            "providers": providers,
+            "ticker_errors": errors,
+            "full_history_refresh": full_refresh,
+            "refresh_lookback_days": None if full_refresh else REFRESH_LOOKBACK_DAYS,
+        }
         if errors:
             raise SourceUnavailable(f"price ingest failed for {len(errors)} ticker(s)")
 
