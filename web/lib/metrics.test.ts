@@ -122,7 +122,7 @@ describe("comparison and holdings metrics", () => {
   });
 
   it("computes concentration and a symmetric overlap matrix", () => {
-    expect(concentration([0.5, 0.3, 0.2])).toEqual({ top10Weight: 1, hhi: 0.38 });
+    expect(concentration([0.5, 0.3, 0.2])).toEqual({ hhi: 0.38 });
     const matrix = holdingsOverlap({
       A: [{ ticker: "X", weight: 0.6 }, { ticker: "Y", weight: 0.4 }],
       B: [{ ticker: "X", weight: 0.3 }, { ticker: "Z", weight: 0.7 }],
@@ -140,9 +140,12 @@ describe("comparison and holdings metrics", () => {
     }
   });
 
-  it("test_top10_bounded", () => {
-    expect(concentration([0.25, 0.25, 0.25, 0.25]).top10Weight).toBeLessThanOrEqual(1);
-    expect(concentration([25, 25, 25, 25]).top10Weight).toBeLessThanOrEqual(1);
+  it("test_hhi_renders_on_the_0_to_10000_scale", () => {
+    // Raw issuer weights and their normalized equivalents must score identically.
+    expect(concentration([25, 25, 25, 25]).hhi).toBeCloseTo(concentration([0.25, 0.25, 0.25, 0.25]).hhi);
+    // One holding scores 10,000; a hundred equal holdings score 100.
+    expect(Math.round(concentration([1]).hhi * 10_000)).toBe(10_000);
+    expect(Math.round(concentration(Array(100).fill(0.01)).hhi * 10_000)).toBe(100);
   });
 
   it("test_self_overlap_is_100", () => {

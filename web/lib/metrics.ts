@@ -252,14 +252,12 @@ export function calendarPeriodReturns(
   });
 }
 
-export function concentration(weights: number[]): { top10Weight: number; hhi: number } {
+/** HHI on a 0-to-1 scale; callers render it on the standard 0-to-10,000 scale. */
+export function concentration(weights: number[]): { hhi: number } {
   const valid = weights.filter((weight) => Number.isFinite(weight) && weight >= 0).sort((a, b) => b - a);
   const total = valid.reduce((sum, weight) => sum + weight, 0);
   const normalized = total > 0 ? valid.map((weight) => weight / total) : [];
-  return {
-    top10Weight: normalized.slice(0, 10).reduce((sum, weight) => sum + weight, 0),
-    hhi: normalized.reduce((sum, weight) => sum + weight ** 2, 0),
-  };
+  return { hhi: normalized.reduce((sum, weight) => sum + weight ** 2, 0) };
 }
 
 export type HoldingWeight = { ticker: string; weight: number };

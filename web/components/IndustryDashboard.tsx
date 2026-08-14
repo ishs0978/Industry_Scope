@@ -283,7 +283,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       </div>
       <div className="stat-grid">
         <div className="stat"><div className="stat-label">Top-10 reported weight</div><div className="stat-value">{selectedHoldings.length ? percent(reportedTop10Weight) : "—"}</div></div>
-        <div className="stat"><div className="stat-label">HHI</div><div className="stat-value">{selectedHoldings.length ? concentrationStats.hhi.toFixed(2) : "—"}</div></div>
+        <div className="stat"><div className="stat-label">HHI</div><div className="stat-value">{selectedHoldings.length ? Math.round(concentrationStats.hhi * 10_000).toLocaleString() : "—"}</div></div>
         <div className="stat"><div className="stat-label">Expense ratio</div><div className="stat-value">{payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio === null ? "Unavailable from Yahoo Finance" : percent(payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio ?? null, 2)}</div></div>
         <div className="stat"><div className="stat-label">Assets</div><div className="stat-value">{payload.etfMeta.find((item) => item.ticker === fund)?.aum ? money(payload.etfMeta.find((item) => item.ticker === fund)!.aum!) : "—"}</div></div>
       </div>
