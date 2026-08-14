@@ -212,6 +212,15 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     formDLatestPerOffering.filter((row) => row.amount_sold !== null).map((row) => row.amount_sold), .5,
   );
 
+  // The chart is fed the range-filtered rows, so the empty check has to test
+  // those. Testing the unfiltered array drew an empty canvas with axes and no
+  // explanation whenever rows existed but none fell inside the window.
+  const newsInRange = useMemo(
+    () => payload.newsVolume.filter((row) => row.date >= start && row.date <= end),
+    [payload.newsVolume, start, end],
+  );
+  const gdeltRun = payload.freshness.find((run) => run.source === "gdelt");
+
   const timeline = useMemo(() => [
     ...payload.events.filter((event) => event.start_date <= end && (event.end_date ?? event.start_date) >= start).map((event) => ({ kind: "event" as const, date: event.start_date, item: event })),
     ...payload.headlines.filter((item) => item.published_date.slice(0, 10) >= start && item.published_date.slice(0, 10) <= end).map((item) => ({ kind: "headline" as const, date: item.published_date, item })),
@@ -300,7 +309,8 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
 
     <section className="panel" id="timeline">
       <SectionHead index="06" title="Timeline" description="Quantitative GDELT activity above; human-curated events and verbatim NYT headlines below." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
-      <div className="chart-shell">{payload.newsVolume.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={payload.newsVolume.filter((row) => row.date >= start && row.date <= end)}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}</div>
+      {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {gdeltRun.error_message ?? "Last ingest failed"} · coverage below may be incomplete.</div>}
+      <div className="chart-shell">{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}</div>
       <div className="timeline-list">{timeline.map((entry) => entry.kind === "event" ? <article className="timeline-item event" key={`e:${entry.item.id}`}><div className="timeline-date">{entry.item.start_date}{entry.item.end_date && entry.item.end_date !== entry.item.start_date ? ` – ${entry.item.end_date}` : ""} · CURATED EVENT</div><h3>{entry.item.title}</h3>{entry.item.blurb ? <p>{entry.item.blurb}</p> : <p>Editorial description pending human review.</p>}{entry.item.source_url && <a href={entry.item.source_url} target="_blank" rel="noreferrer">Source ↗</a>}</article> : <article className="timeline-item" key={`h:${entry.item.id}`}><div className="timeline-date">{shortDate(entry.item.published_date)} · {entry.item.source}{entry.item.section ? ` · ${entry.item.section}` : ""}</div><h3><a href={entry.item.url} target="_blank" rel="noreferrer">{entry.item.headline} ↗</a></h3>{entry.item.abstract && <p>{entry.item.abstract}</p>}</article>)}</div>
       {!timeline.length && <div className="source-error">Timeline sources: no events or headlines are available for this window.</div>}
     </section>
