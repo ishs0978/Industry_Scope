@@ -145,3 +145,8 @@ th:first-child, td:first-child, .left { text-align: left; }
   .as-of { margin-top: 12px; text-align: left; }
   .download-button { margin-left: 0; width: 100%; }
 }
+
+.macro-more { margin-top: 18px; }
+.macro-more summary { color: var(--muted); cursor: pointer; font-size: 14px; padding: 6px 0; }
+.macro-more summary:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.macro-more .small-multiples { margin-top: 14px; }

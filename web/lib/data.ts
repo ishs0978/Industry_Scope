@@ -112,8 +112,17 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
     for (const run of freshness) {
       if (run.status === "failed") errors.push({ source: run.source, reason: run.error_message ?? "Last ingest failed" });
     }
+    // Present macro series in registry order rather than alphabetically, so the
+    // first few shown are the ones chosen as most relevant to the sector. BLS
+    // and EIA series are matched by pattern, not listed in fred_map, so they
+    // sort after the configured ones.
+    const relevance = new Map(macroIds.map((id, index) => [id, index]));
+    const ordered = [...macroMeta].sort((a, b) =>
+      (relevance.get(a.series_id) ?? Number.MAX_SAFE_INTEGER) - (relevance.get(b.series_id) ?? Number.MAX_SAFE_INTEGER)
+      || String(a.source).localeCompare(String(b.source))
+      || String(a.label).localeCompare(String(b.label)));
     const macro = gateMacroByFreshness(
-      macroMeta as unknown as IndustryPayload["macro"]["meta"],
+      ordered as unknown as IndustryPayload["macro"]["meta"],
       macroSeries as unknown as IndustryPayload["macro"]["series"],
       freshness as unknown as IndustryPayload["freshness"],
     );

@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   annualizedVolatility, beta, calendarPeriodReturns, concentration, correlation,
-  cumulativeReturn, holdingsOverlap, holdingsSnapshotIssue, investmentValue, maxDrawdown, rollingVolatility,
+  cumulativeReturn, holdingsOverlap, holdingsSnapshotIssue, investmentValue, maxDrawdown,
   sharpeRatio, type HoldingWeight, type SeriesPoint,
 } from "@/lib/metrics";
 import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
@@ -18,6 +18,7 @@ import WorkbookButton from "./WorkbookButton";
 
 const COLORS = ["#1d6b4d", "#143142", "#b97816", "#7d5a91", "#a4463f"];
 const DAY = 86_400_000;
+const MACRO_VISIBLE = 4;
 const shortDate = (value: string | null | undefined) => value ? value.slice(0, 10) : "unavailable";
 
 type Preset = "1Y" | "3Y" | "5Y" | "10Y" | "Max" | "Custom";
@@ -204,7 +205,6 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   const factsPayload = { ...payload, companyFacts: factsAsOfEnd };
   const comps = compsRows(factsPayload);
   const marginTrends = marginTrend(factsPayload);
-  const rollingVol = rollingVolatility(primary);
   const reportedWeightTotal = selectedHoldings.reduce((sum, holding) => sum + holding.weight, 0);
   const largestHolding = [...selectedHoldings].sort((a, b) => b.weight - a.weight)[0];
   const snapshotDate = selected.rows.length ? asOfLabel(selected.rows.map((row) => row.as_of)) : null;
@@ -253,6 +253,12 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   // The chart is fed the range-filtered rows, so the empty check has to test
   // those. Testing the unfiltered array drew an empty canvas with axes and no
   // explanation whenever rows existed but none fell inside the window.
+  // A sector with ten FRED series rendered ten charts of equal weight. Show the
+  // most relevant few and put the rest behind a disclosure.
+  const macroPoints = (meta: MacroMeta) => payload.macro.series
+    .filter((point) => point.series_id === meta.series_id && point.date >= start && point.date <= end && point.value !== null)
+    .map((point) => ({ date: point.date, value: point.value! }));
+
   const newsInRange = useMemo(
     () => payload.newsVolume.filter((row) => row.date >= start && row.date <= end),
     [payload.newsVolume, start, end],
@@ -289,7 +295,6 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       <SectionHead index="01" title="Performance" description="Adjusted-close performance and risk metrics recalculate in the browser whenever the date range changes." asOf={asOfLabel(payload.prices.map((row) => row.date))} />
       <div className="insight-grid">
         <div className="insight-card"><div className="insight-label">What happened</div><p><strong>$100 invested in {payload.sector.primary_etf}</strong> became <strong>{primaryInvestment.length ? money(primaryInvestment.at(-1)!.value) : "—"}</strong> over the selected window.</p>{spyInvestment.length > 0 && <p className="insight-detail">The same $100 in SPY became {money(spyInvestment.at(-1)!.value)}.</p>}</div>
-        <div className="insight-card"><div className="insight-label">How to read the risk</div><p>Volatility describes day-to-day variability. Beta compares moves with SPY, where 1.00 means equal sensitivity.</p>{maximumDrawdown && <p className="insight-detail">Largest peak-to-trough decline: {percent(maximumDrawdown.maxDrawdown)}.</p>}</div>
       </div>
       <div className="stat-grid">
         <div className="stat"><div className="stat-label">Cumulative return</div><div className="stat-value">{percent(cumulativeReturn(primary))}</div></div>
@@ -300,7 +305,6 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       <div className="chart-shell"><div className="chart-title">Value of $100 invested</div>{performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} /><Legend /><EventBands events={payload.events} start={start} end={end} />{tickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}</LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
       <div className="chart-grid">
         <div className="chart-shell"><div className="chart-title">Drawdown</div>{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
-        <div className="chart-shell"><div className="chart-title">Rolling 60-day annualized volatility</div>{rollingVol.length ? <ResponsiveContainer width="100%" height={260}><LineChart data={rollingVol}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Line dataKey="value" dot={false} stroke="#b97816" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
       </div>
       {maximumDrawdown && <p className="panel-description">Maximum drawdown {percent(maximumDrawdown.maxDrawdown)} from {maximumDrawdown.peakDate} to {maximumDrawdown.troughDate}; {maximumDrawdown.recoveryDate ? `recovered ${maximumDrawdown.recoveryDate}` : "not recovered in the selected window"} ({maximumDrawdown.durationDays} days).</p>}
       <div className="hero-meta">{describedEvents(payload.events, start, end).map((event) => <button className={`pill event-pill${selectedEvent?.id === event.id ? " active" : ""}`} onClick={() => setSelectedEventId(selectedEvent?.id === event.id ? null : event.id)} key={event.id}>{event.title}</button>)}</div>
@@ -315,7 +319,6 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       {snapshotAgeDays !== null && snapshotAgeDays > 7 && <div className="source-error">Holdings · {fund} · stale snapshot dated {snapshotDate}.</div>}
       <div className="insight-grid">
         <div className="insight-card"><div className="insight-label">What the fund owns</div><p><strong>{fund}</strong> reports {selectedHoldings.length.toLocaleString()} holdings covering <strong>{percent(reportedWeightTotal)}</strong> of portfolio weight.{largestHolding && <> Its largest position is <strong>{largestHolding.constituent_ticker} at {percent(largestHolding.weight)}</strong>.</>}</p></div>
-        <div className="insight-card"><div className="insight-label">Why 100% appears</div><p>Portfolio weights are slices of one whole, so a complete snapshot totals approximately 100%. In overlap, <strong>Self</strong> means a fund compared with itself and is always 100% by definition.</p></div>
       </div>
       <div className="stat-grid">
         <div className="stat"><div className="stat-label">Top-10 reported weight</div><div className="stat-value">{selectedHoldings.length ? percent(reportedTop10Weight) : "—"}</div></div>
@@ -336,13 +339,17 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
 
     <section className="panel" id="private-capital">
       <SectionHead index="04" title="Private capital" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
-      <div className="stat-grid"><div className="stat"><div className="stat-label">Filings in range (including amendments)</div><div className="stat-value">{privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()}</div></div><div className="stat"><div className="stat-label">Reported amount sold</div><div className="stat-value">{privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"}</div></div><div className="stat"><div className="stat-label">Median reported raise</div><div className="stat-value">{medianReportedRaise === null ? "—" : money(medianReportedRaise)}</div></div><div className="stat"><div className="stat-label">Mapped SIC sector</div><div className="stat-value">{payload.sector.name}</div></div></div>
+      <div className="stat-grid"><div className="stat"><div className="stat-label">Filings in range (including amendments)</div><div className="stat-value">{privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()}</div></div><div className="stat"><div className="stat-label">Reported amount sold</div><div className="stat-value">{privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"}</div></div><div className="stat"><div className="stat-label">Median reported raise</div><div className="stat-value">{medianReportedRaise === null ? "—" : money(medianReportedRaise)}</div></div><div className="stat"><div className="stat-label">Distinct issuers</div><div className="stat-value">{new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()}</div></div></div>
       <div className="chart-shell">{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}</div>
     </section>
 
     <section className="panel" id="macro">
       <SectionHead index="05" title="Macro & operations" description="Sector-relevant FRED, EIA, and BLS raw series aligned to the same date window." asOf={asOfLabel(payload.macro.meta.map((row) => row.as_of))} />
-      <div className="small-multiples">{payload.macro.meta.map((meta) => <MacroChart key={meta.series_id} meta={meta} points={payload.macro.series.filter((point) => point.series_id === meta.series_id && point.date >= start && point.date <= end && point.value !== null).map((point) => ({ date: point.date, value: point.value! }))} />)}</div>
+      <div className="small-multiples">{payload.macro.meta.slice(0, MACRO_VISIBLE).map((meta) => <MacroChart key={meta.series_id} meta={meta} points={macroPoints(meta)} />)}</div>
+      {payload.macro.meta.length > MACRO_VISIBLE && <details className="macro-more">
+        <summary>Show all {payload.macro.meta.length} indicators</summary>
+        <div className="small-multiples">{payload.macro.meta.slice(MACRO_VISIBLE).map((meta) => <MacroChart key={meta.series_id} meta={meta} points={macroPoints(meta)} />)}</div>
+      </details>}
       {!payload.macro.meta.length && <div className="source-error">Macro sources: no metadata is available.</div>}
     </section>
 
