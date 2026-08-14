@@ -60,12 +60,15 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .event-window-relative td { border-top: 1px solid var(--line); font-weight: 600; }
 .event-window-note { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
 .sector-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
-.sector-card { background: var(--panel); min-height: 190px; padding: 22px; transition: background .2s, transform .2s; }
+/* .return used a fixed 36px top margin measured from a title that wraps to two
+   lines on several cards, so those percentages sat lower than their row
+   neighbours. Flex with margin-top:auto pins them to one baseline instead. */
+.sector-card { background: var(--panel); display: flex; flex-direction: column; min-height: 190px; padding: 22px; transition: background .2s, transform .2s; }
 .sector-card:hover { background: #edf2e8; transform: translateY(-2px); }
-.sector-card-top { display: flex; justify-content: space-between; gap: 12px; }
+.sector-card-top { display: flex; justify-content: space-between; gap: 12px; min-height: 62px; }
 .sector-card h3 { font-family: Georgia, serif; font-size: 22px; font-weight: 500; }
 .ticker { color: var(--green); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
-.return { font-size: 26px; font-variant-numeric: tabular-nums; margin-top: 36px; }
+.return { font-size: 26px; font-variant-numeric: tabular-nums; margin-top: auto; }
 .return.negative { color: var(--red); }
 .mini-chart { height: 42px; margin-top: 12px; }
 .source-error { background: #fff7e4; border: 1px solid #e5c882; color: #704a0f; padding: 14px 16px; font-size: 13px; }
