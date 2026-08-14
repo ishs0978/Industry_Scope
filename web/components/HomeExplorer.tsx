@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Line, LineChart, ResponsiveContainer } from "recharts";
+import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
 import { formatPercent } from "@/lib/format";
 import type { Sector } from "@/lib/types";
 
@@ -62,7 +62,10 @@ export default function HomeExplorer({ sectors, performance }: { sectors: Sector
             return <Link className="sector-card" href={`/industry/${sector.slug}`} key={sector.slug}>
               <div className="sector-card-top"><h3>{sector.name}</h3><span className="ticker">{sector.primary_etf}</span></div>
               <div className={`return ${ytd !== null && ytd < 0 ? "negative" : ""}`}>{ytd === null ? "Unavailable" : formatPercent(ytd)} <small>YTD</small></div>
-              <div className="mini-chart">{prices.length > 1 && <ResponsiveContainer width="100%" height="100%"><LineChart data={prices}><Line dataKey="value" dot={false} stroke={ytd !== null && ytd < 0 ? "#a4463f" : "#1d6b4d"} strokeWidth={1.6} /></LineChart></ResponsiveContainer>}</div>
+              {/* Recharts defaults the y-domain to [0, dataMax], which compressed a
+                  $290 fund's 56% move against the top of a box starting at zero.
+                  Amplitude then encoded price level rather than return. */}
+              <div className="mini-chart">{prices.length > 1 && <ResponsiveContainer width="100%" height="100%"><LineChart data={prices}><YAxis hide domain={["dataMin", "dataMax"]} /><Line dataKey="value" dot={false} stroke={ytd !== null && ytd < 0 ? "#a4463f" : "#1d6b4d"} strokeWidth={1.6} /></LineChart></ResponsiveContainer>}</div>
             </Link>;
           })}
         </div>
