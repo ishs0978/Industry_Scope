@@ -99,12 +99,15 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .panel-description { color: var(--muted); line-height: 1.6; max-width: 640px; }
 .as-of { color: var(--muted); font-size: 11px; text-align: right; }
 .chart-shell { background: var(--panel); border: 1px solid var(--line); min-height: 340px; padding: 20px 12px 6px; }
-.chart-title { font-size: 12px; font-weight: 800; margin: 0 0 16px 8px; text-transform: uppercase; letter-spacing: .08em; }
+.chart-heading { margin: 0 0 16px 8px; }
+.chart-title { font-size: 17px; font-weight: 500; }
+.chart-term { color: var(--muted); font-size: 11px; letter-spacing: .08em; margin-top: 2px; text-transform: uppercase; }
 .chart-empty { align-items: center; color: var(--muted); display: flex; min-height: 280px; justify-content: center; padding: 30px; text-align: center; }
 .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin-top: 16px; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 16px 0; }
 .stat { background: var(--panel); padding: 18px; }
-.stat-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.stat-label { font-size: 14px; font-weight: 500; }
+.stat .chart-term { margin-bottom: 2px; }
 .stat-value { font-family: Georgia, serif; font-size: 28px; margin-top: 8px; }
 .data-table-wrap { background: var(--panel); border: 1px solid var(--line); overflow: auto; }
 table { border-collapse: collapse; font-size: 13px; width: 100%; }

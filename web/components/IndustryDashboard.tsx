@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, Line,
   LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -124,8 +124,24 @@ function EventWindowReturns({ payload, event, onClose }: {
   </div>;
 }
 
-function SectionHead({ index, title, description, asOf }: { index: string; title: string; description: string; asOf: string }) {
-  return <div className="panel-head"><div><div className="panel-index">{index}</div><h2>{title}</h2><p className="panel-description">{description}</p></div><div className="as-of">Table as of<br /><strong>{asOf}</strong></div></div>;
+function SectionHead({ index, title, term, description, asOf }: { index: string; title: string; term: string; description: string; asOf: string }) {
+  return <div className="panel-head"><div><div className="panel-index">{index}</div><h2>{title}</h2><div className="chart-term">{term}</div><p className="panel-description">{description}</p></div><div className="as-of">Table as of<br /><strong>{asOf}</strong></div></div>;
+}
+
+/** A title answers "what am I looking at"; the term line keeps the vocabulary. */
+function ChartHeading({ title, term }: { title: string; term?: string }) {
+  return <div className="chart-heading">
+    <div className="chart-title">{title}</div>
+    {term && <div className="chart-term">{term}</div>}
+  </div>;
+}
+
+function Stat({ label, term, value }: { label: string; term?: string; value: ReactNode }) {
+  return <div className="stat">
+    <div className="stat-label">{label}</div>
+    {term && <div className="chart-term">{term}</div>}
+    <div className="stat-value">{value}</div>
+  </div>;
 }
 
 function marginTrend(payload: IndustryPayload) {
@@ -292,19 +308,19 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     <div className="freshness">{payload.freshness.map((item) => <div className={`freshness-item ${item.status === "failed" ? "failed" : ""}`} key={item.source}><strong>{item.source}</strong> · {item.details.skipped ? "skipped (not due)" : item.status} · {shortDate(item.finished_at ?? item.started_at)}</div>)}</div>
 
     <section className="panel" id="performance">
-      <SectionHead index="01" title="Performance" description="Adjusted-close performance and risk metrics recalculate in the browser whenever the date range changes." asOf={asOfLabel(payload.prices.map((row) => row.date))} />
+      <SectionHead index="01" title="Price and risk" term="Total return, volatility, drawdown" description="Adjusted-close performance and risk metrics recalculate in the browser whenever the date range changes." asOf={asOfLabel(payload.prices.map((row) => row.date))} />
       <div className="insight-grid">
         <div className="insight-card"><div className="insight-label">What happened</div><p><strong>$100 invested in {payload.sector.primary_etf}</strong> became <strong>{primaryInvestment.length ? money(primaryInvestment.at(-1)!.value) : "—"}</strong> over the selected window.</p>{spyInvestment.length > 0 && <p className="insight-detail">The same $100 in SPY became {money(spyInvestment.at(-1)!.value)}.</p>}</div>
       </div>
       <div className="stat-grid">
-        <div className="stat"><div className="stat-label">Cumulative return</div><div className="stat-value">{percent(cumulativeReturn(primary))}</div></div>
-        <div className="stat"><div className="stat-label">Annualized volatility</div><div className="stat-value">{percent(annualizedVolatility(primary))}</div></div>
-        <div className="stat"><div className="stat-label">Beta vs. SPY</div><div className="stat-value">{number(beta(primary, spy))}</div></div>
-        <div className="stat"><div className="stat-label">Sharpe · DGS3MO</div><div className="stat-value">{number(sharpeRatio(primary, riskFree))}</div></div>
+        <Stat label="Total return" value={percent(cumulativeReturn(primary))} />
+        <Stat label="Volatility" term="Annualized, from daily moves" value={percent(annualizedVolatility(primary))} />
+        <Stat label="Beta vs S&P 500" value={number(beta(primary, spy))} />
+        <Stat label="Sharpe ratio" term="vs 3-month Treasury" value={number(sharpeRatio(primary, riskFree))} />
       </div>
-      <div className="chart-shell"><div className="chart-title">Value of $100 invested</div>{performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} /><Legend /><EventBands events={payload.events} start={start} end={end} />{tickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}</LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
+      <div className="chart-shell"><ChartHeading title="What $100 would be worth today" term="Growth of $100, dividends reinvested" />{performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} /><Legend /><EventBands events={payload.events} start={start} end={end} />{tickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}</LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
       <div className="chart-grid">
-        <div className="chart-shell"><div className="chart-title">Drawdown</div>{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
+        <div className="chart-shell"><ChartHeading title="How far below its last peak" term="Drawdown" />{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
       </div>
       {maximumDrawdown && <p className="panel-description">Maximum drawdown {percent(maximumDrawdown.maxDrawdown)} from {maximumDrawdown.peakDate} to {maximumDrawdown.troughDate}; {maximumDrawdown.recoveryDate ? `recovered ${maximumDrawdown.recoveryDate}` : "not recovered in the selected window"} ({maximumDrawdown.durationDays} days).</p>}
       <div className="hero-meta">{describedEvents(payload.events, start, end).map((event) => <button className={`pill event-pill${selectedEvent?.id === event.id ? " active" : ""}`} onClick={() => setSelectedEventId(selectedEvent?.id === event.id ? null : event.id)} key={event.id}>{event.title}</button>)}</div>
@@ -313,7 +329,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     </section>
 
     <section className="panel" id="composition">
-      <SectionHead index="02" title="Composition" description="Latest issuer-published snapshots. Unsupported issuers are hidden rather than represented by empty portfolios." asOf={asOfLabel(selected.rows.map((row) => row.as_of))} />
+      <SectionHead index="02" title="What the fund holds" term="Constituents and weights" description="Latest issuer-published snapshots. Unsupported issuers are hidden rather than represented by empty portfolios." asOf={asOfLabel(selected.rows.map((row) => row.as_of))} />
       {compositionFunds.length > 0 && <select className="fund-selector" value={fund} onChange={(event) => setFund(event.target.value)}>{compositionFunds.map((ticker) => <option key={ticker}>{ticker}</option>)}</select>}
       {selected.failure ? <div className="source-error">Holdings · {fund} · {selected.failure}</div> : <>
       {snapshotAgeDays !== null && snapshotAgeDays > 7 && <div className="source-error">Holdings · {fund} · stale snapshot dated {snapshotDate}.</div>}
@@ -321,10 +337,10 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
         <div className="insight-card"><div className="insight-label">What the fund owns</div><p><strong>{fund}</strong> reports {selectedHoldings.length.toLocaleString()} holdings covering <strong>{percent(reportedWeightTotal)}</strong> of portfolio weight.{largestHolding && <> Its largest position is <strong>{largestHolding.constituent_ticker} at {percent(largestHolding.weight)}</strong>.</>}</p></div>
       </div>
       <div className="stat-grid">
-        <div className="stat"><div className="stat-label">Top-10 reported weight</div><div className="stat-value">{selectedHoldings.length ? percent(reportedTop10Weight) : "—"}</div></div>
-        <div className="stat"><div className="stat-label">HHI</div><div className="stat-value">{selectedHoldings.length ? Math.round(concentrationStats.hhi * 10_000).toLocaleString() : "—"}</div></div>
-        <div className="stat"><div className="stat-label">Expense ratio</div><div className="stat-value">{payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio === null ? "Unavailable from Yahoo Finance" : percent(payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio ?? null, 2)}</div></div>
-        <div className="stat"><div className="stat-label">Assets</div><div className="stat-value">{payload.etfMeta.find((item) => item.ticker === fund)?.aum ? money(payload.etfMeta.find((item) => item.ticker === fund)!.aum!) : "—"}</div></div>
+        <Stat label="Top 10 holdings" term="Share of portfolio" value={selectedHoldings.length ? percent(reportedTop10Weight) : "—"} />
+        <Stat label="Concentration" term="HHI, 0 to 10,000" value={selectedHoldings.length ? Math.round(concentrationStats.hhi * 10_000).toLocaleString() : "—"} />
+        <Stat label="Expense ratio" term="Annual fee" value={payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio === null ? "Unavailable from Yahoo Finance" : percent(payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio ?? null, 2)} />
+        <Stat label="Assets" term="Total invested in the fund" value={payload.etfMeta.find((item) => item.ticker === fund)?.aum ? money(payload.etfMeta.find((item) => item.ticker === fund)!.aum!) : "—"} />
       </div>
       {selectedHoldings.length ? <div className="data-table-wrap"><table><thead><tr><th>Holding</th><th>Ticker</th><th>Weight</th></tr></thead><tbody>{selectedHoldings.slice(0, 25).map((holding) => <tr key={holding.constituent_ticker}><td>{holding.constituent_name ?? holding.constituent_ticker}</td><td>{holding.constituent_ticker}</td><td>{percent(holding.weight, 2)}</td></tr>)}</tbody></table></div> : <div className="source-error">Holdings · {payload.etfMeta.find((item) => item.ticker === fund)?.holdings_error ?? "No issuer snapshot is available."}</div>}
       <OverlapMatrix matrix={overlap} funds={Object.keys(holdingsByFund)} />
@@ -332,19 +348,19 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     </section>
 
     <section className="panel" id="fundamentals">
-      <SectionHead index="03" title="Fundamentals" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
+      <SectionHead index="03" title="How the companies are doing" term="SEC XBRL reported facts" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
       {comps.length ? <CompsTable rows={comps} /> : <div className="source-error">SEC XBRL: no company facts are available for the latest primary-fund constituents.</div>}
-      {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><div className="chart-title">Sector median margin trend · last eight reported periods</div><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer></div>}
+      {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer></div>}
     </section>
 
     <section className="panel" id="private-capital">
-      <SectionHead index="04" title="Private capital" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
-      <div className="stat-grid"><div className="stat"><div className="stat-label">Filings in range (including amendments)</div><div className="stat-value">{privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()}</div></div><div className="stat"><div className="stat-label">Reported amount sold</div><div className="stat-value">{privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"}</div></div><div className="stat"><div className="stat-label">Median reported raise</div><div className="stat-value">{medianReportedRaise === null ? "—" : money(medianReportedRaise)}</div></div><div className="stat"><div className="stat-label">Distinct issuers</div><div className="stat-value">{new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()}</div></div></div>
-      <div className="chart-shell">{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}</div>
+      <SectionHead index="04" title="Private fundraising" term="SEC Form D filings" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
+      <div className="stat-grid"><Stat label="Form D filings" term="Including amendments" value={privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"} /><Stat label="Typical raise" term="Median" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Distinct issuers" term="Unique filers in range" value={new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()} /></div>
+      <div className="chart-shell"><ChartHeading title="Private fundraising against the fund's price" term="Form D amount sold by quarter" />{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}</div>
     </section>
 
     <section className="panel" id="macro">
-      <SectionHead index="05" title="Macro & operations" description="Sector-relevant FRED, EIA, and BLS raw series aligned to the same date window." asOf={asOfLabel(payload.macro.meta.map((row) => row.as_of))} />
+      <SectionHead index="05" title="Economic backdrop" term="FRED, EIA and BLS series" description="Sector-relevant FRED, EIA, and BLS raw series aligned to the same date window." asOf={asOfLabel(payload.macro.meta.map((row) => row.as_of))} />
       <div className="small-multiples">{payload.macro.meta.slice(0, MACRO_VISIBLE).map((meta) => <MacroChart key={meta.series_id} meta={meta} points={macroPoints(meta)} />)}</div>
       {payload.macro.meta.length > MACRO_VISIBLE && <details className="macro-more">
         <summary>Show all {payload.macro.meta.length} indicators</summary>
@@ -354,9 +370,9 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     </section>
 
     <section className="panel" id="timeline">
-      <SectionHead index="06" title="Timeline" description="Quantitative GDELT activity above; human-curated events and verbatim NYT headlines below." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
+      <SectionHead index="06" title="News and events" term="GDELT volume and NYT headlines" description="Quantitative GDELT activity above; human-curated events and verbatim NYT headlines below." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
       {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {gdeltRun.error_message ?? "Last ingest failed"} · coverage below may be incomplete.</div>}
-      <div className="chart-shell">{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}</div>
+      <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}</div>
       <div className="timeline-list">{timeline.map((entry) => entry.kind === "event" ? <article className="timeline-item event" key={`e:${entry.item.id}`}><div className="timeline-date">{entry.item.start_date}{entry.item.end_date && entry.item.end_date !== entry.item.start_date ? ` – ${entry.item.end_date}` : ""} · CURATED EVENT</div><h3>{entry.item.title}</h3><p>{entry.item.blurb}</p>{entry.item.source_url && <a href={entry.item.source_url} target="_blank" rel="noreferrer">Source ↗</a>}</article> : <article className="timeline-item" key={`h:${entry.item.id}`}><div className="timeline-date">{shortDate(entry.item.published_date)} · {entry.item.source}{entry.item.section ? ` · ${entry.item.section}` : ""}</div><h3><a href={entry.item.url} target="_blank" rel="noreferrer">{entry.item.headline} ↗</a></h3>{entry.item.abstract && <p>{entry.item.abstract}</p>}</article>)}</div>
       {!timeline.length && <div className="source-error">Timeline sources: no events or headlines are available for this window.</div>}
     </section>
@@ -386,7 +402,7 @@ function OverlapMatrix({ matrix, funds }: { matrix: Record<string, Record<string
   if (valid.length < 2) return null;
   let best: [string, string, number] | null = null;
   valid.forEach((a, i) => valid.slice(i + 1).forEach((b) => { const value = matrix[a][b]; if (!best || value > best[2]) best = [a, b, value]; }));
-  return <div style={{ marginTop: 28 }}><div className="chart-title">Pairwise holdings overlap</div>{best && <p className="panel-description">{best[0]} and {best[1]} share {(best[2] * 100).toFixed(2)}% of holdings by weight. Diagonal cells are self-comparisons.</p>}<div className="overlap-grid" style={{ gridTemplateColumns: `80px repeat(${valid.length}, minmax(54px, 1fr))` }}><span />{valid.map((fund) => <strong key={fund}>{fund}</strong>)}{valid.flatMap((row) => [<strong key={`${row}:label`}>{row}</strong>, ...valid.map((column) => { const value = matrix[row][column]; const self = row === column; return <div className={`overlap-cell${self ? " self" : ""}`} title={self ? "Self-overlap is 100% by definition" : `${row} and ${column}: ${percent(value)}`} key={`${row}:${column}`} style={{ background: `rgba(29,107,77,${.08 + Math.min(value, 1) * .7})` }}>{self ? "Self" : percent(value)}</div>; })])}</div></div>;
+  return <div style={{ marginTop: 28 }}><ChartHeading title="How much these funds own the same stocks" term="Pairwise holdings overlap" />{best && <p className="panel-description">{best[0]} and {best[1]} share {(best[2] * 100).toFixed(2)}% of holdings by weight. Diagonal cells are self-comparisons.</p>}<div className="overlap-grid" style={{ gridTemplateColumns: `80px repeat(${valid.length}, minmax(54px, 1fr))` }}><span />{valid.map((fund) => <strong key={fund}>{fund}</strong>)}{valid.flatMap((row) => [<strong key={`${row}:label`}>{row}</strong>, ...valid.map((column) => { const value = matrix[row][column]; const self = row === column; return <div className={`overlap-cell${self ? " self" : ""}`} title={self ? "Self-overlap is 100% by definition" : `${row} and ${column}: ${percent(value)}`} key={`${row}:${column}`} style={{ background: `rgba(29,107,77,${.08 + Math.min(value, 1) * .7})` }}>{self ? "Self" : percent(value)}</div>; })])}</div></div>;
 }
 
 type CompRow = ReturnType<typeof compsRows>[number];
@@ -411,5 +427,5 @@ function CompsTable({ rows }: { rows: CompRow[] }) {
 }
 
 function MacroChart({ meta, points }: { meta: MacroMeta; points: SeriesPoint[] }) {
-  return <div className="chart-shell"><div className="chart-title">{meta.label}</div>{points.length ? <ResponsiveContainer width="100%" height={220}><LineChart data={points}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 9 }} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 9 }} /><Tooltip formatter={(value) => unitValue(Number(value), meta.units)} /><Line dataKey="value" dot={false} stroke="#1d6b4d" /></LineChart></ResponsiveContainer> : <ChartEmpty source={meta.source} />}<div className="as-of" style={{ textAlign: "left" }}>{meta.source} · {meta.units ?? "units unavailable"}<br />Release: {shortDate(meta.last_release_date)} · Ingest: {shortDate(meta.as_of)}</div></div>;
+  return <div className="chart-shell"><ChartHeading title={meta.label} />{points.length ? <ResponsiveContainer width="100%" height={220}><LineChart data={points}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 9 }} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 9 }} /><Tooltip formatter={(value) => unitValue(Number(value), meta.units)} /><Line dataKey="value" dot={false} stroke="#1d6b4d" /></LineChart></ResponsiveContainer> : <ChartEmpty source={meta.source} />}<div className="as-of" style={{ textAlign: "left" }}>{meta.source} · {meta.units ?? "units unavailable"}<br />Release: {shortDate(meta.last_release_date)} · Ingest: {shortDate(meta.as_of)}</div></div>;
 }
