@@ -10,8 +10,9 @@ import {
   cumulativeReturn, holdingsOverlap, holdingsSnapshotIssue, investmentValue, maxDrawdown, rollingVolatility,
   sharpeRatio, type HoldingWeight, type SeriesPoint,
 } from "@/lib/metrics";
+import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
 import { formatMoney as money, formatNumber as number, formatPercent as percent, formatUnitValue as unitValue } from "@/lib/format";
-import type { CompanyFact, IndustryPayload, MacroMeta } from "@/lib/types";
+import type { IndustryPayload, MacroMeta } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
 
 const COLORS = ["#1d6b4d", "#143142", "#b97816", "#7d5a91", "#a4463f"];
@@ -87,40 +88,6 @@ function EventBands({ events, start, end }: { events: IndustryPayload["events"];
 
 function SectionHead({ index, title, description, asOf }: { index: string; title: string; description: string; asOf: string }) {
   return <div className="panel-head"><div><div className="panel-index">{index}</div><h2>{title}</h2><p className="panel-description">{description}</p></div><div className="as-of">Table as of<br /><strong>{asOf}</strong></div></div>;
-}
-
-function latestFactsByTicker(facts: CompanyFact[]) {
-  const grouped = new Map<string, CompanyFact[]>();
-  for (const fact of facts) if (fact.ticker) grouped.set(fact.ticker, [...(grouped.get(fact.ticker) ?? []), fact]);
-  return grouped;
-}
-
-const revenueTags = new Set(["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"]);
-function compsRows(payload: IndustryPayload) {
-  const output = [];
-  for (const [ticker, facts] of latestFactsByTicker(payload.companyFacts)) {
-    const periods = [...new Set(facts.map((fact) => fact.fiscal_period))].sort().reverse();
-    const current = periods[0];
-    if (!current) continue;
-    const metric = (period: string | undefined, names: Set<string> | string) => {
-      if (!period) return null;
-      const fact = facts.find((item) => item.fiscal_period === period && (typeof names === "string" ? item.metric === names : names.has(item.metric)));
-      return fact?.value ?? null;
-    };
-    const revenue = metric(current, revenueTags);
-    const previousPeriod = periods.find((period) => period !== current && period.slice(-2) === current.slice(-2)) ?? periods[4];
-    const previousRevenue = metric(previousPeriod, revenueTags);
-    const ratio = (numerator: number | null, denominator: number | null) => numerator === null || denominator === null || denominator === 0 ? null : numerator / denominator;
-    output.push({
-      ticker, period: current,
-      marketCap: payload.companyMeta.find((item) => item.ticker === ticker)?.market_cap ?? null,
-      revenueGrowth: revenue !== null && previousRevenue ? revenue / previousRevenue - 1 : null,
-      grossMargin: ratio(metric(current, "GrossProfit"), revenue),
-      operatingMargin: ratio(metric(current, "OperatingIncomeLoss"), revenue),
-      netMargin: ratio(metric(current, "NetIncomeLoss"), revenue),
-    });
-  }
-  return output;
 }
 
 function marginTrend(payload: IndustryPayload) {
