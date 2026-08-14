@@ -1,7 +1,21 @@
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
+import { compsRows } from "./comps";
+import { exportableHoldings } from "./holdings";
 import { holdingsOverlap } from "./metrics";
 import type { IndustryPayload } from "./types";
+
+/**
+ * Every other date in this file is built as `${d}T00:00:00Z`. Headlines were
+ * parsed with a bare `new Date(value)`, which is timezone-dependent and drifted
+ * a day. Normalises both shapes to UTC.
+ */
+function utcDate(value: string): Date {
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return new Date(`${text}T00:00:00Z`);
+  const normalized = text.replace(" ", "T");
+  return new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
+}
 
 const green = "1D6B4D";
 const light = "E8ECE5";
@@ -18,14 +32,14 @@ function columnLetter(index: number): string {
   return output;
 }
 
-async function injectNativeChart(source: ArrayBuffer, tickers: string[], rows: number): Promise<ArrayBuffer> {
+async function injectNativeChart(source: ArrayBuffer, tickers: string[], rows: number, sheetNumber: number): Promise<ArrayBuffer> {
   if (rows < 2) return source;
   const zip = await JSZip.loadAsync(source);
-  const sheetPath = "xl/worksheets/sheet1.xml";
+  const sheetPath = `xl/worksheets/sheet${sheetNumber}.xml`;
   const sheet = await zip.file(sheetPath)!.async("string");
   const withNamespaces = sheet.includes("xmlns:r=") ? sheet : sheet.replace("<worksheet ", '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
   zip.file(sheetPath, withNamespaces.replace("</worksheet>", '<drawing r:id="rId1"/></worksheet>'));
-  zip.file("xl/worksheets/_rels/sheet1.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  zip.file(`xl/worksheets/_rels/sheet${sheetNumber}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
 </Relationships>`);
@@ -38,10 +52,10 @@ async function injectNativeChart(source: ArrayBuffer, tickers: string[], rows: n
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/></Relationships>`);
   const series = tickers.map((ticker, index) => {
     const column = columnLetter(index + 2);
-    return `<c:ser><c:idx val="${index}"/><c:order val="${index}"/><c:tx><c:v>${ticker}</c:v></c:tx><c:spPr><a:ln><a:solidFill><a:srgbClr val="${[green, "143142", "B97816", "7D5A91", "A4463F"][index % 5]}"/></a:solidFill></a:ln></c:spPr><c:cat><c:strRef><c:f>'Price History'!$A$2:$A$${rows + 1}</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>'Price History'!$${column}$2:$${column}$${rows + 1}</c:f></c:numRef></c:val></c:ser>`;
+    return `<c:ser><c:idx val="${index}"/><c:order val="${index}"/><c:tx><c:v>${ticker}</c:v></c:tx><c:spPr><a:ln><a:solidFill><a:srgbClr val="${[green, "143142", "B97816", "7D5A91", "A4463F"][index % 5]}"/></a:solidFill></a:ln></c:spPr><c:cat><c:strRef><c:f>'Growth of 100'!$A$2:$A$${rows + 1}</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>'Growth of 100'!$${column}$2:$${column}$${rows + 1}</c:f></c:numRef></c:val></c:ser>`;
   }).join("");
   zip.file("xl/charts/chart1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>Adjusted Close</a:t></a:r></a:p></c:rich></c:tx></c:title><c:plotArea><c:layout/><c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${series}<c:axId val="100001"/><c:axId val="100002"/></c:lineChart><c:catAx><c:axId val="100001"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:axPos val="b"/><c:tickLblPos val="nextTo"/><c:crossAx val="100002"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx><c:valAx><c:axId val="100002"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:axPos val="l"/><c:numFmt formatCode="$#,##0.00" sourceLinked="0"/><c:majorGridlines/><c:tickLblPos val="nextTo"/><c:crossAx val="100001"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx></c:plotArea><c:legend><c:legendPos val="b"/></c:legend><c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>`);
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>Growth of 100</a:t></a:r></a:p></c:rich></c:tx></c:title><c:plotArea><c:layout/><c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${series}<c:axId val="100001"/><c:axId val="100002"/></c:lineChart><c:catAx><c:axId val="100001"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:axPos val="b"/><c:tickLblPos val="nextTo"/><c:crossAx val="100002"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx><c:valAx><c:axId val="100002"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:axPos val="l"/><c:numFmt formatCode="0" sourceLinked="0"/><c:majorGridlines/><c:tickLblPos val="nextTo"/><c:crossAx val="100001"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx></c:plotArea><c:legend><c:legendPos val="b"/></c:legend><c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>`);
   const contentTypesPath = "[Content_Types].xml";
   const contentTypes = await zip.file(contentTypesPath)!.async("string");
   zip.file(contentTypesPath, contentTypes.replace("</Types>", '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>'));
@@ -74,6 +88,39 @@ export async function buildIndustryWorkbook(payload: IndustryPayload, start: str
   const tickers = [payload.sector.primary_etf, ...payload.sector.comparison_etfs, "SPY"];
   const filteredPrices = payload.prices.filter((row) => row.date >= start && row.date <= end);
 
+  // Nine sheets with no orientation is where a recruiter closes the file.
+  const readme = workbook.addWorksheet("Read me");
+  readme.addRow(["IndustryScope workbook"]);
+  readme.addRow([`${payload.sector.name} · ${payload.sector.primary_etf}`]);
+  readme.addRow([`Date range ${start} to ${end}`]);
+  readme.addRow([`Generated ${new Date().toISOString()}`]);
+  readme.addRow([]);
+  readme.addRow(["Returns are total returns with dividends reinvested."]);
+  readme.addRow(["Every figure comes from a public source and is stored before it is shown. Blank means not reported, never zero."]);
+  readme.addRow([]);
+  readme.addRow(["Sheet", "What it contains"]);
+  ([
+    ["Summary", "Sector, ticker, date range and generation time."],
+    ["Price History", "Dividend-adjusted closes for every ticker, one row per date."],
+    ["Daily Returns", "One plain formula per row, so the volatility and correlation maths is visible."],
+    ["Growth of 100", "Every ticker indexed to 100 at the first date. This is what the chart plots."],
+    ["Returns", "Cumulative return, annualized volatility and correlation to SPY, as live formulas."],
+    ["Holdings", "Constituents and weights for funds whose latest snapshot passed validation."],
+    ["Overlap", "Share of any two funds' portfolios held in common, by weight."],
+    ["Comps", "One row per company: revenue, growth, margins and market cap."],
+    ["Comps (raw)", "The underlying XBRL facts, one row per tag per period."],
+    ["Private Capital", "Form D filings. Submission Type marks amendments, which restate a cumulative total."],
+    ["Macro", "FRED, EIA and BLS observations for this sector."],
+    ["Events", "Curated events with sources."],
+    ["Headlines", "NYT headline, abstract and link. No article text is stored."],
+    ["Checks", "Validation actually run against this file."],
+  ] as string[][]).forEach((row) => readme.addRow(row));
+  readme.getCell("A1").font = { bold: true, size: 18, color: { argb: `FF${ink}` } };
+  readme.getCell("A9").font = { bold: true };
+  readme.getCell("B9").font = { bold: true };
+  readme.views = [{ showGridLines: false }];
+  readme.columns = [{ width: 22 }, { width: 88 }];
+
   const summary = workbook.addWorksheet("Summary");
   summary.addRow(["IndustryScope", payload.sector.name]);
   summary.addRow(["Date range", `${start} to ${end}`]);
@@ -91,18 +138,59 @@ export async function buildIndustryWorkbook(payload: IndustryPayload, start: str
   price.getColumn(1).numFmt = "yyyy-mm-dd";
   for (let column = 2; column <= price.columnCount; column += 1) price.getColumn(column).numFmt = "$#,##0.00";
 
+  const lastPriceRow = dates.length + 1;
+
+  const daily = workbook.addWorksheet("Daily Returns");
+  daily.addRow(["Date", ...tickers]);
+  dates.slice(1).forEach((date, index) => {
+    const row = index + 2;
+    daily.addRow([
+      new Date(`${date}T00:00:00Z`),
+      ...tickers.map((_, tickerIndex) => {
+        const letter = price.getColumn(tickerIndex + 2).letter;
+        return { formula: `IFERROR('Price History'!${letter}${row + 1}/'Price History'!${letter}${row}-1,"")` };
+      }),
+    ]);
+  });
+  styleSheet(daily);
+  daily.getColumn(1).numFmt = "yyyy-mm-dd";
+  for (let column = 2; column <= daily.columnCount; column += 1) daily.getColumn(column).numFmt = "0.00%";
+  const lastDailyRow = Math.max(2, dates.length);
+
+  // Indexed to 100 at the first date, as values rather than formulas so the
+  // embedded chart renders before Excel recalculates.
+  const growth = workbook.addWorksheet("Growth of 100");
+  const firstClose = new Map(tickers.map((ticker) => {
+    const first = dates.map((date) => byKey.get(`${date}:${ticker}`)).find((value) => typeof value === "number" && value > 0);
+    return [ticker, first ?? null];
+  }));
+  addRows(growth, ["Date", ...tickers], dates.map((date) => [
+    new Date(`${date}T00:00:00Z`),
+    ...tickers.map((ticker) => {
+      const base = firstClose.get(ticker);
+      const value = byKey.get(`${date}:${ticker}`);
+      return base && typeof value === "number" ? (value / base) * 100 : null;
+    }),
+  ]));
+  growth.getColumn(1).numFmt = "yyyy-mm-dd";
+  for (let column = 2; column <= growth.columnCount; column += 1) growth.getColumn(column).numFmt = "0.0";
+
   const returns = workbook.addWorksheet("Returns");
   returns.addRow(["Ticker", "Cumulative return", "Annualized volatility", "Correlation to SPY"]);
   tickers.forEach((ticker, index) => {
-    const sourceColumn = index + 2;
-    const letter = price.getColumn(sourceColumn).letter;
-    const spyLetter = price.getColumn(tickers.indexOf("SPY") + 2).letter;
-    const last = dates.length + 1;
+    const letter = price.getColumn(index + 2).letter;
+    const dailyLetter = daily.getColumn(index + 2).letter;
+    const spyDailyLetter = daily.getColumn(tickers.indexOf("SPY") + 2).letter;
+    const column = `'Price History'!$${letter}$2:$${letter}$${lastPriceRow}`;
     returns.addRow([
       ticker,
-      { formula: `IFERROR('Price History'!${letter}${last}/'Price History'!${letter}2-1,"")` },
-      { formula: `IFERROR(STDEV('Price History'!${letter}3:${letter}${last}/'Price History'!${letter}2:${letter}${last - 1}-1)*SQRT(252),"")` },
-      { formula: `IFERROR(CORREL('Price History'!${letter}3:${letter}${last}/'Price History'!${letter}2:${letter}${last - 1}-1,'Price History'!${spyLetter}3:${spyLetter}${last}/'Price History'!${spyLetter}2:${spyLetter}${last - 1}-1),"")` },
+      // First and last non-blank rather than fixed row 2 and row N, so a
+      // boundary gap for one ticker does not silently blank the cell.
+      { formula: `IFERROR(LOOKUP(2,1/(${column}<>""),${column})/INDEX(${column},MATCH(TRUE,INDEX(${column}<>"",0),0))-1,"")` },
+      // Points at Daily Returns, so these are ordinary scalar formulas that
+      // calculate in every version of Excel.
+      { formula: `IFERROR(STDEV('Daily Returns'!${dailyLetter}2:${dailyLetter}${lastDailyRow})*SQRT(252),"")` },
+      { formula: `IFERROR(CORREL('Daily Returns'!${dailyLetter}2:${dailyLetter}${lastDailyRow},'Daily Returns'!${spyDailyLetter}2:${spyDailyLetter}${lastDailyRow}),"")` },
     ]);
   });
   styleSheet(returns);
@@ -114,17 +202,28 @@ export async function buildIndustryWorkbook(payload: IndustryPayload, start: str
   // sector, which is much of the reason to open the workbook. Most issuers do
   // not publish it, so say that rather than leaving a blank cell that reads as
   // a bug.
-  addRows(holdings, ["Fund", "As of", "Ticker", "Name", "Weight", "Sub-sector"], payload.holdings.map((row) => [row.fund_ticker, new Date(`${row.as_of}T00:00:00Z`), row.constituent_ticker, row.constituent_name, row.weight, row.sub_sector ?? "Not provided by issuer"]));
+  const shownHoldings = exportableHoldings(payload, end);
+  addRows(holdings, ["Fund", "As of", "Ticker", "Name", "Weight", "Sub-sector"], shownHoldings.map((row) => [row.fund_ticker, new Date(`${row.as_of}T00:00:00Z`), row.constituent_ticker, row.constituent_name, row.weight, row.sub_sector ?? "Not provided by issuer"]));
   holdings.getColumn(2).numFmt = "yyyy-mm-dd";
   holdings.getColumn(5).numFmt = "0.0%";
 
-  const funds = [...new Set(payload.holdings.map((row) => row.fund_ticker))];
-  const matrix = holdingsOverlap(Object.fromEntries(funds.map((fund) => [fund, payload.holdings.filter((row) => row.fund_ticker === fund).map((row) => ({ ticker: row.constituent_ticker, weight: row.weight }))])));
+  const funds = [...new Set(shownHoldings.map((row) => row.fund_ticker))];
+  const matrix = holdingsOverlap(Object.fromEntries(funds.map((fund) => [fund, shownHoldings.filter((row) => row.fund_ticker === fund).map((row) => ({ ticker: row.constituent_ticker, weight: row.weight }))])));
   const overlap = workbook.addWorksheet("Overlap");
   addRows(overlap, ["Fund", ...funds], funds.map((row) => [row, ...funds.map((column) => matrix[row][column])]));
   for (let column = 2; column <= overlap.columnCount; column += 1) overlap.getColumn(column).numFmt = "0.0%";
 
-  const facts = workbook.addWorksheet("Comps");
+  const comps = workbook.addWorksheet("Comps");
+  const compRows = compsRows({
+    companyFacts: payload.companyFacts.filter((fact) => fact.filed_date <= end),
+    companyMeta: payload.companyMeta,
+  });
+  addRows(comps, ["Ticker", "Period", "Market cap (current)", "Revenue growth", "Gross margin", "Operating margin", "Net margin"],
+    compRows.map((row) => [row.ticker, row.period, row.marketCap, row.revenueGrowth, row.grossMargin, row.operatingMargin, row.netMargin]));
+  comps.getColumn(3).numFmt = "$#,##0";
+  for (let column = 4; column <= 7; column += 1) comps.getColumn(column).numFmt = "0.0%";
+
+  const facts = workbook.addWorksheet("Comps (raw)");
   addRows(facts, ["CIK", "Ticker", "Fiscal Period", "Metric", "Value", "Filed Date"], payload.companyFacts.map((row) => [row.cik, row.ticker, row.fiscal_period, row.metric, row.value, new Date(`${row.filed_date}T00:00:00Z`)]));
   facts.getColumn(5).numFmt = "$#,##0.00";
   facts.getColumn(6).numFmt = "yyyy-mm-dd";
@@ -144,22 +243,41 @@ export async function buildIndustryWorkbook(payload: IndustryPayload, start: str
   macro.getColumn(3).numFmt = "yyyy-mm-dd";
 
   const events = workbook.addWorksheet("Events");
-  addRows(events, ["Start", "End", "Title", "Impact", "Blurb", "Source URL"], payload.events.map((row) => [new Date(`${row.start_date}T00:00:00Z`), row.end_date ? new Date(`${row.end_date}T00:00:00Z`) : null, row.title, row.impact, row.blurb || "Editorial description pending human review", row.source_url]));
+  addRows(events, ["Start", "End", "Title", "Impact", "Blurb", "Source URL"], payload.events.filter((row) => row.blurb?.trim()).map((row) => [new Date(`${row.start_date}T00:00:00Z`), row.end_date ? new Date(`${row.end_date}T00:00:00Z`) : null, row.title, row.impact, row.blurb, row.source_url]));
   events.getColumn(1).numFmt = "yyyy-mm-dd";
   events.getColumn(2).numFmt = "yyyy-mm-dd";
 
   const headlines = workbook.addWorksheet("Headlines");
-  addRows(headlines, ["Published", "Source", "Section", "Headline", "Abstract", "URL"], payload.headlines.map((row) => [new Date(row.published_date), row.source, row.section, row.headline, row.abstract, row.url]));
-  headlines.getColumn(1).numFmt = "yyyy-mm-dd";
+  addRows(headlines, ["Published", "Source", "Section", "Headline", "Abstract", "URL"], payload.headlines.map((row) => [utcDate(row.published_date), row.source, row.section, row.headline, row.abstract, row.url]));
+  headlines.getColumn(1).numFmt = "yyyy-mm-dd hh:mm";
 
+  // Every row below is computed from this workbook. The previous sheet asserted
+  // "Formula sheets: OK" and "Missing values: OK" as hardcoded strings.
+  const suppressedFunds = [...new Set(payload.holdings.map((row) => row.fund_ticker))]
+    .filter((fund) => !funds.includes(fund));
+  const blankPriceCells = dates.reduce((total, date) => total + tickers.filter((ticker) => byKey.get(`${date}:${ticker}`) == null).length, 0);
+  const compsWithoutGrowth = compRows.filter((row) => row.revenueGrowth === null).length;
   const checks = workbook.addWorksheet("Checks");
   checks.addRow(["Check", "Status", "Notes"]);
-  checks.addRow(["Price rows", filteredPrices.length ? "OK" : "REVIEW", filteredPrices.length ? `${filteredPrices.length} source observations` : "No price data in selected range"]);
-  checks.addRow(["Formula sheets", "OK", "Returns formulas reference Price History"]);
-  checks.addRow(["Missing values", "OK", "Unknown values are blank, never zero-filled"]);
+  ([
+    ["Price rows", filteredPrices.length ? "OK" : "REVIEW",
+      filteredPrices.length ? `${filteredPrices.length} observations across ${dates.length} dates` : "No price data in the selected range"],
+    ["Daily return rows", lastDailyRow - 1 === Math.max(0, dates.length - 1) ? "OK" : "REVIEW",
+      `${Math.max(0, dates.length - 1)} rows, one per price row after the first`],
+    ["Formula sheets", dates.length > 1 ? "OK" : "REVIEW",
+      dates.length > 1 ? "Returns reads Daily Returns; no array formulas are used" : "Too few dates to build return formulas"],
+    ["Blank price cells", blankPriceCells === 0 ? "OK" : "REVIEW",
+      `${blankPriceCells} ticker/date cells have no observation. Blank is never zero-filled`],
+    ["Holdings suppressed", suppressedFunds.length === 0 ? "OK" : "REVIEW",
+      suppressedFunds.length ? `Excluded, matching the site: ${suppressedFunds.join(", ")}` : "Every fund's latest snapshot passed validation"],
+    ["Comps coverage", compRows.length ? "OK" : "REVIEW",
+      `${compRows.length} companies, ${compsWithoutGrowth} without a comparable prior period`],
+    ["Events exported", "OK", `${payload.events.filter((row) => row.blurb?.trim()).length} of ${payload.events.length} events carry a description`],
+  ] as string[][]).forEach((row) => checks.addRow(row));
   styleSheet(checks);
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const charted = await injectNativeChart(buffer as ArrayBuffer, tickers, dates.length);
+  const growthSheetNumber = workbook.worksheets.findIndex((sheet) => sheet.name === "Growth of 100") + 1;
+  const charted = await injectNativeChart(buffer as ArrayBuffer, tickers, dates.length, growthSheetNumber);
   return new Blob([charted], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }

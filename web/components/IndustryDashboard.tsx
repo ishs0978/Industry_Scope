@@ -7,10 +7,11 @@ import {
 } from "recharts";
 import {
   annualizedVolatility, beta, calendarPeriodReturns, concentration, correlation,
-  cumulativeReturn, holdingsOverlap, holdingsSnapshotIssue, investmentValue, maxDrawdown,
-  sharpeRatio, type HoldingWeight, type SeriesPoint,
+  cumulativeReturn, holdingsOverlap, investmentValue, maxDrawdown,
+  sharpeRatio, type SeriesPoint,
 } from "@/lib/metrics";
 import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
+import { validatedFundHoldings } from "@/lib/holdings";
 import { latestFilingPerOffering } from "@/lib/formd";
 import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatUnitValue as unitValue, isStale, relativeTime, stamp, stampDate } from "@/lib/format";
 import type { IndustryPayload, MacroMeta } from "@/lib/types";
@@ -82,31 +83,6 @@ function drawdownSeries(series: SeriesPoint[]) {
 function asOfLabel(values: (string | null | undefined)[]): string {
   const valid = values.filter(Boolean).map(String).sort();
   return valid.length ? shortDate(valid.at(-1)) : "unavailable";
-}
-
-function holdingsAt(payload: IndustryPayload, fund: string, end: string) {
-  const candidates = payload.holdings.filter((holding) => holding.fund_ticker === fund && shortDate(holding.as_of) <= end);
-  const snapshot = candidates.map((holding) => shortDate(holding.as_of)).sort().at(-1);
-  return snapshot ? candidates.filter((holding) => shortDate(holding.as_of) === snapshot) : [];
-}
-
-function latestHoldingsFailure(payload: IndustryPayload, fund: string): string | null {
-  const perFund = payload.freshness.find((run) => run.source === `holdings:${fund}`);
-  if (perFund?.status === "failed") return perFund.error_message ?? "Latest snapshot validation failed.";
-  const aggregate = payload.freshness.find((run) => run.source === "holdings");
-  const errors = aggregate?.details?.fund_errors;
-  if (errors && typeof errors === "object" && fund in errors) return String((errors as Record<string, unknown>)[fund]);
-  const meta = payload.etfMeta.find((item) => item.ticker === fund);
-  if (meta?.holdings_status === "unsupported") return meta.holdings_error ?? "Issuer feed is not supported.";
-  if (meta?.holdings_status === "stale" && meta.holdings_error) return meta.holdings_error;
-  return null;
-}
-
-function validatedFundHoldings(payload: IndustryPayload, fund: string, end: string): { rows: IndustryPayload["holdings"]; failure: string | null } {
-  const rows = holdingsAt(payload, fund, end);
-  const weights: HoldingWeight[] = rows.map((holding) => ({ ticker: holding.constituent_ticker, weight: holding.weight }));
-  const failure = latestHoldingsFailure(payload, fund) ?? (rows.length ? holdingsSnapshotIssue(weights) : null);
-  return { rows, failure };
 }
 
 function ChartEmpty({ source }: { source: string }) {
