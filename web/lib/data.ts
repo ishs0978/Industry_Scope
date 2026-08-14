@@ -15,16 +15,20 @@ function emptyPayload(sector: Sector, reason = EMPTY_SOURCE_REASON): IndustryPay
   };
 }
 
-export function macroIdsForSector(slug: string): string[] {
+type MacroConfigEntry = { series_id: string; definition?: string; blurb?: string };
+
+function macroConfigForSector(slug: string): MacroConfigEntry[] {
   const mapPath = path.resolve(process.cwd(), "config", "fred_map.yaml");
   const config = YAML.parse(fs.readFileSync(mapPath, "utf8")) as {
-    common?: { series_id: string }[];
-    risk_free?: { series_id: string }[];
-    sectors?: Record<string, { series_id: string }[]>;
+    common?: MacroConfigEntry[];
+    risk_free?: MacroConfigEntry[];
+    sectors?: Record<string, MacroConfigEntry[]>;
   };
-  return [
-    ...(config.common ?? []), ...(config.risk_free ?? []), ...(config.sectors?.[slug] ?? []),
-  ].map((item) => item.series_id);
+  return [...(config.common ?? []), ...(config.risk_free ?? []), ...(config.sectors?.[slug] ?? [])];
+}
+
+export function macroIdsForSector(slug: string): string[] {
+  return macroConfigForSector(slug).map((item) => item.series_id);
 }
 
 export function macroSourceAllowed(slug: string, source: string): boolean {
@@ -117,7 +121,15 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
     // and EIA series are matched by pattern, not listed in fred_map, so they
     // sort after the configured ones.
     const relevance = new Map(macroIds.map((id, index) => [id, index]));
-    const ordered = [...macroMeta].sort((a, b) =>
+    // Definitions and blurbs live in fred_map.yaml beside the series they
+    // describe; the database stores only what FRED publishes.
+    const copy = new Map(macroConfigForSector(slug).map((item) => [item.series_id, item]));
+    const described = (macroMeta as unknown as IndustryPayload["macro"]["meta"]).map((row) => ({
+      ...row,
+      definition: copy.get(row.series_id)?.definition ?? null,
+      blurb: copy.get(row.series_id)?.blurb ?? null,
+    }));
+    const ordered = [...described].sort((a, b) =>
       (relevance.get(a.series_id) ?? Number.MAX_SAFE_INTEGER) - (relevance.get(b.series_id) ?? Number.MAX_SAFE_INTEGER)
       || String(a.source).localeCompare(String(b.source))
       || String(a.label).localeCompare(String(b.label)));

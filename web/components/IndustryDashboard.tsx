@@ -128,18 +128,108 @@ function SectionHead({ index, title, term, description, asOf }: { index: string;
   return <div className="panel-head"><div><div className="panel-index">{index}</div><h2>{title}</h2><div className="chart-term">{term}</div><p className="panel-description">{description}</p></div><div className="as-of">Table as of<br /><strong>{asOf}</strong></div></div>;
 }
 
+
+// Progressive disclosure, per M16. Nothing on the page explains itself until
+// asked: a title click reveals the definition of the concept, and two lines
+// under each chart say what this specific chart shows, with the rest behind a
+// dots button. Both are inline expansions rather than popovers, which need
+// positioning logic, break at narrow widths and are awkward on touch.
+const CHART_COPY = {
+  growth: {
+    definition: "Growth of $100 restates every fund on the same starting basis, so their paths can be compared no matter what their share prices are.",
+    lines: "What $100 would be worth now if you had invested at the start of the window and reinvested every dividend. The thick line is this sector's fund; the grey dashed line is the S&P 500.",
+    more: "Shaded bands mark dated events listed further down the page. Add peer funds with the chips above the chart. This is what the arithmetic produces, not a record of a real investment.",
+  },
+  drawdown: {
+    definition: "A drawdown is the fall from a previous high. It measures the worst stretch an investor would have had to sit through, rather than the average experience.",
+    lines: "How far the fund sits below its own previous peak at every point in the window. Zero means it just hit a record high.",
+    more: "A reading of \u221230% means the fund would need to gain 43% to get back to even, which is why deep drawdowns matter more than they first look. The width of each dip shows how long recovery took.",
+  },
+  calendar: {
+    definition: "Calendar year returns split the total into the years it happened in, so you can see whether one year did all the work.",
+    lines: "Return for each calendar year in the window. Multiply these together and you get the total return shown above.",
+    more: "Partial years show their start and end dates in the header. Each day's return counts toward the year it ends in, which is why the years reconcile to the total exactly.",
+  },
+  margins: {
+    definition: "Margin is the share of revenue a company keeps after a given set of costs. Gross is after production, operating is after running the business, net is after everything including interest and tax.",
+    lines: "Profit margins for the middle company in this fund, across the last eight reported quarters.",
+    more: "The median is used rather than the average so one very large company cannot move the line on its own. Rising lines mean the typical company is keeping more of each dollar of revenue. Companies that do not report a figure are left out of that period rather than counted as zero.",
+  },
+  overlap: {
+    definition: "Overlap adds up the smaller of the two weights for every stock two funds share, so it measures genuinely duplicated exposure rather than just shared names.",
+    lines: "How much of any two funds' portfolios are the same stocks, weighted by position size.",
+    more: "High overlap means owning both gives you less diversification than the two names suggest. A fund compared with itself is always 100%, which is why the diagonal reads Self.",
+  },
+  formd: {
+    definition: "Form D is the filing a private company sends the SEC when it raises money without going public. It is the only public record of most private rounds.",
+    lines: "What private companies in this sector told the SEC they raised each quarter, against this sector's ETF price.",
+    more: "Watch whether private funding turns before or after the public market does. Each offering is counted once; a company that amends a filing restates its cumulative total rather than adding to it. Many filings report no amount at all and count toward the filing tally only.",
+  },
+  news: {
+    definition: "Tone is GDELT's sentiment score for the language in an article, averaged across all coverage that day. Above zero is net positive.",
+    lines: "How many articles mentioned this industry each day, and how positive that coverage was.",
+    more: "Spikes almost always match an event in the list below. Keyword matching is imperfect and will catch some unrelated articles while missing some relevant ones, so read the shape as the signal and the exact counts as approximate.",
+  },
+} as const;
+
+const STAT_DEFINITIONS: Record<string, string> = {
+  "Total return": "Price change plus dividends, assuming every dividend was reinvested the day it was paid.",
+  "Volatility": "How much the fund moved day to day, scaled to an annual figure. Higher means a bumpier ride, not a worse one.",
+  "Beta vs S&P 500": "How much the fund moved when the market moved. One means it tracked the market, above one means it amplified it.",
+  "Sharpe ratio": "Return earned above what a 3-month Treasury would have paid, divided by how much the fund bounced around to earn it. Higher is better compensation for the risk taken.",
+  "Top 10 holdings": "The share of the portfolio sitting in its ten largest positions.",
+  "Concentration": "HHI squares every holding's weight and adds them up, on a 0 to 10,000 scale. One stock scores 10,000; a hundred equal stocks score 100.",
+  "Expense ratio": "The annual fee the fund charges, taken out of returns automatically.",
+  "Assets": "Total money invested in the fund.",
+  "Form D filings": "How many private fundraising filings this sector produced in the window, including amendments.",
+  "Total raised": "Money private companies reported raising, counting each offering once.",
+  "Typical raise": "The median reported round size, which is more representative than the average when one huge round distorts it.",
+  "Distinct issuers": "How many separate companies filed in this window, however many filings each of them made.",
+};
+
+function ChartCaption({ lines, more }: { lines: string; more?: string }) {
+  const [open, setOpen] = useState(false);
+  return <div className="chart-caption">
+    <p>{lines}</p>
+    {more && <>
+      <button aria-expanded={open} aria-label={open ? "Show less" : "Show more"} className="caption-more" onClick={() => setOpen(!open)}>…</button>
+      {open && <p className="caption-more-body">{more}</p>}
+    </>}
+  </div>;
+}
+
 /** A title answers "what am I looking at"; the term line keeps the vocabulary. */
-function ChartHeading({ title, term }: { title: string; term?: string }) {
+function ChartHeading({ title, term, definition }: { title: string; term?: string; definition?: string }) {
+  const [open, setOpen] = useState(false);
+  if (!definition) {
+    return <div className="chart-heading">
+      <div className="chart-title">{title}</div>
+      {term && <div className="chart-term">{term}</div>}
+    </div>;
+  }
   return <div className="chart-heading">
-    <div className="chart-title">{title}</div>
-    {term && <div className="chart-term">{term}</div>}
+    <button aria-expanded={open} className="term-toggle" onClick={() => setOpen(!open)}>
+      <span className="chart-title">{title}</span>
+      {term && <span className="chart-term">{term}</span>}
+    </button>
+    {open && <div className="term-body">{definition}</div>}
   </div>;
 }
 
 function Stat({ label, term, value }: { label: string; term?: string; value: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const definition = STAT_DEFINITIONS[label];
   return <div className="stat">
-    <div className="stat-label">{label}</div>
-    {term && <div className="chart-term">{term}</div>}
+    {definition ? <>
+      <button aria-expanded={open} className="term-toggle" onClick={() => setOpen(!open)}>
+        <span className="stat-label">{label}</span>
+        {term && <span className="chart-term">{term}</span>}
+      </button>
+      {open && <div className="term-body">{definition}</div>}
+    </> : <>
+      <div className="stat-label">{label}</div>
+      {term && <div className="chart-term">{term}</div>}
+    </>}
     <div className="stat-value">{value}</div>
   </div>;
 }
@@ -318,9 +408,9 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
         <Stat label="Beta vs S&P 500" value={number(beta(primary, spy))} />
         <Stat label="Sharpe ratio" term="vs 3-month Treasury" value={number(sharpeRatio(primary, riskFree))} />
       </div>
-      <div className="chart-shell"><ChartHeading title="What $100 would be worth today" term="Growth of $100, dividends reinvested" />{performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} /><Legend /><EventBands events={payload.events} start={start} end={end} />{tickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}</LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
+      <div className="chart-shell"><ChartHeading title="What $100 would be worth today" term="Growth of $100, dividends reinvested" definition={CHART_COPY.growth.definition} />{performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} /><Legend /><EventBands events={payload.events} start={start} end={end} />{tickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}</LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.growth.lines} more={CHART_COPY.growth.more} /></div>
       <div className="chart-grid">
-        <div className="chart-shell"><ChartHeading title="How far below its last peak" term="Drawdown" />{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
+        <div className="chart-shell"><ChartHeading title="How far below its last peak" term="Drawdown" definition={CHART_COPY.drawdown.definition} />{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.drawdown.lines} more={CHART_COPY.drawdown.more} /></div>
       </div>
       {maximumDrawdown && <p className="panel-description">Maximum drawdown {percent(maximumDrawdown.maxDrawdown)} from {maximumDrawdown.peakDate} to {maximumDrawdown.troughDate}; {maximumDrawdown.recoveryDate ? `recovered ${maximumDrawdown.recoveryDate}` : "not recovered in the selected window"} ({maximumDrawdown.durationDays} days).</p>}
       <div className="hero-meta">{describedEvents(payload.events, start, end).map((event) => <button className={`pill event-pill${selectedEvent?.id === event.id ? " active" : ""}`} onClick={() => setSelectedEventId(selectedEvent?.id === event.id ? null : event.id)} key={event.id}>{event.title}</button>)}</div>
@@ -350,13 +440,13 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     <section className="panel" id="fundamentals">
       <SectionHead index="03" title="How the companies are doing" term="SEC XBRL reported facts" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
       {comps.length ? <CompsTable rows={comps} /> : <div className="source-error">SEC XBRL: no company facts are available for the latest primary-fund constituents.</div>}
-      {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer></div>}
+      {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" definition={CHART_COPY.margins.definition} /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer><ChartCaption lines={CHART_COPY.margins.lines} more={CHART_COPY.margins.more} /></div>}
     </section>
 
     <section className="panel" id="private-capital">
       <SectionHead index="04" title="Private fundraising" term="SEC Form D filings" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
       <div className="stat-grid"><Stat label="Form D filings" term="Including amendments" value={privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"} /><Stat label="Typical raise" term="Median" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Distinct issuers" term="Unique filers in range" value={new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()} /></div>
-      <div className="chart-shell"><ChartHeading title="Private fundraising against the fund's price" term="Form D amount sold by quarter" />{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}</div>
+      <div className="chart-shell"><ChartHeading title="Private fundraising against the fund's price" term="Form D amount sold by quarter" definition={CHART_COPY.formd.definition} />{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}<ChartCaption lines={CHART_COPY.formd.lines} more={CHART_COPY.formd.more} /></div>
     </section>
 
     <section className="panel" id="macro">
@@ -372,7 +462,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     <section className="panel" id="timeline">
       <SectionHead index="06" title="News and events" term="GDELT volume and NYT headlines" description="Quantitative GDELT activity above; human-curated events and verbatim NYT headlines below." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
       {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {gdeltRun.error_message ?? "Last ingest failed"} · coverage below may be incomplete.</div>}
-      <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}</div>
+      <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" definition={CHART_COPY.news.definition} />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}<ChartCaption lines={CHART_COPY.news.lines} more={CHART_COPY.news.more} /></div>
       <div className="timeline-list">{timeline.map((entry) => entry.kind === "event" ? <article className="timeline-item event" key={`e:${entry.item.id}`}><div className="timeline-date">{entry.item.start_date}{entry.item.end_date && entry.item.end_date !== entry.item.start_date ? ` – ${entry.item.end_date}` : ""} · CURATED EVENT</div><h3>{entry.item.title}</h3><p>{entry.item.blurb}</p>{entry.item.source_url && <a href={entry.item.source_url} target="_blank" rel="noreferrer">Source ↗</a>}</article> : <article className="timeline-item" key={`h:${entry.item.id}`}><div className="timeline-date">{shortDate(entry.item.published_date)} · {entry.item.source}{entry.item.section ? ` · ${entry.item.section}` : ""}</div><h3><a href={entry.item.url} target="_blank" rel="noreferrer">{entry.item.headline} ↗</a></h3>{entry.item.abstract && <p>{entry.item.abstract}</p>}</article>)}</div>
       {!timeline.length && <div className="source-error">Timeline sources: no events or headlines are available for this window.</div>}
     </section>
@@ -394,7 +484,7 @@ function CalendarTable({ payload, tickers, start, end }: { payload: IndustryPayl
     const entries = tickers.flatMap((ticker) => periods[ticker].filter((item) => item.year === year));
     return [year, entries.find((item) => item.partial)?.label ?? year];
   }));
-  return <div className="data-table-wrap"><table><thead><tr><th>ETF</th>{years.map((year) => <th key={year}>{labels[year]}</th>)}</tr></thead><tbody>{tickers.map((ticker) => <tr key={ticker}><td>{ticker}</td>{years.map((year) => { const value = periods[ticker].find((item) => item.year === year)?.value; return <td className={value === undefined ? "" : value >= 0 ? "positive-cell" : "negative-cell"} key={year}>{value === undefined ? "—" : percent(value)}</td>; })}</tr>)}</tbody></table></div>;
+  return <><ChartHeading title="Return by calendar year" term="Calendar year total return" definition={CHART_COPY.calendar.definition} /><div className="data-table-wrap"><table><thead><tr><th>ETF</th>{years.map((year) => <th key={year}>{labels[year]}</th>)}</tr></thead><tbody>{tickers.map((ticker) => <tr key={ticker}><td>{ticker}</td>{years.map((year) => { const value = periods[ticker].find((item) => item.year === year)?.value; return <td className={value === undefined ? "" : value >= 0 ? "positive-cell" : "negative-cell"} key={year}>{value === undefined ? "—" : percent(value)}</td>; })}</tr>)}</tbody></table></div><ChartCaption lines={CHART_COPY.calendar.lines} more={CHART_COPY.calendar.more} /></>;
 }
 
 function OverlapMatrix({ matrix, funds }: { matrix: Record<string, Record<string, number>>; funds: string[] }) {
@@ -402,7 +492,7 @@ function OverlapMatrix({ matrix, funds }: { matrix: Record<string, Record<string
   if (valid.length < 2) return null;
   let best: [string, string, number] | null = null;
   valid.forEach((a, i) => valid.slice(i + 1).forEach((b) => { const value = matrix[a][b]; if (!best || value > best[2]) best = [a, b, value]; }));
-  return <div style={{ marginTop: 28 }}><ChartHeading title="How much these funds own the same stocks" term="Pairwise holdings overlap" />{best && <p className="panel-description">{best[0]} and {best[1]} share {(best[2] * 100).toFixed(2)}% of holdings by weight. Diagonal cells are self-comparisons.</p>}<div className="overlap-grid" style={{ gridTemplateColumns: `80px repeat(${valid.length}, minmax(54px, 1fr))` }}><span />{valid.map((fund) => <strong key={fund}>{fund}</strong>)}{valid.flatMap((row) => [<strong key={`${row}:label`}>{row}</strong>, ...valid.map((column) => { const value = matrix[row][column]; const self = row === column; return <div className={`overlap-cell${self ? " self" : ""}`} title={self ? "Self-overlap is 100% by definition" : `${row} and ${column}: ${percent(value)}`} key={`${row}:${column}`} style={{ background: `rgba(29,107,77,${.08 + Math.min(value, 1) * .7})` }}>{self ? "Self" : percent(value)}</div>; })])}</div></div>;
+  return <div style={{ marginTop: 28 }}><ChartHeading title="How much these funds own the same stocks" term="Pairwise holdings overlap" definition={CHART_COPY.overlap.definition} />{best && <p className="panel-description">{best[0]} and {best[1]} share {(best[2] * 100).toFixed(2)}% of holdings by weight. Diagonal cells are self-comparisons.</p>}<div className="overlap-grid" style={{ gridTemplateColumns: `80px repeat(${valid.length}, minmax(54px, 1fr))` }}><span />{valid.map((fund) => <strong key={fund}>{fund}</strong>)}{valid.flatMap((row) => [<strong key={`${row}:label`}>{row}</strong>, ...valid.map((column) => { const value = matrix[row][column]; const self = row === column; return <div className={`overlap-cell${self ? " self" : ""}`} title={self ? "Self-overlap is 100% by definition" : `${row} and ${column}: ${percent(value)}`} key={`${row}:${column}`} style={{ background: `rgba(29,107,77,${.08 + Math.min(value, 1) * .7})` }}>{self ? "Self" : percent(value)}</div>; })])}</div><ChartCaption lines={CHART_COPY.overlap.lines} more={CHART_COPY.overlap.more} /></div>;
 }
 
 type CompRow = ReturnType<typeof compsRows>[number];
@@ -427,5 +517,5 @@ function CompsTable({ rows }: { rows: CompRow[] }) {
 }
 
 function MacroChart({ meta, points }: { meta: MacroMeta; points: SeriesPoint[] }) {
-  return <div className="chart-shell"><ChartHeading title={meta.label} />{points.length ? <ResponsiveContainer width="100%" height={220}><LineChart data={points}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 9 }} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 9 }} /><Tooltip formatter={(value) => unitValue(Number(value), meta.units)} /><Line dataKey="value" dot={false} stroke="#1d6b4d" /></LineChart></ResponsiveContainer> : <ChartEmpty source={meta.source} />}<div className="as-of" style={{ textAlign: "left" }}>{meta.source} · {meta.units ?? "units unavailable"}<br />Release: {shortDate(meta.last_release_date)} · Ingest: {shortDate(meta.as_of)}</div></div>;
+  return <div className="chart-shell"><ChartHeading title={meta.label} definition={meta.definition ?? undefined} />{points.length ? <ResponsiveContainer width="100%" height={220}><LineChart data={points}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 9 }} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 9 }} /><Tooltip formatter={(value) => unitValue(Number(value), meta.units)} /><Line dataKey="value" dot={false} stroke="#1d6b4d" /></LineChart></ResponsiveContainer> : <ChartEmpty source={meta.source} />}{meta.blurb && <ChartCaption lines={meta.blurb} />}<div className="as-of" style={{ textAlign: "left" }}>{meta.source} · {meta.units ?? "units unavailable"}<br />Release: {shortDate(meta.last_release_date)} · Ingest: {shortDate(meta.as_of)}</div></div>;
 }

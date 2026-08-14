@@ -153,3 +153,15 @@ th:first-child, td:first-child, .left { text-align: left; }
 .macro-more summary { color: var(--muted); cursor: pointer; font-size: 14px; padding: 6px 0; }
 .macro-more summary:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
 .macro-more .small-multiples { margin-top: 14px; }
+
+.term-toggle { background: none; border: 0; cursor: pointer; display: block; padding: 0; text-align: left; width: 100%; }
+.term-toggle:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.term-toggle .chart-title, .term-toggle .stat-label { border-bottom: 1px dotted var(--muted); display: inline-block; }
+.term-toggle .chart-term { display: block; }
+.term-body { border-left: 2px solid var(--green); color: var(--muted); font-size: 14px; line-height: 1.55; margin-top: 8px; max-width: 62ch; padding-left: 12px; }
+.chart-caption { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 10px 8px 6px; max-width: 62ch; }
+.chart-caption p { margin: 0; }
+.caption-more { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; height: 24px; line-height: 1; padding: 0 6px; }
+.caption-more:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.caption-more-body { margin-top: 6px !important; }
+@media (prefers-reduced-motion: reduce) { .term-body, .caption-more-body { transition: none; } }
