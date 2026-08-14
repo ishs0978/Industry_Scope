@@ -133,7 +133,11 @@ export async function getHomePerformance(): Promise<Record<string, { prices: { d
   if (!process.env.DATABASE_URL) return result;
   const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 1 });
   try {
-    const rows = await sql`SELECT ticker,date,adj_close::float AS value FROM prices WHERE date >= date_trunc('year',current_date) ORDER BY ticker,date`;
+    // YTD is measured from the prior year-end close, so the first trading day's
+    // move is inside the window rather than discarded as the baseline.
+    const rows = await sql`SELECT ticker,date,adj_close::float AS value FROM prices
+      WHERE date >= (SELECT max(date) FROM prices WHERE date < date_trunc('year',current_date))
+      ORDER BY ticker,date`;
     for (const row of rows) {
       (result[row.ticker] ??= { prices: [] }).prices.push({ date: String(row.date), value: Number(row.value) });
     }
