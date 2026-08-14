@@ -37,6 +37,25 @@ describe("return and risk metrics", () => {
     expect(sharpeRatio(points, riskFree)).toBeCloseTo((mean * 252) / Math.sqrt(variance * 252));
   });
 
+  it("computes Sharpe from excess returns on both sides of the ratio", () => {
+    const points = series([100, 110, 99, 108.9]);
+    // A risk-free series that moves, so var(excess) and var(raw returns) diverge.
+    // A flat series cannot detect the denominator, because subtracting a
+    // constant leaves variance unchanged.
+    const riskFree = series([0, 2520, 0, 2520]);
+    const daily = (percent: number) => percent / 100 / 252;
+    const excess = [0.1 - daily(2520), -0.1 - daily(0), 0.1 - daily(2520)];
+    const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const variance = (values: number[]) =>
+      values.reduce((sum, value) => sum + (value - average(values)) ** 2, 0) / (values.length - 1);
+
+    expect(sharpeRatio(points, riskFree))
+      .toBeCloseTo((average(excess) * 252) / Math.sqrt(variance(excess) * 252), 6);
+    // The raw-return denominator this replaced gives a materially different number.
+    expect(sharpeRatio(points, riskFree))
+      .not.toBeCloseTo((average(excess) * 252) / Math.sqrt(variance([0.1, -0.1, 0.1]) * 252), 3);
+  });
+
   it("finds drawdown peak, trough, recovery, and duration", () => {
     const result = maxDrawdown(series([100, 120, 90, 80, 100, 120]));
     expect(result?.maxDrawdown).toBeCloseTo(-1 / 3);

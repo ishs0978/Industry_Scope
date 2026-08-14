@@ -97,7 +97,10 @@ export function sharpeRatio(points: SeriesPoint[], dgs3mo: SeriesPoint[]): numbe
     }
     if (currentRate !== null) excess.push(point.value - currentRate / TRADING_DAYS);
   }
-  const variance = sampleVariance(dailyReturns.map((point) => point.value));
+  // Both sides are computed from `excess` so the ratio is defined on one series.
+  // `excess` can be shorter than `dailyReturns` when the risk-free series starts
+  // later, and sampling the two sides over different windows is not a Sharpe.
+  const variance = sampleVariance(excess);
   const averageExcess = mean(excess);
   if (variance === null || averageExcess === null || variance === 0) return null;
   return (averageExcess * TRADING_DAYS) / Math.sqrt(variance * TRADING_DAYS);
