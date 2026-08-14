@@ -29,7 +29,7 @@ def test_normalize_prices_preserves_real_values_and_missing_volume():
 
 
 def test_metadata_uses_available_expense_ratio_fallbacks():
-    name, ratio, assets, issuer = metadata_values({
+    name, ratio, assets, issuer, rejected = metadata_values({
         "shortName": "Example ETF",
         "netExpenseRatio": 0.35,
         "netAssets": 68_100_000_000,
@@ -37,3 +37,30 @@ def test_metadata_uses_available_expense_ratio_fallbacks():
     })
     assert (name, assets, issuer) == ("Example ETF", 68_100_000_000, "Example")
     assert ratio == pytest.approx(0.0035)
+    assert rejected is None
+
+
+def test_metadata_keeps_decimal_expense_ratio_without_dividing():
+    _, ratio, _, _, rejected = metadata_values({"annualReportExpenseRatio": 0.0035})
+    assert ratio == pytest.approx(0.0035)
+    assert rejected is None
+
+
+def test_metadata_rejects_expense_ratio_that_is_100x_too_small():
+    # Yahoo already returned a decimal here, so the /100 fallback makes it 0.0035%.
+    _, ratio, _, _, rejected = metadata_values({"netExpenseRatio": 0.0035})
+    assert ratio is None
+    assert rejected == 0.0035
+
+
+def test_metadata_rejects_expense_ratio_that_is_100x_too_large():
+    # A fund cannot charge 35% a year; the value was already a percentage.
+    _, ratio, _, _, rejected = metadata_values({"annualReportExpenseRatio": 0.35})
+    assert ratio is None
+    assert rejected == 0.35
+
+
+def test_metadata_reports_missing_expense_ratio_as_unavailable():
+    _, ratio, _, _, rejected = metadata_values({"shortName": "No Fee Data"})
+    assert ratio is None
+    assert rejected is None

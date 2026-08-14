@@ -16,6 +16,11 @@ from ingest.sources.common import SourceUnavailable, logged_run, request, upsert
 
 PriceLoader = Callable[[str, date | None], pd.DataFrame]
 REFRESH_LOOKBACK_DAYS = 400
+# 0.01% to 2.00%. A US-listed ETF fee outside this band is not a fee, it is a
+# unit error. The floor has to stay above 0.01% to catch an already-decimal
+# value that the /100 fallback shrank by 100x, which would render as 0.00%.
+EXPENSE_RATIO_MIN = 0.0001
+EXPENSE_RATIO_MAX = 0.02
 
 
 def configured_tickers() -> tuple[str, ...]:
@@ -129,24 +134,34 @@ def ingest_ticker(
     return written, provider
 
 
-def metadata_values(info: dict[str, Any]) -> tuple[Any, Any, Any, Any]:
+def metadata_values(info: dict[str, Any]) -> tuple[Any, Any, Any, Any, Any]:
     name = info.get("longName") or info.get("shortName")
-    expense_ratio = info.get("annualReportExpenseRatio")
+    raw_expense_ratio = info.get("annualReportExpenseRatio")
+    expense_ratio = raw_expense_ratio
     if expense_ratio is None:
         provider_percent = info.get("netExpenseRatio")
         if provider_percent is None:
             provider_percent = info.get("expenseRatio")
+        raw_expense_ratio = provider_percent
         expense_ratio = float(provider_percent) / 100 if provider_percent is not None else None
+    # Yahoo is inconsistent about whether netExpenseRatio and expenseRatio are
+    # percentages or already decimals, so the /100 above can be 100x wrong. An
+    # implausible result means the convention was guessed wrong; surface it as
+    # unavailable rather than rendering a confident 0.00%.
+    rejected_expense_ratio = None
+    if expense_ratio is not None and not (EXPENSE_RATIO_MIN <= float(expense_ratio) <= EXPENSE_RATIO_MAX):
+        rejected_expense_ratio = raw_expense_ratio
+        expense_ratio = None
     aum = info.get("totalAssets") or info.get("netAssets")
     issuer = info.get("fundFamily")
-    return name, expense_ratio, aum, issuer
+    return name, expense_ratio, aum, issuer, rejected_expense_ratio
 
 
-def ingest_etf_meta(connection: Any, ticker: str) -> int:
+def ingest_etf_meta(connection: Any, ticker: str) -> tuple[int, Any]:
     info = yf.Ticker(ticker).info
     if not info:
         raise SourceUnavailable(f"Yahoo Finance returned no metadata for {ticker}")
-    name, expense_ratio, aum, issuer = metadata_values(info)
+    name, expense_ratio, aum, issuer, rejected_expense_ratio = metadata_values(info)
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -162,7 +177,7 @@ def ingest_etf_meta(connection: Any, ticker: str) -> int:
             (ticker, name, expense_ratio, aum, issuer),
         )
     connection.commit()
-    return 1
+    return 1, rejected_expense_ratio
 
 
 def run(connection: Any) -> None:
@@ -183,9 +198,13 @@ def run(connection: Any) -> None:
     with logged_run(connection, "etf_meta") as result:
         errors: dict[str, str] = {}
         unavailable_expense_ratios: list[str] = []
+        rejected_expense_ratios: dict[str, Any] = {}
         for ticker in configured_tickers():
             try:
-                result.rows_written += ingest_etf_meta(connection, ticker)
+                written, rejected_expense_ratio = ingest_etf_meta(connection, ticker)
+                result.rows_written += written
+                if rejected_expense_ratio is not None:
+                    rejected_expense_ratios[ticker] = rejected_expense_ratio
                 with connection.cursor() as cursor:
                     cursor.execute("SELECT expense_ratio FROM etf_meta WHERE ticker=%s", (ticker,))
                     if cursor.fetchone()[0] is None:
@@ -195,6 +214,7 @@ def run(connection: Any) -> None:
         result.details = {
             "ticker_errors": errors,
             "expense_ratio_unavailable_from_yahoo": unavailable_expense_ratios,
+            "expense_ratio_rejected_as_implausible": rejected_expense_ratios,
         }
         if errors:
             raise SourceUnavailable(f"ETF metadata failed for {len(errors)} ticker(s)")
