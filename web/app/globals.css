@@ -45,6 +45,20 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .section-heading { align-items: end; border-bottom: 1px solid var(--ink); display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 12px; }
 .section-heading h2 { font-family: Georgia, serif; font-size: clamp(28px, 3vw, 42px); font-weight: 500; }
 .grid-note { color: var(--muted); font-size: 14px; margin: -8px 0 20px; max-width: 62ch; }
+
+.event-pill { background: none; cursor: pointer; font: inherit; }
+.event-pill.active { background: var(--ink); color: var(--paper); }
+.event-window { background: var(--panel); border-left: 2px solid var(--green); margin-top: 16px; max-width: 62ch; padding: 18px 20px; }
+.event-window-head { display: flex; gap: 12px; justify-content: space-between; }
+.event-window-head h3 { font-family: Georgia, serif; font-size: 19px; font-weight: 500; }
+.event-window-dates { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.event-window-close { background: none; border: 0; cursor: pointer; font-size: 20px; line-height: 1; padding: 0 4px; }
+.event-window-blurb { font-size: 14px; margin: 10px 0 16px; }
+.event-window-table { font-size: 14px; margin: 6px 0 12px; width: 100%; }
+.event-window-table td { padding: 4px 0; }
+.event-window-table td:last-child { font-variant-numeric: tabular-nums; text-align: right; }
+.event-window-relative td { border-top: 1px solid var(--line); font-weight: 600; }
+.event-window-note { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
 .sector-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
 .sector-card { background: var(--panel); min-height: 190px; padding: 22px; transition: background .2s, transform .2s; }
 .sector-card:hover { background: #edf2e8; transform: translateY(-2px); }

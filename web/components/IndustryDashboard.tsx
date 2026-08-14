@@ -81,10 +81,46 @@ function ChartEmpty({ source }: { source: string }) {
   return <div className="chart-empty">{source}: no observations are available for this panel.</div>;
 }
 
+// An event with no description is a marker the reader clicks for a payoff that
+// never arrives, which is worse than no marker. Nothing blurbless is rendered.
+function describedEvents(events: IndustryPayload["events"], start: string, end: string) {
+  return events.filter((event) => event.blurb?.trim()
+    && event.start_date <= end && (event.end_date ?? event.start_date) >= start);
+}
+
 function EventBands({ events, start, end }: { events: IndustryPayload["events"]; start: string; end: string }) {
-  return <>{events.filter((event) => event.start_date <= end && (event.end_date ?? event.start_date) >= start).map((event) =>
+  return <>{describedEvents(events, start, end).map((event) =>
     <ReferenceArea key={event.id} x1={event.start_date} x2={event.end_date ?? event.start_date} fill={event.impact === "negative" ? "#a4463f" : "#1d6b4d"} fillOpacity={.09} ifOverflow="extendDomain" />
   )}</>;
+}
+
+/** Facts over an event window, never a causal claim. */
+function EventWindowReturns({ payload, event, onClose }: {
+  payload: IndustryPayload; event: IndustryPayload["events"][number]; onClose: () => void;
+}) {
+  const windowEnd = event.end_date ?? event.start_date;
+  const fund = payload.sector.primary_etf;
+  const sector = cumulativeReturn(points(payload, fund, event.start_date, windowEnd));
+  const benchmark = cumulativeReturn(points(payload, "SPY", event.start_date, windowEnd));
+  const relative = sector !== null && benchmark !== null ? sector - benchmark : null;
+  return <div className="event-window">
+    <div className="event-window-head">
+      <div>
+        <h3>{event.title}</h3>
+        <div className="event-window-dates">{event.start_date}{windowEnd !== event.start_date ? ` – ${windowEnd}` : ""}</div>
+      </div>
+      <button aria-label="Close" className="event-window-close" onClick={onClose}>×</button>
+    </div>
+    <p className="event-window-blurb">{event.blurb}</p>
+    <div className="chart-title">Return over this window</div>
+    <table className="event-window-table"><tbody>
+      <tr><td>{fund}</td><td>{percent(sector)}</td></tr>
+      <tr><td>S&amp;P 500</td><td>{percent(benchmark)}</td></tr>
+      <tr className="event-window-relative"><td>Relative</td><td>{percent(relative)}</td></tr>
+    </tbody></table>
+    <p className="event-window-note">Returns over an event window are coincident, not causal. Many things move a sector at once.</p>
+    {event.source_url && <a href={event.source_url} target="_blank" rel="noreferrer">Source ↗</a>}
+  </div>;
 }
 
 function SectionHead({ index, title, description, asOf }: { index: string; title: string; description: string; asOf: string }) {
@@ -132,6 +168,8 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   const [customStart, setCustomStart] = useState(maxStart);
   const [customEnd, setCustomEnd] = useState(maxEnd);
   const [fund, setFund] = useState(compositionFunds[0] ?? payload.sector.primary_etf);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const selectedEvent = payload.events.find((event) => event.id === selectedEventId) ?? null;
 
   const [start, end] = useMemo(() => {
     if (preset === "Max") return [maxStart, maxEnd];
@@ -222,7 +260,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   const gdeltRun = payload.freshness.find((run) => run.source === "gdelt");
 
   const timeline = useMemo(() => [
-    ...payload.events.filter((event) => event.start_date <= end && (event.end_date ?? event.start_date) >= start).map((event) => ({ kind: "event" as const, date: event.start_date, item: event })),
+    ...describedEvents(payload.events, start, end).map((event) => ({ kind: "event" as const, date: event.start_date, item: event })),
     ...payload.headlines.filter((item) => item.published_date.slice(0, 10) >= start && item.published_date.slice(0, 10) <= end).map((item) => ({ kind: "headline" as const, date: item.published_date, item })),
   ].sort((a, b) => b.date.localeCompare(a.date)), [payload.events, payload.headlines, start, end]);
 
@@ -265,7 +303,8 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
         <div className="chart-shell"><div className="chart-title">Rolling 60-day annualized volatility</div>{rollingVol.length ? <ResponsiveContainer width="100%" height={260}><LineChart data={rollingVol}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Line dataKey="value" dot={false} stroke="#b97816" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}</div>
       </div>
       {maximumDrawdown && <p className="panel-description">Maximum drawdown {percent(maximumDrawdown.maxDrawdown)} from {maximumDrawdown.peakDate} to {maximumDrawdown.troughDate}; {maximumDrawdown.recoveryDate ? `recovered ${maximumDrawdown.recoveryDate}` : "not recovered in the selected window"} ({maximumDrawdown.durationDays} days).</p>}
-      <div className="hero-meta">{payload.events.filter((event) => event.start_date <= end && (event.end_date ?? event.start_date) >= start).map((event) => <a className="pill" href={event.source_url ?? undefined} title={event.blurb || "Editorial description pending human review"} key={event.id}>{event.title}</a>)}</div>
+      <div className="hero-meta">{describedEvents(payload.events, start, end).map((event) => <button className={`pill event-pill${selectedEvent?.id === event.id ? " active" : ""}`} onClick={() => setSelectedEventId(selectedEvent?.id === event.id ? null : event.id)} key={event.id}>{event.title}</button>)}</div>
+      {selectedEvent && <EventWindowReturns payload={payload} event={selectedEvent} onClose={() => setSelectedEventId(null)} />}
       <CalendarTable payload={payload} tickers={tickers} start={start} end={end} />
     </section>
 
@@ -311,7 +350,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       <SectionHead index="06" title="Timeline" description="Quantitative GDELT activity above; human-curated events and verbatim NYT headlines below." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
       {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {gdeltRun.error_message ?? "Last ingest failed"} · coverage below may be incomplete.</div>}
       <div className="chart-shell">{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}</div>
-      <div className="timeline-list">{timeline.map((entry) => entry.kind === "event" ? <article className="timeline-item event" key={`e:${entry.item.id}`}><div className="timeline-date">{entry.item.start_date}{entry.item.end_date && entry.item.end_date !== entry.item.start_date ? ` – ${entry.item.end_date}` : ""} · CURATED EVENT</div><h3>{entry.item.title}</h3>{entry.item.blurb ? <p>{entry.item.blurb}</p> : <p>Editorial description pending human review.</p>}{entry.item.source_url && <a href={entry.item.source_url} target="_blank" rel="noreferrer">Source ↗</a>}</article> : <article className="timeline-item" key={`h:${entry.item.id}`}><div className="timeline-date">{shortDate(entry.item.published_date)} · {entry.item.source}{entry.item.section ? ` · ${entry.item.section}` : ""}</div><h3><a href={entry.item.url} target="_blank" rel="noreferrer">{entry.item.headline} ↗</a></h3>{entry.item.abstract && <p>{entry.item.abstract}</p>}</article>)}</div>
+      <div className="timeline-list">{timeline.map((entry) => entry.kind === "event" ? <article className="timeline-item event" key={`e:${entry.item.id}`}><div className="timeline-date">{entry.item.start_date}{entry.item.end_date && entry.item.end_date !== entry.item.start_date ? ` – ${entry.item.end_date}` : ""} · CURATED EVENT</div><h3>{entry.item.title}</h3><p>{entry.item.blurb}</p>{entry.item.source_url && <a href={entry.item.source_url} target="_blank" rel="noreferrer">Source ↗</a>}</article> : <article className="timeline-item" key={`h:${entry.item.id}`}><div className="timeline-date">{shortDate(entry.item.published_date)} · {entry.item.source}{entry.item.section ? ` · ${entry.item.section}` : ""}</div><h3><a href={entry.item.url} target="_blank" rel="noreferrer">{entry.item.headline} ↗</a></h3>{entry.item.abstract && <p>{entry.item.abstract}</p>}</article>)}</div>
       {!timeline.length && <div className="source-error">Timeline sources: no events or headlines are available for this window.</div>}
     </section>
   </main>;

@@ -1,51 +1,753 @@
 [
-  {"id":"oil_embargo_1973","start":"1973-10-17","end":"1974-03-18","sectors":["energy","transport-shipping","consumer-discretionary"],"title":"1973 oil embargo","blurb":"","source_url":"https://history.state.gov/milestones/1969-1976/oil-embargo","impact":"negative"},
-  {"id":"iranian_revolution_oil_1979","start":"1978-11-01","end":"1979-06-30","sectors":["energy","transport-shipping"],"title":"1979 oil supply shock","blurb":"","source_url":"https://www.eia.gov/todayinenergy/detail.php?id=5430","impact":"negative"},
-  {"id":"oil_collapse_1986","start":"1985-11-01","end":"1986-07-31","sectors":["energy"],"title":"1986 oil price collapse","blurb":"","source_url":"https://www.eia.gov/finance/markets/crudeoil/spot_prices.php","impact":"negative"},
-  {"id":"black_monday_1987","start":"1987-10-19","end":"1987-10-19","sectors":["all"],"title":"Black Monday","blurb":"","source_url":"https://www.federalreservehistory.org/essays/stock-market-crash-of-1987","impact":"negative"},
-  {"id":"gulf_war_1990","start":"1990-08-02","end":"1991-02-28","sectors":["energy","defense-aerospace","transport-shipping"],"title":"Gulf War oil shock","blurb":"","source_url":"https://history.state.gov/milestones/1989-1992/gulf-war","impact":"mixed"},
-  {"id":"telecom_act_1996","start":"1996-02-08","end":"1996-02-08","sectors":["communication-services"],"title":"Telecommunications Act of 1996","blurb":"","source_url":"https://www.fcc.gov/general/telecommunications-act-1996","impact":"mixed"},
-  {"id":"asian_financial_crisis_1997","start":"1997-07-02","end":"1998-12-31","sectors":["all"],"title":"Asian financial crisis","blurb":"","source_url":"https://www.imf.org/external/pubs/ft/fandd/1998/06/imfstaff.htm","impact":"negative"},
-  {"id":"dotcom_peak_2000","start":"2000-03-10","end":"2000-03-10","sectors":["software-cloud","communication-services","semiconductors"],"title":"Dot-com market peak","blurb":"","source_url":"https://www.federalreservehistory.org/essays/recession-of-2001","impact":"negative"},
-  {"id":"dotcom_crash_2000_2002","start":"2000-03-10","end":"2002-10-09","sectors":["software-cloud","communication-services","semiconductors"],"title":"Dot-com crash","blurb":"","source_url":"https://www.federalreservehistory.org/essays/recession-of-2001","impact":"negative"},
-  {"id":"september_11_2001","start":"2001-09-11","end":"2001-09-17","sectors":["all","defense-aerospace","transport-shipping"],"title":"September 11 attacks and U.S. market closure","blurb":"","source_url":"https://www.sec.gov/news/press/2001-91.txt","impact":"negative"},
-  {"id":"enron_bankruptcy_2001","start":"2001-12-02","end":"2001-12-02","sectors":["energy"],"title":"Enron bankruptcy","blurb":"","source_url":"https://www.sec.gov/spotlight/enron.htm","impact":"negative"},
-  {"id":"iraq_invasion_2003","start":"2003-03-20","end":"2003-05-01","sectors":["energy","defense-aerospace"],"title":"U.S.-led invasion of Iraq","blurb":"","source_url":"https://history.state.gov/milestones/2001-2008/iraq","impact":"mixed"},
-  {"id":"housing_peak_2006","start":"2006-07-01","end":"2006-07-31","sectors":["homebuilders","banks","real-estate"],"title":"U.S. housing-market peak","blurb":"","source_url":"https://www.federalreservehistory.org/essays/great-recession-and-its-aftermath","impact":"negative"},
-  {"id":"bear_stearns_2008","start":"2008-03-14","end":"2008-03-16","sectors":["banks","all"],"title":"Bear Stearns rescue","blurb":"","source_url":"https://www.federalreservehistory.org/essays/bear-stearns",
-  "impact":"negative"},
-  {"id":"lehman_2008","start":"2008-09-15","end":"2008-09-15","sectors":["all","banks","real-estate"],"title":"Lehman Brothers bankruptcy","blurb":"","source_url":"https://www.federalreservehistory.org/essays/lehman-brothers-files-for-bankruptcy","impact":"negative"},
-  {"id":"tarp_2008","start":"2008-10-03","end":"2008-10-03","sectors":["banks","all"],"title":"Emergency Economic Stabilization Act and TARP","blurb":"","source_url":"https://home.treasury.gov/data/troubled-assets-relief-program","impact":"mixed"},
-  {"id":"arra_2009","start":"2009-02-17","end":"2009-02-17","sectors":["all","industrials","homebuilders"],"title":"American Recovery and Reinvestment Act","blurb":"","source_url":"https://www.congress.gov/bill/111th-congress/house-bill/1","impact":"positive"},
-  {"id":"deepwater_horizon_2010","start":"2010-04-20","end":"2010-09-19","sectors":["energy"],"title":"Deepwater Horizon spill","blurb":"","source_url":"https://www.noaa.gov/education/resource-collections/ocean-coasts/deepwater-horizon-oil-spill","impact":"negative"},
-  {"id":"aca_2010","start":"2010-03-23","end":"2010-03-23","sectors":["healthcare-pharma"],"title":"Affordable Care Act enacted","blurb":"","source_url":"https://www.congress.gov/bill/111th-congress/house-bill/3590","impact":"mixed"},
-  {"id":"dodd_frank_2010","start":"2010-07-21","end":"2010-07-21","sectors":["banks"],"title":"Dodd-Frank Act enacted","blurb":"","source_url":"https://www.congress.gov/bill/111th-congress/house-bill/4173","impact":"mixed"},
-  {"id":"fukushima_2011","start":"2011-03-11","end":"2011-12-16","sectors":["uranium-nuclear","utilities","clean-energy"],"title":"Fukushima Daiichi nuclear accident","blurb":"","source_url":"https://www.nrc.gov/reading-rm/doc-collections/fact-sheets/japan-events.html","impact":"negative"},
-  {"id":"debt_ceiling_2011","start":"2011-07-22","end":"2011-08-08","sectors":["all","banks"],"title":"2011 U.S. debt-ceiling crisis","blurb":"","source_url":"https://www.gao.gov/products/gao-12-701","impact":"negative"},
-  {"id":"ecb_omt_2012","start":"2012-07-26","end":"2012-09-06","sectors":["all","banks"],"title":"ECB Outright Monetary Transactions announcement","blurb":"","source_url":"https://www.ecb.europa.eu/press/pr/date/2012/html/pr120906_1.en.html","impact":"positive"},
-  {"id":"fed_qe3_2012","start":"2012-09-13","end":"2014-10-29","sectors":["all"],"title":"Federal Reserve QE3","blurb":"","source_url":"https://www.federalreserve.gov/newsevents/pressreleases/monetary20120913a.htm","impact":"positive"},
-  {"id":"taper_tantrum_2013","start":"2013-05-22","end":"2013-09-18","sectors":["all","banks","real-estate","homebuilders"],"title":"2013 taper tantrum","blurb":"","source_url":"https://www.federalreserve.gov/monetarypolicy/fomcminutes20130501.htm","impact":"negative"},
-  {"id":"oil_collapse_2014_2016","start":"2014-06-20","end":"2016-02-11","sectors":["energy","banks"],"title":"2014–2016 oil-price collapse","blurb":"","source_url":"https://www.eia.gov/todayinenergy/detail.php?id=24452","impact":"negative"},
-  {"id":"paris_agreement_2015","start":"2015-12-12","end":"2015-12-12","sectors":["clean-energy","energy","utilities"],"title":"Paris Agreement adopted","blurb":"","source_url":"https://unfccc.int/process-and-meetings/the-paris-agreement","impact":"mixed"},
-  {"id":"brexit_vote_2016","start":"2016-06-23","end":"2016-06-24","sectors":["all","banks"],"title":"United Kingdom votes to leave the European Union","blurb":"","source_url":"https://www.electoralcommission.org.uk/research-reports-and-data/our-reports-and-data-past-elections-and-referendums/eu-referendum-results","impact":"negative"},
-  {"id":"us_tax_cuts_2017","start":"2017-12-22","end":"2017-12-22","sectors":["all"],"title":"Tax Cuts and Jobs Act enacted","blurb":"","source_url":"https://www.congress.gov/bill/115th-congress/house-bill/1","impact":"positive"},
-  {"id":"section_301_tariffs_2018","start":"2018-03-22","end":"2019-12-13","sectors":["semiconductors","industrials","materials-mining","consumer-discretionary"],"title":"U.S.–China tariff escalation","blurb":"","source_url":"https://ustr.gov/issue-areas/enforcement/section-301-investigations/section-301-china","impact":"negative"},
-  {"id":"volmageddon_2018","start":"2018-02-05","end":"2018-02-09","sectors":["all"],"title":"February 2018 volatility shock","blurb":"","source_url":"https://www.sec.gov/spotlight/equity-market-structure/staff-research-analysis.htm","impact":"negative"},
-  {"id":"fed_pivot_2019","start":"2019-07-31","end":"2019-10-30","sectors":["all","banks","real-estate"],"title":"Federal Reserve 2019 rate-cut cycle","blurb":"","source_url":"https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm","impact":"mixed"},
-  {"id":"covid_crash_2020","start":"2020-02-19","end":"2020-03-23","sectors":["all"],"title":"COVID-19 market crash","blurb":"","source_url":"https://www.who.int/director-general/speeches/detail/who-director-general-s-opening-remarks-at-the-media-briefing-on-covid-19---11-march-2020","impact":"negative"},
-  {"id":"cares_act_2020","start":"2020-03-27","end":"2020-03-27","sectors":["all"],"title":"CARES Act enacted","blurb":"","source_url":"https://www.congress.gov/bill/116th-congress/senate-bill/3548","impact":"positive"},
-  {"id":"negative_wti_2020","start":"2020-04-20","end":"2020-04-20","sectors":["energy"],"title":"WTI futures settle below zero","blurb":"","source_url":"https://www.cftc.gov/PressRoom/PressReleases/8167-20","impact":"negative"},
-  {"id":"chip_shortage_2021","start":"2021-01-01","end":"2022-06-30","sectors":["semiconductors","consumer-discretionary","industrials"],"title":"Global semiconductor shortage","blurb":"","source_url":"https://www.commerce.gov/news/blog/2022/01/results-semiconductor-supply-chain-request-information","impact":"mixed"},
-  {"id":"gamestop_2021","start":"2021-01-13","end":"2021-02-05","sectors":["consumer-discretionary","all"],"title":"January 2021 meme-stock volatility","blurb":"","source_url":"https://www.sec.gov/files/staff-report-equity-options-market-struction-conditions-early-2021.pdf","impact":"mixed"},
-  {"id":"fed_hiking_cycle_2022","start":"2022-03-16","end":"2023-07-26","sectors":["all","banks","homebuilders","real-estate"],"title":"Federal Reserve 2022–2023 hiking cycle","blurb":"","source_url":"https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm","impact":"negative"},
-  {"id":"russia_invades_ukraine_2022","start":"2022-02-24","end":"2022-02-24","sectors":["energy","defense-aerospace","materials-mining","all"],"title":"Russia invades Ukraine","blurb":"","source_url":"https://press.un.org/en/2022/ga12407.doc.htm","impact":"negative"},
-  {"id":"chips_act_2022","start":"2022-08-09","end":"2022-08-09","sectors":["semiconductors","industrials"],"title":"CHIPS and Science Act enacted","blurb":"","source_url":"https://www.congress.gov/bill/117th-congress/house-bill/4346","impact":"positive"},
-  {"id":"inflation_reduction_act_2022","start":"2022-08-16","end":"2022-08-16","sectors":["clean-energy","utilities","healthcare-pharma","energy"],"title":"Inflation Reduction Act enacted","blurb":"","source_url":"https://www.congress.gov/bill/117th-congress/house-bill/5376","impact":"mixed"},
-  {"id":"chatgpt_launch_2022","start":"2022-11-30","end":"2022-11-30","sectors":["ai-robotics","software-cloud","semiconductors"],"title":"ChatGPT launched","blurb":"","source_url":"https://openai.com/index/chatgpt/","impact":"positive"},
-  {"id":"svb_failure_2023","start":"2023-03-10","end":"2023-03-12","sectors":["banks","software-cloud","all"],"title":"Silicon Valley Bank failure","blurb":"","source_url":"https://www.fdic.gov/news/press-releases/2023/pr23016.html","impact":"negative"},
-  {"id":"ai_capex_cycle_2023_2025","start":"2023-01-01","end":"2025-12-31","sectors":["ai-robotics","semiconductors","software-cloud","utilities"],"title":"2023–2025 AI infrastructure investment cycle","blurb":"","source_url":"https://www.sec.gov/edgar/search/","impact":"positive"},
-  {"id":"israel_hamas_war_2023","start":"2023-10-07","end":"2023-10-07","sectors":["energy","defense-aerospace","transport-shipping","all"],"title":"October 2023 Middle East escalation","blurb":"","source_url":"https://press.un.org/en/2023/sc15445.doc.htm","impact":"negative"},
-  {"id":"red_sea_disruption_2023_2024","start":"2023-11-19","end":"2024-06-30","sectors":["transport-shipping","energy","consumer-discretionary"],"title":"Red Sea shipping disruption","blurb":"","source_url":"https://www.imo.org/en/MediaCentre/PressBriefings/pages/Red-Sea.aspx","impact":"negative"},
-  {"id":"fed_rate_cuts_2024_2025","start":"2024-09-18","end":"2025-12-31","sectors":["all","banks","homebuilders","real-estate"],"title":"2024–2025 Federal Reserve rate-cut period","blurb":"","source_url":"https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm","impact":"mixed"}
+  {
+    "id": "oil_embargo_1973",
+    "start": "1973-10-17",
+    "end": "1974-03-18",
+    "sectors": [
+      "energy",
+      "transport-shipping",
+      "consumer-discretionary"
+    ],
+    "title": "1973 oil embargo",
+    "blurb": "OAPEC members declared an embargo on oil shipments to the United States and several allies on 17 October 1973 and held it until March 1974. Posted crude prices were set administratively rather than by the market, and the allocation controls and retail rationing that followed reached refiners, airlines and fuel retailers as a volume constraint.",
+    "source_url": "https://history.state.gov/milestones/1969-1976/oil-embargo",
+    "impact": "negative"
+  },
+  {
+    "id": "iranian_revolution_oil_1979",
+    "start": "1978-11-01",
+    "end": "1979-06-30",
+    "sectors": [
+      "energy",
+      "transport-shipping"
+    ],
+    "title": "1979 oil supply shock",
+    "blurb": "Strikes in the Iranian oil fields from late 1978 and the revolution that followed removed several million barrels a day of exports through mid-1979. Iranian barrels were a large share of internationally traded light crude, so refiners had to re-source cargoes and shipowners lengthened voyage routes to replace them.",
+    "source_url": "https://www.eia.gov/todayinenergy/detail.php?id=5430",
+    "impact": "negative"
+  },
+  {
+    "id": "oil_collapse_1986",
+    "start": "1985-11-01",
+    "end": "1986-07-31",
+    "sectors": [
+      "energy"
+    ],
+    "title": "1986 oil price collapse",
+    "blurb": "Saudi Arabia abandoned its swing-producer role in late 1985 and moved to netback pricing, raising output into an already oversupplied market through mid-1986. Pricing power moved from administered quotas to the spot market, which reset drilling economics and oilfield service contracting across North American producers.",
+    "source_url": "https://www.eia.gov/finance/markets/crudeoil/spot_prices.php",
+    "impact": "negative"
+  },
+  {
+    "id": "black_monday_1987",
+    "start": "1987-10-19",
+    "end": "1987-10-19",
+    "sectors": [
+      "all"
+    ],
+    "title": "Black Monday",
+    "blurb": "United States equity markets recorded their largest single-session percentage decline on 19 October 1987. The episode exposed how portfolio insurance and index arbitrage interacted with order-handling capacity, and it produced the market-wide circuit breakers that still govern trading halts today.",
+    "source_url": "https://www.federalreservehistory.org/essays/stock-market-crash-of-1987",
+    "impact": "negative"
+  },
+  {
+    "id": "gulf_war_1990",
+    "start": "1990-08-02",
+    "end": "1991-02-28",
+    "sectors": [
+      "energy",
+      "defense-aerospace",
+      "transport-shipping"
+    ],
+    "title": "Gulf War oil shock",
+    "blurb": "Iraq invaded Kuwait on 2 August 1990, and a coalition air campaign began in January 1991 with ground combat ending that February. Kuwaiti and Iraqi crude was withdrawn under United Nations sanctions, coalition procurement pulled forward munitions and airlift demand, and tanker transits through the Gulf carried war-risk premiums.",
+    "source_url": "https://history.state.gov/milestones/1989-1992/gulf-war",
+    "impact": "mixed"
+  },
+  {
+    "id": "telecom_act_1996",
+    "start": "1996-02-08",
+    "end": "1996-02-08",
+    "sectors": [
+      "communication-services"
+    ],
+    "title": "Telecommunications Act of 1996",
+    "blurb": "The Telecommunications Act of 1996 was signed on 8 February 1996, the first comprehensive rewrite of United States communications law since 1934. It required incumbent local carriers to unbundle network elements and lease them to competitors, which opened local access and set the terms on which long-distance, local and cable operators could enter each other's markets.",
+    "source_url": "https://www.fcc.gov/general/telecommunications-act-1996",
+    "impact": "mixed"
+  },
+  {
+    "id": "asian_financial_crisis_1997",
+    "start": "1997-07-02",
+    "end": "1998-12-31",
+    "sectors": [
+      "all"
+    ],
+    "title": "Asian financial crisis",
+    "blurb": "Thailand abandoned the baht's dollar peg on 2 July 1997, and currency and banking crises spread through Indonesia, Korea and Malaysia into 1998. Dollar-denominated debt in the affected economies became harder to service as local currencies fell, which contracted regional import demand and forced global lenders to reprice emerging-market exposure.",
+    "source_url": "https://www.imf.org/external/pubs/ft/fandd/1998/06/imfstaff.htm",
+    "impact": "negative"
+  },
+  {
+    "id": "dotcom_crash_2000_2002",
+    "start": "2000-03-10",
+    "end": "2002-10-09",
+    "sectors": [
+      "software-cloud",
+      "communication-services",
+      "semiconductors"
+    ],
+    "title": "Dot-com crash",
+    "blurb": "Between the March 2000 peak and 9 October 2002 the Nasdaq Composite retraced most of its late-1990s advance while internet and telecommunications issuers failed or restructured. Fibre and switching capacity built on that financing was left far ahead of traffic, so equipment orders and the semiconductor content inside them were cut for several years.",
+    "source_url": "https://www.federalreservehistory.org/essays/recession-of-2001",
+    "impact": "negative"
+  },
+  {
+    "id": "dotcom_peak_2000",
+    "start": "2000-03-10",
+    "end": "2000-03-10",
+    "sectors": [
+      "software-cloud",
+      "communication-services",
+      "semiconductors"
+    ],
+    "title": "Dot-com market peak",
+    "blurb": "The Nasdaq Composite recorded its closing high for the cycle on 10 March 2000, ending an exceptional period of internet and telecommunications equity issuance. Capital that had funded network buildout and customer acquisition ahead of earnings began to reprice, which changed the terms on which equipment vendors and their component suppliers could finance orders.",
+    "source_url": "https://www.federalreservehistory.org/essays/recession-of-2001",
+    "impact": "negative"
+  },
+  {
+    "id": "september_11_2001",
+    "start": "2001-09-11",
+    "end": "2001-09-17",
+    "sectors": [
+      "all",
+      "defense-aerospace",
+      "transport-shipping"
+    ],
+    "title": "September 11 attacks and U.S. market closure",
+    "blurb": "Hijacked aircraft struck the World Trade Center and the Pentagon on 11 September 2001, and United States equity markets stayed closed until 17 September, the longest shutdown since 1933. Civil aviation was grounded and reopened under new screening requirements, while defence and homeland security appropriations were raised in the months that followed.",
+    "source_url": "https://www.sec.gov/news/press/2001-91.txt",
+    "impact": "negative"
+  },
+  {
+    "id": "enron_bankruptcy_2001",
+    "start": "2001-12-02",
+    "end": "2001-12-02",
+    "sectors": [
+      "energy"
+    ],
+    "title": "Enron bankruptcy",
+    "blurb": "Enron filed for Chapter 11 on 2 December 2001 after restating earnings and disclosing off-balance-sheet partnerships. Its failure removed the largest counterparty in North American gas and power trading, forcing merchant energy firms to post collateral, wind down trading books and refinance under stricter disclosure rules.",
+    "source_url": "https://www.sec.gov/spotlight/enron.htm",
+    "impact": "negative"
+  },
+  {
+    "id": "iraq_invasion_2003",
+    "start": "2003-03-20",
+    "end": "2003-05-01",
+    "sectors": [
+      "energy",
+      "defense-aerospace"
+    ],
+    "title": "U.S.-led invasion of Iraq",
+    "blurb": "A United States-led coalition invaded Iraq on 20 March 2003, and major combat operations were declared over on 1 May. Iraqi export capacity was interrupted and then rebuilt under new contracting arrangements, while sustained ground operations raised procurement of vehicles, munitions and support services.",
+    "source_url": "https://history.state.gov/milestones/2001-2008/iraq",
+    "impact": "mixed"
+  },
+  {
+    "id": "housing_peak_2006",
+    "start": "2006-07-01",
+    "end": "2006-07-31",
+    "sectors": [
+      "homebuilders",
+      "banks",
+      "real-estate"
+    ],
+    "title": "U.S. housing-market peak",
+    "blurb": "United States house prices measured by the S&P/Case-Shiller national index reached their cycle high in mid-2006 after a decade of expansion. Rising inventory and slowing sales reached builders first through order cancellations and land option write-downs, and reached lenders through the performance of loans written at the top of the cycle.",
+    "source_url": "https://www.federalreservehistory.org/essays/great-recession-and-its-aftermath",
+    "impact": "negative"
+  },
+  {
+    "id": "bear_stearns_2008",
+    "start": "2008-03-14",
+    "end": "2008-03-16",
+    "sectors": [
+      "banks",
+      "all"
+    ],
+    "title": "Bear Stearns rescue",
+    "blurb": "The Federal Reserve authorised lending against Bear Stearns collateral on 14 March 2008, and JPMorgan agreed to acquire the firm on 16 March with a Federal Reserve backstop. It established that a securities dealer outside the depository system could receive central bank support, which changed how counterparties assessed funding and collateral risk at the remaining broker-dealers.",
+    "source_url": "https://www.federalreservehistory.org/essays/bear-stearns",
+    "impact": "negative"
+  },
+  {
+    "id": "lehman_2008",
+    "start": "2008-09-15",
+    "end": "2008-09-15",
+    "sectors": [
+      "all",
+      "banks",
+      "real-estate"
+    ],
+    "title": "Lehman Brothers bankruptcy",
+    "blurb": "Lehman Brothers filed the largest bankruptcy in United States history on 15 September 2008 after efforts to arrange a purchase failed. Money market funds holding its paper broke the buck and short-term funding markets closed to a wide range of borrowers, transmitting a dealer failure into commercial paper, mortgage credit and corporate lending.",
+    "source_url": "https://www.federalreservehistory.org/essays/lehman-brothers-files-for-bankruptcy",
+    "impact": "negative"
+  },
+  {
+    "id": "tarp_2008",
+    "start": "2008-10-03",
+    "end": "2008-10-03",
+    "sectors": [
+      "banks",
+      "all"
+    ],
+    "title": "Emergency Economic Stabilization Act and TARP",
+    "blurb": "The Emergency Economic Stabilization Act was signed on 3 October 2008, creating the $700 billion Troubled Asset Relief Program. Treasury shifted from buying distressed assets to injecting capital directly into banks, recapitalising the system on terms that carried dividend and compensation restrictions.",
+    "source_url": "https://home.treasury.gov/data/troubled-assets-relief-program",
+    "impact": "mixed"
+  },
+  {
+    "id": "arra_2009",
+    "start": "2009-02-17",
+    "end": "2009-02-17",
+    "sectors": [
+      "all",
+      "industrials",
+      "homebuilders"
+    ],
+    "title": "American Recovery and Reinvestment Act",
+    "blurb": "The American Recovery and Reinvestment Act was signed on 17 February 2009, authorising roughly $787 billion in spending and tax provisions. It directed money to highway, transit, grid and building efficiency work, which reached engineering and construction contractors and their equipment suppliers through state procurement.",
+    "source_url": "https://www.congress.gov/bill/111th-congress/house-bill/1",
+    "impact": "positive"
+  },
+  {
+    "id": "aca_2010",
+    "start": "2010-03-23",
+    "end": "2010-03-23",
+    "sectors": [
+      "healthcare-pharma"
+    ],
+    "title": "Affordable Care Act enacted",
+    "blurb": "The Affordable Care Act was signed on 23 March 2010. It expanded coverage through subsidised exchanges and Medicaid while adding manufacturer fees, rebate changes and a biosimilar approval pathway, altering both the volume of insured demand and the pricing rules facing drug and device makers.",
+    "source_url": "https://www.congress.gov/bill/111th-congress/house-bill/3590",
+    "impact": "mixed"
+  },
+  {
+    "id": "deepwater_horizon_2010",
+    "start": "2010-04-20",
+    "end": "2010-09-19",
+    "sectors": [
+      "energy"
+    ],
+    "title": "Deepwater Horizon spill",
+    "blurb": "The Deepwater Horizon rig exploded on 20 April 2010 and the Macondo well flowed until it was sealed on 19 September. A deepwater drilling moratorium and the reorganisation of offshore regulation followed, changing permitting timelines, well design standards and insurance terms for Gulf of Mexico operators and their service contractors.",
+    "source_url": "https://www.noaa.gov/education/resource-collections/ocean-coasts/deepwater-horizon-oil-spill",
+    "impact": "negative"
+  },
+  {
+    "id": "dodd_frank_2010",
+    "start": "2010-07-21",
+    "end": "2010-07-21",
+    "sectors": [
+      "banks"
+    ],
+    "title": "Dodd-Frank Act enacted",
+    "blurb": "The Dodd-Frank Act was signed on 21 July 2010. It raised capital and liquidity requirements, introduced stress testing and resolution planning, moved standardised derivatives to central clearing and restricted proprietary trading, which changed the mix of activities banks could fund on balance sheet.",
+    "source_url": "https://www.congress.gov/bill/111th-congress/house-bill/4173",
+    "impact": "mixed"
+  },
+  {
+    "id": "fukushima_2011",
+    "start": "2011-03-11",
+    "end": "2011-12-16",
+    "sectors": [
+      "uranium-nuclear",
+      "utilities",
+      "clean-energy"
+    ],
+    "title": "Fukushima Daiichi nuclear accident",
+    "blurb": "A magnitude 9.0 earthquake and tsunami on 11 March 2011 caused core damage at three Fukushima Daiichi reactors, and Japan's last operating reactor shut down that December. Japan and Germany moved to idle or retire reactor capacity, which removed a large block of uranium demand and shifted replacement generation toward imported gas and renewables.",
+    "source_url": "https://www.nrc.gov/reading-rm/doc-collections/fact-sheets/japan-events.html",
+    "impact": "negative"
+  },
+  {
+    "id": "debt_ceiling_2011",
+    "start": "2011-07-22",
+    "end": "2011-08-08",
+    "sectors": [
+      "all",
+      "banks"
+    ],
+    "title": "2011 U.S. debt-ceiling crisis",
+    "blurb": "Congress reached the statutory debt limit in 2011 and passed the Budget Control Act on 2 August, after which Standard & Poor's lowered the United States long-term rating on 5 August. Treasury securities are the reference collateral for most secured funding, so a change in their rating propagated through margin schedules and collateral eligibility rules.",
+    "source_url": "https://www.gao.gov/products/gao-12-701",
+    "impact": "negative"
+  },
+  {
+    "id": "ecb_omt_2012",
+    "start": "2012-07-26",
+    "end": "2012-09-06",
+    "sectors": [
+      "all",
+      "banks"
+    ],
+    "title": "ECB Outright Monetary Transactions announcement",
+    "blurb": "The European Central Bank president committed on 26 July 2012 to do whatever it takes to preserve the euro, and the Governing Council set out the Outright Monetary Transactions framework on 6 September. The programme offered conditional and potentially unlimited purchases of short-dated sovereign debt, which removed the redenomination premium embedded in periphery bank funding costs.",
+    "source_url": "https://www.ecb.europa.eu/press/pr/date/2012/html/pr120906_1.en.html",
+    "impact": "positive"
+  },
+  {
+    "id": "fed_qe3_2012",
+    "start": "2012-09-13",
+    "end": "2014-10-29",
+    "sectors": [
+      "all"
+    ],
+    "title": "Federal Reserve QE3",
+    "blurb": "The FOMC announced open-ended purchases of $40 billion of agency mortgage-backed securities a month on 13 September 2012 and ended the programme on 29 October 2014. Unlike earlier rounds it carried no fixed size, tying the pace of purchases to labour market conditions and compressing yields on mortgage and other long-duration assets.",
+    "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20120913a.htm",
+    "impact": "positive"
+  },
+  {
+    "id": "taper_tantrum_2013",
+    "start": "2013-05-22",
+    "end": "2013-09-18",
+    "sectors": [
+      "all",
+      "banks",
+      "real-estate",
+      "homebuilders"
+    ],
+    "title": "2013 taper tantrum",
+    "blurb": "The Federal Reserve chair told Congress on 22 May 2013 that the FOMC could slow the pace of asset purchases, and long-term Treasury yields rose through September. Mortgage rates are priced off those yields, so the move passed directly into housing affordability, refinancing volume and the valuation of rate-sensitive property income.",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20130501.htm",
+    "impact": "negative"
+  },
+  {
+    "id": "oil_collapse_2014_2016",
+    "start": "2014-06-20",
+    "end": "2016-02-11",
+    "sectors": [
+      "energy",
+      "banks"
+    ],
+    "title": "2014–2016 oil-price collapse",
+    "blurb": "OPEC declined to reduce production at its 27 November 2014 meeting, and the resulting oversupply persisted until early 2016. United States shale producers had funded drilling with high-yield debt and reserve-based lending, so a sustained change in realised crude prices reached both rig activity and the energy loan books of regional banks.",
+    "source_url": "https://www.eia.gov/todayinenergy/detail.php?id=24452",
+    "impact": "negative"
+  },
+  {
+    "id": "paris_agreement_2015",
+    "start": "2015-12-12",
+    "end": "2015-12-12",
+    "sectors": [
+      "clean-energy",
+      "energy",
+      "utilities"
+    ],
+    "title": "Paris Agreement adopted",
+    "blurb": "The Paris Agreement was adopted on 12 December 2015, committing signatories to nationally determined emissions targets. It gave governments a common framework for renewable procurement mandates, carbon pricing and coal retirement schedules, which set the policy demand underlying utility generation planning.",
+    "source_url": "https://unfccc.int/process-and-meetings/the-paris-agreement",
+    "impact": "mixed"
+  },
+  {
+    "id": "brexit_vote_2016",
+    "start": "2016-06-23",
+    "end": "2016-06-24",
+    "sectors": [
+      "all",
+      "banks"
+    ],
+    "title": "United Kingdom votes to leave the European Union",
+    "blurb": "The United Kingdom voted to leave the European Union on 23 June 2016. Banks operating in London under European passporting rules faced losing the right to serve European Union clients from United Kingdom entities, which began a multi-year relocation of legal entities, capital and staff.",
+    "source_url": "https://www.electoralcommission.org.uk/research-reports-and-data/our-reports-and-data-past-elections-and-referendums/eu-referendum-results",
+    "impact": "negative"
+  },
+  {
+    "id": "us_tax_cuts_2017",
+    "start": "2017-12-22",
+    "end": "2017-12-22",
+    "sectors": [
+      "all"
+    ],
+    "title": "Tax Cuts and Jobs Act enacted",
+    "blurb": "The Tax Cuts and Jobs Act was signed on 22 December 2017. It cut the federal corporate rate from 35 to 21 percent, moved to a territorial system with a one-off charge on accumulated foreign earnings, and allowed immediate expensing of equipment, changing after-tax cash flow and repatriation decisions across United States filers.",
+    "source_url": "https://www.congress.gov/bill/115th-congress/house-bill/1",
+    "impact": "positive"
+  },
+  {
+    "id": "volmageddon_2018",
+    "start": "2018-02-05",
+    "end": "2018-02-09",
+    "sectors": [
+      "all"
+    ],
+    "title": "February 2018 volatility shock",
+    "blurb": "The Cboe Volatility Index more than doubled on 5 February 2018, and several inverse volatility exchange-traded products were terminated that week. Those products rebalanced by buying volatility futures as volatility rose, so their own hedging demand fed back into the futures they tracked.",
+    "source_url": "https://www.sec.gov/spotlight/equity-market-structure/staff-research-analysis.htm",
+    "impact": "negative"
+  },
+  {
+    "id": "section_301_tariffs_2018",
+    "start": "2018-03-22",
+    "end": "2019-12-13",
+    "sectors": [
+      "semiconductors",
+      "industrials",
+      "materials-mining",
+      "consumer-discretionary"
+    ],
+    "title": "U.S.–China tariff escalation",
+    "blurb": "The United States began imposing Section 301 tariffs on Chinese goods in 2018 following a USTR investigation, and successive rounds ran until the Phase One agreement of 13 December 2019. The duties applied at the border to components as well as finished goods, which changed sourcing decisions, bonded inventory positions and the location of final assembly.",
+    "source_url": "https://ustr.gov/issue-areas/enforcement/section-301-investigations/section-301-china",
+    "impact": "negative"
+  },
+  {
+    "id": "fed_pivot_2019",
+    "start": "2019-07-31",
+    "end": "2019-10-30",
+    "sectors": [
+      "all",
+      "banks",
+      "real-estate"
+    ],
+    "title": "Federal Reserve 2019 rate-cut cycle",
+    "blurb": "The FOMC cut the federal funds target three times between 31 July and 30 October 2019 after raising it through 2018. The reversal lowered short-term funding costs and flattened the curve banks lend against, and it reset the discount rate applied to long-dated property income.",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+    "impact": "mixed"
+  },
+  {
+    "id": "covid_crash_2020",
+    "start": "2020-02-19",
+    "end": "2020-03-23",
+    "sectors": [
+      "all"
+    ],
+    "title": "COVID-19 market crash",
+    "blurb": "The World Health Organization characterised COVID-19 as a pandemic on 11 March 2020, and governments imposed movement restrictions through a market decline running from 19 February to 23 March. Supply and demand were interrupted at the same time across almost every industry at once, which is unusual for a shock of this size.",
+    "source_url": "https://www.who.int/director-general/speeches/detail/who-director-general-s-opening-remarks-at-the-media-briefing-on-covid-19---11-march-2020",
+    "impact": "negative"
+  },
+  {
+    "id": "cares_act_2020",
+    "start": "2020-03-27",
+    "end": "2020-03-27",
+    "sectors": [
+      "all"
+    ],
+    "title": "CARES Act enacted",
+    "blurb": "The CARES Act was signed on 27 March 2020, authorising roughly $2.2 trillion including direct payments, expanded unemployment insurance, the Paycheck Protection Program and support for Federal Reserve emergency facilities. It substituted public transfers for interrupted private income, sustaining household spending while activity restrictions were in force.",
+    "source_url": "https://www.congress.gov/bill/116th-congress/senate-bill/3548",
+    "impact": "positive"
+  },
+  {
+    "id": "negative_wti_2020",
+    "start": "2020-04-20",
+    "end": "2020-04-20",
+    "sectors": [
+      "energy"
+    ],
+    "title": "WTI futures settle below zero",
+    "blurb": "The expiring May 2020 WTI futures contract settled below zero on 20 April 2020, the first negative settlement in the contract's history. Physical delivery at Cushing requires storage, and with tankage effectively committed the holders of expiring contracts had to pay to transfer barrels, which is a storage constraint rather than a demand signal.",
+    "source_url": "https://www.cftc.gov/PressRoom/PressReleases/8167-20",
+    "impact": "negative"
+  },
+  {
+    "id": "chip_shortage_2021",
+    "start": "2021-01-01",
+    "end": "2022-06-30",
+    "sectors": [
+      "semiconductors",
+      "consumer-discretionary",
+      "industrials"
+    ],
+    "title": "Global semiconductor shortage",
+    "blurb": "Semiconductor lead times extended through 2021 and into 2022 after automotive orders cancelled in early 2020 were re-entered against capacity that had been reallocated to consumer electronics. Mature-node analog and microcontroller parts were the binding constraint rather than leading-edge logic, which is why vehicle and appliance lines idled while advanced foundry capacity ran full.",
+    "source_url": "https://www.commerce.gov/news/blog/2022/01/results-semiconductor-supply-chain-request-information",
+    "impact": "mixed"
+  },
+  {
+    "id": "gamestop_2021",
+    "start": "2021-01-13",
+    "end": "2021-02-05",
+    "sectors": [
+      "consumer-discretionary",
+      "all"
+    ],
+    "title": "January 2021 meme-stock volatility",
+    "blurb": "Trading volume in GameStop and several other heavily shorted stocks rose steeply between 13 January and 5 February 2021, and several brokers restricted opening transactions on 28 January. Clearing house margin requirements scale with volatility and position concentration, so the constraint that produced those restrictions sat in settlement collateral rather than in the brokers' order books.",
+    "source_url": "https://www.sec.gov/files/staff-report-equity-options-market-struction-conditions-early-2021.pdf",
+    "impact": "mixed"
+  },
+  {
+    "id": "russia_invades_ukraine_2022",
+    "start": "2022-02-24",
+    "end": "2022-02-24",
+    "sectors": [
+      "energy",
+      "defense-aerospace",
+      "materials-mining",
+      "all"
+    ],
+    "title": "Russia invades Ukraine",
+    "blurb": "Russia invaded Ukraine on 24 February 2022, triggering sanctions on Russian crude, refined products and financial institutions. Europe replaced pipeline gas with seaborne LNG, which redirected United States export volumes and reset the pricing relationship between the two markets, while NATO members raised multi-year defence procurement budgets.",
+    "source_url": "https://press.un.org/en/2022/ga12407.doc.htm",
+    "impact": "negative"
+  },
+  {
+    "id": "fed_hiking_cycle_2022",
+    "start": "2022-03-16",
+    "end": "2023-07-26",
+    "sectors": [
+      "all",
+      "banks",
+      "homebuilders",
+      "real-estate"
+    ],
+    "title": "Federal Reserve 2022–2023 hiking cycle",
+    "blurb": "The FOMC began raising the federal funds target on 16 March 2022 and reached 5.25 to 5.50 percent by 26 July 2023, the fastest tightening since the early 1980s. Mortgage rates and commercial property capitalisation rates are set off the same curve, so the increase passed into housing affordability, transaction volume and the refinancing terms facing property owners.",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+    "impact": "negative"
+  },
+  {
+    "id": "chips_act_2022",
+    "start": "2022-08-09",
+    "end": "2022-08-09",
+    "sectors": [
+      "semiconductors",
+      "industrials"
+    ],
+    "title": "CHIPS and Science Act enacted",
+    "blurb": "The CHIPS and Science Act was signed on 9 August 2022, authorising roughly $52 billion for domestic semiconductor manufacturing alongside an investment tax credit. Support was conditioned on building fabrication and packaging capacity inside the United States, which changed where new capacity is sited and the construction and equipment orders that follow it.",
+    "source_url": "https://www.congress.gov/bill/117th-congress/house-bill/4346",
+    "impact": "positive"
+  },
+  {
+    "id": "inflation_reduction_act_2022",
+    "start": "2022-08-16",
+    "end": "2022-08-16",
+    "sectors": [
+      "clean-energy",
+      "utilities",
+      "healthcare-pharma",
+      "energy"
+    ],
+    "title": "Inflation Reduction Act enacted",
+    "blurb": "The Inflation Reduction Act was signed on 16 August 2022. It made clean electricity and manufacturing tax credits long-dated and transferable, added a methane fee, and for the first time allowed Medicare to negotiate prices on selected drugs, setting separate multi-year planning conditions for generation developers and for pharmaceutical manufacturers.",
+    "source_url": "https://www.congress.gov/bill/117th-congress/house-bill/5376",
+    "impact": "mixed"
+  },
+  {
+    "id": "chatgpt_launch_2022",
+    "start": "2022-11-30",
+    "end": "2022-11-30",
+    "sectors": [
+      "ai-robotics",
+      "software-cloud",
+      "semiconductors"
+    ],
+    "title": "ChatGPT launched",
+    "blurb": "OpenAI released ChatGPT on 30 November 2022. It moved large language models from research demonstrations into a consumer-scale product, which turned model inference into a sustained operating workload and made accelerator capacity a planning constraint for cloud providers.",
+    "source_url": "https://openai.com/index/chatgpt/",
+    "impact": "positive"
+  },
+  {
+    "id": "ai_capex_cycle_2023_2025",
+    "start": "2023-01-01",
+    "end": "2025-12-31",
+    "sectors": [
+      "ai-robotics",
+      "semiconductors",
+      "software-cloud",
+      "utilities"
+    ],
+    "title": "2023–2025 AI infrastructure investment cycle",
+    "blurb": "The largest United States cloud operators raised capital expenditure guidance repeatedly between 2023 and 2025, directing spending toward accelerator hardware and the data centre shells to house it. That hardware is unusually power-dense, so the buildout also became an electricity interconnection and generation planning question for the utilities serving those sites.",
+    "source_url": "https://www.sec.gov/edgar/search/",
+    "impact": "positive"
+  },
+  {
+    "id": "svb_failure_2023",
+    "start": "2023-03-10",
+    "end": "2023-03-12",
+    "sectors": [
+      "banks",
+      "software-cloud",
+      "all"
+    ],
+    "title": "Silicon Valley Bank failure",
+    "blurb": "The FDIC closed Silicon Valley Bank on 10 March 2023 and Signature Bank on 12 March, and regulators invoked the systemic risk exception to guarantee uninsured deposits. The bank's securities portfolio carried unrealised losses that had to be crystallised to meet withdrawals, which drew supervisory attention to held-to-maturity accounting and to deposit concentration among venture-backed technology firms.",
+    "source_url": "https://www.fdic.gov/news/press-releases/2023/pr23016.html",
+    "impact": "negative"
+  },
+  {
+    "id": "israel_hamas_war_2023",
+    "start": "2023-10-07",
+    "end": "2023-10-07",
+    "sectors": [
+      "energy",
+      "defense-aerospace",
+      "transport-shipping",
+      "all"
+    ],
+    "title": "October 2023 Middle East escalation",
+    "blurb": "Hamas attacked southern Israel on 7 October 2023, and the resulting conflict widened to exchanges involving Lebanon, Yemen and Iran. Roughly a fifth of seaborne oil transits the Strait of Hormuz, so escalation involving Iran is priced by shipowners and refiners as a routing and insurance question.",
+    "source_url": "https://press.un.org/en/2023/sc15445.doc.htm",
+    "impact": "negative"
+  },
+  {
+    "id": "red_sea_disruption_2023_2024",
+    "start": "2023-11-19",
+    "end": "2024-06-30",
+    "sectors": [
+      "transport-shipping",
+      "energy",
+      "consumer-discretionary"
+    ],
+    "title": "Red Sea shipping disruption",
+    "blurb": "Houthi forces began attacking commercial vessels in the Red Sea from 19 November 2023, and the major container lines rerouted around the Cape of Good Hope through 2024. The diversion adds roughly ten days to Asia-Europe voyages, which absorbs vessel capacity, raises bunker consumption and war-risk premiums, and lengthens retail inventory lead times.",
+    "source_url": "https://www.imo.org/en/MediaCentre/PressBriefings/pages/Red-Sea.aspx",
+    "impact": "negative"
+  },
+  {
+    "id": "fed_rate_cuts_2024_2025",
+    "start": "2024-09-18",
+    "end": "2025-12-31",
+    "sectors": [
+      "all",
+      "banks",
+      "homebuilders",
+      "real-estate"
+    ],
+    "title": "2024–2025 Federal Reserve rate-cut period",
+    "blurb": "The FOMC lowered the federal funds target by 50 basis points on 18 September 2024, its first reduction since 2020, and continued easing into 2025. Deposit costs reprice faster than loan books when policy turns, so the direction of travel moves bank net interest margins and the mortgage rates that govern housing turnover.",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+    "impact": "mixed"
+  },
+  {
+    "id": "opec_unwind_2025",
+    "start": "2025-04-01",
+    "end": "2025-12-31",
+    "sectors": [
+      "energy"
+    ],
+    "title": "OPEC+ begins unwinding voluntary production cuts",
+    "blurb": "Eight OPEC+ members began returning 2.2 million barrels a day of voluntary cuts from 1 April 2025, and on 3 April agreed a further increment of 411 thousand barrels a day from May. Returning barrels into a market already growing from non-OPEC+ supply changes the distribution of spare capacity, which is the variable refiners and oilfield service contractors plan turnaround and drilling schedules against.",
+    "source_url": "https://www.opec.org/pr-detail/557-03-april-2025.html",
+    "impact": "mixed"
+  },
+  {
+    "id": "reciprocal_tariffs_2025",
+    "start": "2025-04-02",
+    "end": "2026-02-20",
+    "sectors": [
+      "all",
+      "consumer-discretionary",
+      "industrials",
+      "semiconductors",
+      "materials-mining",
+      "transport-shipping"
+    ],
+    "title": "Reciprocal tariffs imposed under IEEPA",
+    "blurb": "An executive order signed on 2 April 2025 applied a 10 percent tariff to substantially all United States imports from 5 April, with higher country-specific rates for trading partners named in its annexes. The duties applied at the border to components as well as finished goods, which changed landed cost, bonded inventory positions and the calculation of where final assembly is located.",
+    "source_url": "https://www.whitehouse.gov/presidential-actions/2025/04/regulating-imports-with-a-reciprocal-tariff-to-rectify-trade-practices-that-contribute-to-large-and-persistent-annual-united-states-goods-trade-deficits/",
+    "impact": "negative"
+  },
+  {
+    "id": "mfn_drug_pricing_2025",
+    "start": "2025-05-12",
+    "end": "2026-12-31",
+    "sectors": [
+      "healthcare-pharma"
+    ],
+    "title": "Most-favoured-nation prescription drug pricing policy",
+    "blurb": "An executive order signed on 12 May 2025 directed HHS to set most-favoured-nation price targets referenced to the lowest price paid in comparably wealthy OECD countries, and manufacturer agreements followed from September 2025. The targets apply to brand products that face no generic or biosimilar competition, so the policy operates on the portion of pharmaceutical revenue still carrying exclusivity.",
+    "source_url": "https://www.whitehouse.gov/presidential-actions/2025/05/delivering-most-favored-nation-prescription-drug-pricing-to-american-patients/",
+    "impact": "negative"
+  },
+  {
+    "id": "copper_section_232_2025",
+    "start": "2025-07-30",
+    "end": "2026-12-31",
+    "sectors": [
+      "materials-mining",
+      "industrials"
+    ],
+    "title": "Section 232 tariffs on copper products",
+    "blurb": "A proclamation dated 30 July 2025 imposed a 50 percent tariff on semi-finished copper products and copper-intensive derivatives from 1 August, while leaving refined cathode and scrap outside the measure. Taxing fabricated shapes but not the raw material places the duty on the conversion step, which changes the relative economics of domestic fabrication against imported semis.",
+    "source_url": "https://www.whitehouse.gov/fact-sheets/2025/07/fact-sheet-president-donald-j-trump-takes-action-to-address-the-threat-to-national-security-from-imports-of-copper/",
+    "impact": "mixed"
+  },
+  {
+    "id": "fed_easing_2025",
+    "start": "2025-09-17",
+    "end": "2025-12-10",
+    "sectors": [
+      "all",
+      "banks",
+      "homebuilders",
+      "real-estate"
+    ],
+    "title": "Federal Reserve returns to easing",
+    "blurb": "The FOMC resumed lowering the federal funds target during the second half of 2025 and set the range at 3.50 to 3.75 percent on 10 December, citing increased downside risks to employment. Policy rate changes reach banks through deposit repricing and reach housing through the mortgage curve, which is why rate-sensitive sectors track the meeting calendar rather than an annual average.",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes20251210.htm",
+    "impact": "positive"
+  },
+  {
+    "id": "semiconductor_section_232_2026",
+    "start": "2026-01-14",
+    "end": "2026-12-31",
+    "sectors": [
+      "semiconductors",
+      "technology",
+      "ai-robotics"
+    ],
+    "title": "Section 232 tariffs on semiconductors and advanced computing chips",
+    "blurb": "A proclamation signed on 14 January 2026 imposed a 25 percent duty on certain advanced computing chips and derivative products from 15 January, with exemptions covering imports for United States data centres, research, repair and several civil uses. The exemptions turn on how a part is used rather than on what it is, so the measure operates through import routing and end-use documentation rather than the product category alone.",
+    "source_url": "https://www.whitehouse.gov/presidential-actions/2026/01/adjusting-imports-of-semiconductors-semiconductor-manufacturing-equipment-and-their-derivative-products-into-the-united-states/",
+    "impact": "mixed"
+  },
+  {
+    "id": "ieepa_tariffs_ended_2026",
+    "start": "2026-02-20",
+    "end": "2026-02-20",
+    "sectors": [
+      "all",
+      "consumer-discretionary",
+      "industrials",
+      "transport-shipping"
+    ],
+    "title": "IEEPA tariff actions terminated",
+    "blurb": "Executive Order 14389, signed on 20 February 2026, ended the additional ad valorem duties imposed under the International Emergency Economic Powers Act by nine earlier orders, including the reciprocal tariffs of April 2025. Section 232 and Section 301 duties were left untouched, so the tariffs that remain are those tied to specific product investigations rather than to emergency declarations.",
+    "source_url": "https://www.whitehouse.gov/presidential-actions/2026/02/ending-certain-tariff-actions/",
+    "impact": "positive"
+  },
+  {
+    "id": "pharma_section_232_2026",
+    "start": "2026-04-02",
+    "end": "2026-12-31",
+    "sectors": [
+      "healthcare-pharma"
+    ],
+    "title": "Section 232 tariffs on pharmaceuticals",
+    "blurb": "A proclamation signed on 2 April 2026 set a 100 percent duty on imported patented pharmaceuticals and their ingredients, effective 31 July 2026 for companies named in its annex and 29 September 2026 for the rest. Reduced and zero rates apply to manufacturers with approved onshoring plans or most-favoured-nation pricing agreements, which ties the duty to a company's own commitments rather than to country of origin.",
+    "source_url": "https://www.whitehouse.gov/presidential-actions/2026/04/adjusting-imports-of-pharmaceuticals-and-pharmaceutical-ingredients-into-the-united-states/",
+    "impact": "negative"
+  },
+  {
+    "id": "metals_tariff_update_2026",
+    "start": "2026-06-01",
+    "end": "2027-12-31",
+    "sectors": [
+      "materials-mining",
+      "industrials"
+    ],
+    "title": "Steel, aluminium and copper tariff schedule revised",
+    "blurb": "A proclamation dated 1 June 2026 cut the duty on agricultural equipment from 25 to 15 percent, extended a 15 percent rate to industrial equipment from trade-agreement countries, and set a 10 percent rate for equipment containing at least 85 percent United States melted and poured steel or aluminium, through 31 December 2027. Tying the rate to domestic metal content moves the measure from a border tax on finished machines toward a rule about where the underlying metal was made.",
+    "source_url": "https://www.whitehouse.gov/fact-sheets/2026/06/fact-sheet-president-donald-j-trump-updates-tariffs-on-steel-aluminum-and-copper-imports/",
+    "impact": "mixed"
+  }
 ]
-
