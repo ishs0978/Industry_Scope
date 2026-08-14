@@ -205,3 +205,6 @@ th:first-child, td:first-child, .left { text-align: left; }
 .timeline-item.event.mixed { border-left-color: var(--amber); }
 .month-divider { background: var(--paper); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; letter-spacing: .08em; padding: 8px 0; position: sticky; text-transform: uppercase; top: 56px; z-index: 4; }
 .show-more { margin-top: 16px; }
+
+.methodology .lede { color: var(--ink); font-size: 19px; }
+.methodology .data-table-wrap { margin: 20px 0; }
