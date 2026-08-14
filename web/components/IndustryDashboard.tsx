@@ -11,6 +11,7 @@ import {
   sharpeRatio, type HoldingWeight, type SeriesPoint,
 } from "@/lib/metrics";
 import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
+import { latestFilingPerOffering } from "@/lib/formd";
 import { formatMoney as money, formatNumber as number, formatPercent as percent, formatUnitValue as unitValue } from "@/lib/format";
 import type { IndustryPayload, MacroMeta } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
@@ -173,23 +174,43 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     ? Math.floor((Date.now() - Date.parse(`${snapshotDate}T00:00:00Z`)) / DAY)
     : null;
 
+  const formDInRange = useMemo(
+    () => payload.formD.filter((row) => row.filed_date >= start && row.filed_date <= end),
+    [payload.formD, start, end],
+  );
+  // Dollar aggregates read one filing per offering. Filing counts keep every
+  // row, including amendments, and the stat label says so.
+  const formDLatestPerOffering = useMemo(() => latestFilingPerOffering(formDInRange), [formDInRange]);
+
   const privateCapital = useMemo(() => {
+    const quarterOf = (value: string) => {
+      const parsed = new Date(`${value}T00:00:00Z`);
+      return `${parsed.getUTCFullYear()} Q${Math.floor(parsed.getUTCMonth() / 3) + 1}`;
+    };
     const groups = new Map<string, { quarter: string; raised: number | null; count: number; values: number[] }>();
-    for (const filing of payload.formD.filter((row) => row.filed_date >= start && row.filed_date <= end)) {
-      const parsed = new Date(`${filing.filed_date}T00:00:00Z`);
-      const quarter = `${parsed.getUTCFullYear()} Q${Math.floor(parsed.getUTCMonth() / 3) + 1}`;
-      const group = groups.get(quarter) ?? { quarter, raised: null, count: 0, values: [] };
-      group.count += 1;
-      if (filing.amount_sold !== null) { group.values.push(filing.amount_sold); group.raised = (group.raised ?? 0) + filing.amount_sold; }
-      groups.set(quarter, group);
+    const group = (quarter: string) => {
+      const existing = groups.get(quarter) ?? { quarter, raised: null, count: 0, values: [] };
+      groups.set(quarter, existing);
+      return existing;
+    };
+    for (const filing of formDInRange) group(quarterOf(filing.filed_date)).count += 1;
+    for (const filing of formDLatestPerOffering) {
+      if (filing.amount_sold === null) continue;
+      const bucket = group(quarterOf(filing.filed_date));
+      bucket.values.push(filing.amount_sold);
+      bucket.raised = (bucket.raised ?? 0) + filing.amount_sold;
     }
     const pricesByQuarter = new Map<string, number>();
     for (const point of primary) {
       const parsed = new Date(`${point.date}T00:00:00Z`);
       pricesByQuarter.set(`${parsed.getUTCFullYear()} Q${Math.floor(parsed.getUTCMonth() / 3) + 1}`, point.value);
     }
-    return [...groups.values()].map((group) => ({ ...group, median: quantile(group.values, .5), etfPrice: pricesByQuarter.get(group.quarter) ?? null })).sort((a, b) => a.quarter.localeCompare(b.quarter));
-  }, [payload.formD, primary, start, end]);
+    return [...groups.values()].map((row) => ({ ...row, median: quantile(row.values, .5), etfPrice: pricesByQuarter.get(row.quarter) ?? null })).sort((a, b) => a.quarter.localeCompare(b.quarter));
+  }, [formDInRange, formDLatestPerOffering, primary]);
+
+  const medianReportedRaise = quantile(
+    formDLatestPerOffering.filter((row) => row.amount_sold !== null).map((row) => row.amount_sold), .5,
+  );
 
   const timeline = useMemo(() => [
     ...payload.events.filter((event) => event.start_date <= end && (event.end_date ?? event.start_date) >= start).map((event) => ({ kind: "event" as const, date: event.start_date, item: event })),
@@ -266,8 +287,8 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     </section>
 
     <section className="panel" id="private-capital">
-      <SectionHead index="04" title="Private capital" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
-      <div className="stat-grid"><div className="stat"><div className="stat-label">Filings in range</div><div className="stat-value">{privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()}</div></div><div className="stat"><div className="stat-label">Reported amount sold</div><div className="stat-value">{privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"}</div></div><div className="stat"><div className="stat-label">Median reported raise</div><div className="stat-value">{quantile(payload.formD.filter((row) => row.amount_sold !== null && row.filed_date >= start && row.filed_date <= end).map((row) => row.amount_sold), .5) !== null ? money(quantile(payload.formD.filter((row) => row.amount_sold !== null && row.filed_date >= start && row.filed_date <= end).map((row) => row.amount_sold), .5)!) : "—"}</div></div><div className="stat"><div className="stat-label">Mapped SIC sector</div><div className="stat-value">{payload.sector.name}</div></div></div>
+      <SectionHead index="04" title="Private capital" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
+      <div className="stat-grid"><div className="stat"><div className="stat-label">Filings in range (including amendments)</div><div className="stat-value">{privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()}</div></div><div className="stat"><div className="stat-label">Reported amount sold</div><div className="stat-value">{privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"}</div></div><div className="stat"><div className="stat-label">Median reported raise</div><div className="stat-value">{medianReportedRaise === null ? "—" : money(medianReportedRaise)}</div></div><div className="stat"><div className="stat-label">Mapped SIC sector</div><div className="stat-value">{payload.sector.name}</div></div></div>
       <div className="chart-shell">{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}</div>
     </section>
 

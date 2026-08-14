@@ -26,6 +26,9 @@ def sector_for_sic(sic_code: str | None) -> str | None:
     return max(matches)[1] if matches else None
 
 
+FORM_D_TYPES = {"D", "D/A"}
+
+
 def full_index_rows(text: str) -> list[dict[str, str]]:
     marker = "CIK|Company Name|Form Type|Date Filed|Filename"
     if marker not in text:
@@ -33,7 +36,10 @@ def full_index_rows(text: str) -> list[dict[str, str]]:
     records = []
     for line in text.split(marker, 1)[1].splitlines():
         parts = line.strip().split("|")
-        if len(parts) == 5 and parts[2] == "D":
+        # Amendments file as "D/A" and restate the cumulative amount raised.
+        # They are collected so dollar aggregates can read the latest figure for
+        # an offering; excluding them leaves amended offerings understated.
+        if len(parts) == 5 and parts[2] in FORM_D_TYPES:
             records.append(dict(zip(("cik", "name", "form", "filed", "filename"), parts)))
     return records
 
@@ -66,6 +72,10 @@ def parse_form_d_xml(xml_text: str, accession_no: str, filed_date: date, cik: st
     return (
         accession_no, filed_date, cik, issuer_name, sic, sector_for_sic(sic),
         number("totalOfferingAmount"), number("totalAmountSold"), _text(root, "stateOrCountry"),
+        # submissionType distinguishes an original filing from an amendment.
+        # previousAccessionNumber, present on most amendments, chains a
+        # restatement back to the offering it supersedes.
+        _text(root, "submissionType"), _text(root, "previousAccessionNumber"),
     )
 
 
@@ -120,8 +130,8 @@ def run(connection: Any) -> None:
                 row = parse_form_d_xml(filing.text, accession, date.fromisoformat(record["filed"]), cik10, sic)
                 result.rows_written += upsert_rows(
                     connection,
-                    """INSERT INTO form_d (accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount,amount_sold,state)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """INSERT INTO form_d (accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount,amount_sold,state,submission_type,previous_accession_no)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (accession_no) DO NOTHING""",
                     [row],
                 )

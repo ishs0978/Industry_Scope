@@ -29,6 +29,7 @@ def test_migrations_are_ordered_and_versioned():
         "0004_macro_release_metadata.sql",
         "0005_sec_news_support.sql",
         "0006_ingest_batch_lifecycle.sql",
+        "0007_form_d_submission_type.sql",
     ]
 
 

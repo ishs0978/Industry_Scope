@@ -1,7 +1,7 @@
 from datetime import date
 
 import ingest.sources.nyt as nyt_source
-from ingest.sources.form_d import sector_for_sic
+from ingest.sources.form_d import full_index_rows, parse_form_d_xml, sector_for_sic
 from ingest.sources.nyt import DEFAULT_MAX_MONTHS_PER_RUN, completed_archive_months, matching_headlines
 from ingest.sources.sec_xbrl import normalize_company_facts
 from ingest.sources.sec_xbrl import sec_session
@@ -22,6 +22,50 @@ def test_sec_facts_keep_latest_filing_and_missing_tags_blank():
 def test_sic_mapping_uses_registry_prefixes_only():
     assert sector_for_sic("1311") == "energy"
     assert sector_for_sic("9999") is None
+
+
+def test_full_index_collects_originals_and_amendments():
+    text = (
+        "CIK|Company Name|Form Type|Date Filed|Filename\n"
+        "1|Alpha Corp|D|2026-08-01|edgar/data/1/0001.txt\n"
+        "2|Beta Corp|D/A|2026-08-02|edgar/data/2/0002.txt\n"
+        "3|Gamma Corp|8-K|2026-08-03|edgar/data/3/0003.txt\n"
+    )
+    rows = full_index_rows(text)
+    # Amendments restate an offering's cumulative total, so they must be
+    # collected; unrelated form types must not be.
+    assert [row["form"] for row in rows] == ["D", "D/A"]
+
+
+def test_form_d_xml_captures_submission_type_and_amendment_chain():
+    xml = """<edgarSubmission>
+      <submissionType>D/A</submissionType>
+      <primaryIssuer><entityName>Beta Corp</entityName><stateOrCountry>DE</stateOrCountry></primaryIssuer>
+      <offeringData>
+        <previousAccessionNumber>0000000000-26-000001</previousAccessionNumber>
+        <offeringSalesAmounts>
+          <totalOfferingAmount>10000000</totalOfferingAmount>
+          <totalAmountSold>9000000</totalAmountSold>
+        </offeringSalesAmounts>
+      </offeringData>
+    </edgarSubmission>"""
+    row = parse_form_d_xml(xml, "0000000000-26-000002", date(2026, 8, 2), "0000000002", "7372")
+    assert row[0] == "0000000000-26-000002"
+    assert row[6] == 10_000_000
+    assert row[7] == 9_000_000
+    assert row[9] == "D/A"
+    assert row[10] == "0000000000-26-000001"
+
+
+def test_form_d_xml_marks_an_original_filing_with_no_chain():
+    xml = """<edgarSubmission>
+      <submissionType>D</submissionType>
+      <primaryIssuer><entityName>Alpha Corp</entityName></primaryIssuer>
+      <offeringData><offeringSalesAmounts><totalAmountSold>4000000</totalAmountSold></offeringSalesAmounts></offeringData>
+    </edgarSubmission>"""
+    row = parse_form_d_xml(xml, "0000000000-26-000001", date(2026, 8, 1), "0000000001", "1311")
+    assert row[9] == "D"
+    assert row[10] is None
 
 
 def test_nyt_matching_stores_only_allowed_metadata():

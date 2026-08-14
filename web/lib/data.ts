@@ -102,7 +102,7 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
              GROUP BY as_of HAVING count(*) >= 5 AND sum(weight) BETWEEN 0.98 AND 1.02
              ORDER BY as_of DESC LIMIT 1
            ))`,
-      sql`SELECT accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount::float,amount_sold::float,state FROM form_d WHERE sector_slug=${slug} ORDER BY filed_date`,
+      sql`SELECT accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount::float,amount_sold::float,state,submission_type,previous_accession_no FROM form_d WHERE sector_slug=${slug} ORDER BY filed_date`,
       sql`SELECT id,sector_slug,published_date,source,headline,abstract,section,url FROM headlines WHERE sector_slug=${slug} ORDER BY published_date`,
       sql`SELECT sector_slug,date,article_volume::float,avg_tone::float FROM news_volume WHERE sector_slug=${slug} ORDER BY date`,
       sql`SELECT id,start_date,end_date,sectors,title,blurb,source_url,impact FROM events WHERE sectors && ARRAY[${slug},'all']::text[] ORDER BY start_date`,

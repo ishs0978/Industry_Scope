@@ -126,7 +126,10 @@ export async function buildIndustryWorkbook(payload: IndustryPayload, start: str
   facts.getColumn(6).numFmt = "yyyy-mm-dd";
 
   const capital = workbook.addWorksheet("Private Capital");
-  addRows(capital, ["Filed Date", "Issuer", "SIC", "Offering Amount", "Amount Sold", "State", "Accession"], payload.formD.map((row) => [new Date(`${row.filed_date}T00:00:00Z`), row.issuer_name, row.sic_code, row.total_offering_amount, row.amount_sold, row.state, row.accession_no]));
+  // "Supersedes" marks an amendment, which restates an offering's cumulative
+  // total. Without these two columns a reader summing Amount Sold in Excel
+  // would double-count every amended offering.
+  addRows(capital, ["Filed Date", "Issuer", "SIC", "Offering Amount", "Amount Sold", "State", "Accession", "Submission Type", "Supersedes"], payload.formD.map((row) => [new Date(`${row.filed_date}T00:00:00Z`), row.issuer_name, row.sic_code, row.total_offering_amount, row.amount_sold, row.state, row.accession_no, row.submission_type, row.previous_accession_no]));
   capital.getColumn(1).numFmt = "yyyy-mm-dd";
   capital.getColumn(4).numFmt = "$#,##0.00";
   capital.getColumn(5).numFmt = "$#,##0.00";
