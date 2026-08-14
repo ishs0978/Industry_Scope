@@ -260,7 +260,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     </section>
 
     <section className="panel" id="fundamentals">
-      <SectionHead index="03" title="Fundamentals" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
+      <SectionHead index="03" title="Fundamentals" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
       {comps.length ? <CompsTable rows={comps} /> : <div className="source-error">SEC XBRL: no company facts are available for the latest primary-fund constituents.</div>}
       {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><div className="chart-title">Sector median margin trend · last eight reported periods</div><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer></div>}
     </section>
@@ -313,6 +313,16 @@ function OverlapMatrix({ matrix, funds }: { matrix: Record<string, Record<string
 }
 
 type CompRow = ReturnType<typeof compsRows>[number];
+// company_meta stores a single as_of per ticker, so market cap is always
+// today's value regardless of the selected range. The header says so rather
+// than implying it is aligned to the window.
+const METRIC_LABELS: Record<string, string> = {
+  marketCap: "Market cap (current)",
+  revenueGrowth: "Revenue growth",
+  grossMargin: "Gross margin",
+  operatingMargin: "Operating margin",
+  netMargin: "Net margin",
+};
 function CompsTable({ rows }: { rows: CompRow[] }) {
   const [sortKey, setSortKey] = useState<keyof CompRow>("marketCap");
   const ordered = [...rows].sort((a, b) => ((b[sortKey] as number | null) ?? -Infinity) - ((a[sortKey] as number | null) ?? -Infinity));
@@ -320,7 +330,7 @@ function CompsTable({ rows }: { rows: CompRow[] }) {
   const summaries = [
     { ticker: "Sector 25th percentile", q: .25 }, { ticker: "Sector median", q: .5 }, { ticker: "Sector 75th percentile", q: .75 },
   ];
-  return <div className="data-table-wrap"><table><thead><tr><th onClick={() => setSortKey("ticker")}>Company</th><th>Period</th>{metrics.map((metric) => <th key={metric} onClick={() => setSortKey(metric)}>{metric.replace(/([A-Z])/g, " $1")}</th>)}</tr></thead><tbody>{summaries.map((summary) => <tr key={summary.ticker}><td><strong>{summary.ticker}</strong></td><td>—</td>{metrics.map((metric) => { const value = quantile(rows.map((row) => typeof row[metric] === "number" ? row[metric] as number : null), summary.q); return <td key={metric}>{metric === "marketCap" ? value === null ? "—" : money(value) : percent(value)}</td>; })}</tr>)}{ordered.map((row) => <tr key={row.ticker}><td>{row.ticker}</td><td>{row.period}</td><td>{row.marketCap === null ? "—" : money(row.marketCap)}</td><td>{percent(row.revenueGrowth)}</td><td>{percent(row.grossMargin)}</td><td>{percent(row.operatingMargin)}</td><td>{percent(row.netMargin)}</td></tr>)}</tbody></table></div>;
+  return <div className="data-table-wrap"><table><thead><tr><th onClick={() => setSortKey("ticker")}>Company</th><th>Period</th>{metrics.map((metric) => <th key={metric} onClick={() => setSortKey(metric)}>{METRIC_LABELS[metric] ?? metric}</th>)}</tr></thead><tbody>{summaries.map((summary) => <tr key={summary.ticker}><td><strong>{summary.ticker}</strong></td><td>—</td>{metrics.map((metric) => { const value = quantile(rows.map((row) => typeof row[metric] === "number" ? row[metric] as number : null), summary.q); return <td key={metric}>{metric === "marketCap" ? value === null ? "—" : money(value) : percent(value)}</td>; })}</tr>)}{ordered.map((row) => <tr key={row.ticker}><td>{row.ticker}</td><td>{row.period}</td><td>{row.marketCap === null ? "—" : money(row.marketCap)}</td><td>{percent(row.revenueGrowth)}</td><td>{percent(row.grossMargin)}</td><td>{percent(row.operatingMargin)}</td><td>{percent(row.netMargin)}</td></tr>)}</tbody></table></div>;
 }
 
 function MacroChart({ meta, points }: { meta: MacroMeta; points: SeriesPoint[] }) {
