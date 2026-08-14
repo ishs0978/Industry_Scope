@@ -151,10 +151,19 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
 
 export type HomePricePoint = { date: string; value: number; close: number | null };
 export type HomePerformance = Record<string, { prices: HomePricePoint[]; error?: string }>;
+export type HomeData = {
+  performance: HomePerformance;
+  /** Latest observation in the price table. */
+  pricesThrough: string | null;
+  /** When the price ingest last finished, which is a different question. */
+  lastChecked: string | null;
+};
 
-export async function getHomePerformance(): Promise<HomePerformance> {
+export async function getHomePerformance(): Promise<HomeData> {
   const result: HomePerformance = {};
-  if (!process.env.DATABASE_URL) return result;
+  let pricesThrough: string | null = null;
+  let lastChecked: string | null = null;
+  if (!process.env.DATABASE_URL) return { performance: result, pricesThrough, lastChecked };
   const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 1 });
   try {
     // YTD is measured from the prior year-end close, so the first trading day's
@@ -173,10 +182,15 @@ export async function getHomePerformance(): Promise<HomePerformance> {
         close: row.close === null ? null : Number(row.close),
       });
     }
+    const [latest] = await sql`SELECT max(date)::text AS through FROM prices`;
+    pricesThrough = latest?.through ?? null;
+    const [run] = await sql`SELECT finished_at,started_at FROM ingest_runs
+      WHERE source='prices' AND status='success' ORDER BY started_at DESC LIMIT 1`;
+    lastChecked = (run?.finished_at ?? run?.started_at ?? null) as string | null;
   } catch (error) {
     result.__error = { prices: [], error: error instanceof Error ? error.message : String(error) };
   } finally {
     await sql.end({ timeout: 5 });
   }
-  return result;
+  return { performance: result, pricesThrough, lastChecked };
 }

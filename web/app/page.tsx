@@ -7,6 +7,7 @@ import { sectors } from "@/lib/registry";
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  return <HomeExplorer sectors={sectors()} performance={await getHomePerformance()} />;
+  const { performance, pricesThrough, lastChecked } = await getHomePerformance();
+  return <HomeExplorer sectors={sectors()} performance={performance} pricesThrough={pricesThrough} lastChecked={lastChecked} />;
 }
 

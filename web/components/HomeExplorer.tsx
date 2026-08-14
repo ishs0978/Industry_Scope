@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
-import { formatPercent, formatPrice, formatPriceChange } from "@/lib/format";
+import { formatPercent, formatPrice, formatPriceChange, stamp, stampDate } from "@/lib/format";
 import type { Sector } from "@/lib/types";
 
 type Performance = Record<string, { prices: { date: string; value: number; close: number | null }[]; error?: string }>;
@@ -24,7 +24,7 @@ function distance(a: string, b: string): number {
   return matrix[a.length][b.length];
 }
 
-export default function HomeExplorer({ sectors, performance }: { sectors: Sector[]; performance: Performance }) {
+export default function HomeExplorer({ sectors, performance, pricesThrough, lastChecked }: { sectors: Sector[]; performance: Performance; pricesThrough: string | null; lastChecked: string | null }) {
   const [query, setQuery] = useState("");
   const search = useMemo(() => {
     const q = normalize(query);
@@ -58,6 +58,10 @@ export default function HomeExplorer({ sectors, performance }: { sectors: Sector
       <section>
         <div className="section-heading"><h2>All industries</h2><span className="eyebrow">{sectors.length} sectors</span></div>
         <p className="grid-note">This registry mixes broad GICS sector funds with narrower thematic funds. Semiconductors, Technology, Software &amp; Cloud, AI &amp; Robotics and Cybersecurity overlap heavily by design, so compare them against each other rather than adding them together.</p>
+        {/* prices.py stores Yahoo's Adj Close, which reinvests dividends, so
+            "adjusted close" alone would not tell a reader whether XLU's number
+            includes its yield. Say total return, and print both dates. */}
+        <p className="grid-note">Total return, dividends reinvested. Prices through {stampDate(pricesThrough)}. Last checked {stamp(lastChecked)}.</p>
         <p className="grid-note">Each line is that fund&rsquo;s price path so far this year, scaled to its own range. Compare the shapes, not the heights.</p>
         {performance.__error?.error && <div className="source-error">Neon Postgres: {performance.__error.error}</div>}
         <div className="sector-grid">
