@@ -149,18 +149,29 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
   }
 }
 
-export async function getHomePerformance(): Promise<Record<string, { prices: { date: string; value: number }[]; error?: string }>> {
-  const result: Record<string, { prices: { date: string; value: number }[]; error?: string }> = {};
+export type HomePricePoint = { date: string; value: number; close: number | null };
+export type HomePerformance = Record<string, { prices: HomePricePoint[]; error?: string }>;
+
+export async function getHomePerformance(): Promise<HomePerformance> {
+  const result: HomePerformance = {};
   if (!process.env.DATABASE_URL) return result;
   const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 1 });
   try {
     // YTD is measured from the prior year-end close, so the first trading day's
     // move is inside the window rather than discarded as the baseline.
-    const rows = await sql`SELECT ticker,date,adj_close::float AS value FROM prices
+    //
+    // adj_close drives every return; close is the traded price a reader can
+    // check against a broker. Mixing them produces a price that disagrees with
+    // every other quote source.
+    const rows = await sql`SELECT ticker,date,adj_close::float AS value,close::float AS close FROM prices
       WHERE date >= (SELECT max(date) FROM prices WHERE date < date_trunc('year',current_date))
       ORDER BY ticker,date`;
     for (const row of rows) {
-      (result[row.ticker] ??= { prices: [] }).prices.push({ date: String(row.date), value: Number(row.value) });
+      (result[row.ticker] ??= { prices: [] }).prices.push({
+        date: String(row.date),
+        value: Number(row.value),
+        close: row.close === null ? null : Number(row.close),
+      });
     }
   } catch (error) {
     result.__error = { prices: [], error: error instanceof Error ? error.message : String(error) };

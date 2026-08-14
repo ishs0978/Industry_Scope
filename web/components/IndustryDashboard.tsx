@@ -12,7 +12,7 @@ import {
 } from "@/lib/metrics";
 import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
 import { latestFilingPerOffering } from "@/lib/formd";
-import { formatMoney as money, formatNumber as number, formatPercent as percent, formatUnitValue as unitValue } from "@/lib/format";
+import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatUnitValue as unitValue } from "@/lib/format";
 import type { IndustryPayload, MacroMeta } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
 
@@ -26,6 +26,29 @@ const axisDate = (value: string) => new Intl.DateTimeFormat("en-US", { month: "s
 const fullDate = (value: string) => new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${String(value).slice(0, 10)}T00:00:00Z`));
 // Sort the tooltip so its top line is the top line on the chart.
 const byValueDescending = (item: { value?: unknown }) => -Number(item.value ?? 0);
+const closeDay = (value: string) => new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${String(value).slice(0, 10)}T00:00:00Z`));
+const CLOSE_DEFINITION = "The fund's last traded closing price. This site stores end-of-day prices only, so this is the most recent session's close, not a live quote. Returns elsewhere on the page use dividend-adjusted prices, which is why a return will not equal the change in this number.";
+
+/** Traded closes, never adjusted closes. */
+function quoteFor(payload: IndustryPayload, ticker: string) {
+  const rows = payload.prices
+    .filter((row) => row.ticker === ticker && row.close !== null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const last = rows.at(-1);
+  const previous = rows.at(-2);
+  if (!last) return null;
+  const change = previous ? last.close - previous.close : null;
+  const yearAgo = new Date(Date.parse(`${last.date}T00:00:00Z`) - 365 * DAY).toISOString().slice(0, 10);
+  const window = rows.filter((row) => row.date >= yearAgo).map((row) => row.close);
+  return {
+    date: last.date,
+    close: last.close,
+    change,
+    changePercent: change !== null && previous?.close ? change / previous.close : null,
+    low: window.length ? Math.min(...window) : null,
+    high: window.length ? Math.max(...window) : null,
+  };
+}
 const shortDate = (value: string | null | undefined) => value ? value.slice(0, 10) : "unavailable";
 
 type Preset = "1Y" | "3Y" | "5Y" | "10Y" | "Max" | "Custom";
@@ -299,6 +322,15 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   // benchmark; peers are added deliberately with the chips above the chart.
   const peerTickers = tickers.filter((ticker) => ticker !== payload.sector.primary_etf && ticker !== "SPY");
   const shownTickers = [payload.sector.primary_etf, ...activePeers.filter((ticker) => peerTickers.includes(ticker))];
+  const quote = quoteFor(payload, payload.sector.primary_etf);
+  const ytdReturn = useMemo(() => {
+    const rows = payload.prices.filter((row) => row.ticker === payload.sector.primary_etf).sort((a, b) => a.date.localeCompare(b.date));
+    const latest = rows.at(-1);
+    if (!latest) return null;
+    // Same basis as the home grid: the prior year-end close, not January 1.
+    const baseline = rows.filter((row) => row.date < `${latest.date.slice(0, 4)}-01-01`).at(-1);
+    return baseline && baseline.adj_close > 0 ? latest.adj_close / baseline.adj_close - 1 : null;
+  }, [payload.prices, payload.sector.primary_etf]);
   const primary = points(payload, payload.sector.primary_etf, start, end);
   const spy = points(payload, "SPY", start, end);
   const riskFree = payload.macro.series.filter((row) => row.series_id === "DGS3MO" && row.value !== null).map((row) => ({ date: row.date, value: row.value! }));
@@ -394,6 +426,24 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       <h1>{payload.sector.name}</h1>
       <p>One synchronized view across public markets, business fundamentals, private financing, operating indicators, and sourced events.</p>
       <div className="hero-meta">{tickers.map((ticker) => <span className="pill" key={ticker}>{ticker}{ticker === payload.sector.primary_etf ? " · primary" : ""}</span>)}</div>
+      {quote && <div className="hero-stats">
+        <div className="hero-stat">
+          <ChartHeading title="Close" term={`${payload.sector.primary_etf} · ${closeDay(quote.date)}`} definition={CLOSE_DEFINITION} />
+          <div className="hero-stat-value">{price(quote.close)}</div>
+        </div>
+        <div className="hero-stat">
+          <div className="hero-stat-label">Day change</div>
+          <div className="hero-stat-value">{quote.change === null ? "—" : <span className={quote.change >= 0 ? "up" : "down"}>{priceChange(quote.change)} ({percent(quote.changePercent)})</span>}</div>
+        </div>
+        <div className="hero-stat">
+          <div className="hero-stat-label">Year to date</div>
+          <div className="hero-stat-value">{percent(ytdReturn)}</div>
+        </div>
+        <div className="hero-stat">
+          <div className="hero-stat-label">52-week range</div>
+          <div className="hero-stat-value">{price(quote.low)} — {price(quote.high)}</div>
+        </div>
+      </div>}
     </section>
 
     <div className="range-bar" aria-label="Date range">

@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
-import { formatPercent } from "@/lib/format";
+import { formatPercent, formatPrice, formatPriceChange } from "@/lib/format";
 import type { Sector } from "@/lib/types";
 
-type Performance = Record<string, { prices: { date: string; value: number }[]; error?: string }>;
+type Performance = Record<string, { prices: { date: string; value: number; close: number | null }[]; error?: string }>;
+
+// Ingest runs once a day, so the newest row is always the previous session's
+// close. Labelling it "Price" would teach a reader opening this mid-morning
+// that the site is wrong; "Close · 13 Aug" is simply correct.
+const closeDay = (value: string) => new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${value.slice(0, 10)}T00:00:00Z`));
 
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 function distance(a: string, b: string): number {
@@ -59,9 +64,20 @@ export default function HomeExplorer({ sectors, performance }: { sectors: Sector
           {sectors.map((sector) => {
             const prices = performance[sector.primary_etf]?.prices ?? [];
             const ytd = prices.length > 1 && prices[0].value > 0 ? prices.at(-1)!.value / prices[0].value - 1 : null;
+            // Close-to-close, both from `close`. On an ex-dividend day this
+            // differs slightly from the adjusted return, which matches every
+            // other quote source and must not be "fixed" with adj_close.
+            const last = prices.at(-1);
+            const previous = prices.at(-2);
+            const change = last?.close != null && previous?.close != null ? last.close - previous.close : null;
+            const changePercent = change !== null && previous?.close ? change / previous.close : null;
             return <Link className="sector-card" href={`/industry/${sector.slug}`} key={sector.slug}>
               <div className="sector-card-top"><h3>{sector.name}</h3><span className="ticker">{sector.primary_etf}</span></div>
               <div className={`return ${ytd !== null && ytd < 0 ? "negative" : ""}`}>{ytd === null ? "Unavailable" : formatPercent(ytd)} <small>YTD</small></div>
+              {last?.close != null && <div className="close-line">
+                {formatPrice(last.close)} <span className="close-day">Close · {closeDay(last.date)}</span>
+                {change !== null && <span className={change >= 0 ? "up" : "down"}> {formatPriceChange(change)} ({formatPercent(changePercent)})</span>}
+              </div>}
               {/* Recharts defaults the y-domain to [0, dataMax], which compressed a
                   $290 fund's 56% move against the top of a box starting at zero.
                   Amplitude then encoded price level rather than return. */}
