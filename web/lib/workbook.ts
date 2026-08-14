@@ -110,7 +110,11 @@ export async function buildIndustryWorkbook(payload: IndustryPayload, start: str
   returns.getColumn(3).numFmt = "0.0%";
 
   const holdings = workbook.addWorksheet("Holdings");
-  addRows(holdings, ["Fund", "As of", "Ticker", "Name", "Weight", "Sub-sector"], payload.holdings.map((row) => [row.fund_ticker, new Date(`${row.as_of}T00:00:00Z`), row.constituent_ticker, row.constituent_name, row.weight, row.sub_sector]));
+  // Sub-sector is the only field that lets someone pivot a fund's holdings by
+  // sector, which is much of the reason to open the workbook. Most issuers do
+  // not publish it, so say that rather than leaving a blank cell that reads as
+  // a bug.
+  addRows(holdings, ["Fund", "As of", "Ticker", "Name", "Weight", "Sub-sector"], payload.holdings.map((row) => [row.fund_ticker, new Date(`${row.as_of}T00:00:00Z`), row.constituent_ticker, row.constituent_name, row.weight, row.sub_sector ?? "Not provided by issuer"]));
   holdings.getColumn(2).numFmt = "yyyy-mm-dd";
   holdings.getColumn(5).numFmt = "0.0%";
 
