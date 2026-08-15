@@ -115,3 +115,41 @@ def test_nyt_registry_is_loaded_once_per_archive(monkeypatch):
 def test_sec_clients_require_contact_user_agent(monkeypatch):
     monkeypatch.setenv("SEC_USER_AGENT", "IndustryScope qa@example.com")
     assert sec_session().headers["User-Agent"] == "IndustryScope qa@example.com"
+
+
+def test_industry_group_beats_missing_sic():
+    from ingest.sources.form_d import sector_for_filing, sector_for_industry_group
+    # EDGAR leaves `sic` blank for most private issuers, which is why 98% of
+    # stored filings had no sector at all. The filer's own answer fills it.
+    assert sector_for_filing("Other Technology", None) == "technology"
+    assert sector_for_filing("Oil & Gas", None) == "energy"
+    assert sector_for_filing("Biotechnology", None) == "healthcare-pharma"
+    assert sector_for_industry_group("ELECTRIC UTILITIES") == "utilities"
+    assert sector_for_industry_group(None) is None
+
+
+def test_pooled_investment_funds_are_not_an_industry():
+    from ingest.sources.form_d import sector_for_filing
+    # A feeder fund raising capital is not an operating industry; attributing it
+    # to one would overstate that sector.
+    assert sector_for_filing("Pooled Investment Fund", None) is None
+    assert sector_for_filing("Business Services", None) is None
+    assert sector_for_filing("Other", None) is None
+
+
+def test_sic_still_used_when_industry_group_is_absent():
+    from ingest.sources.form_d import sector_for_filing
+    assert sector_for_filing(None, "1311") == "energy"
+    assert sector_for_filing("Other", "1311") == "energy"
+
+
+def test_industry_group_tolerates_ampersand_spelling():
+    from ingest.sources.form_d import sector_for_industry_group
+    # EDGAR emits "and" while the printed form shows "&". Real filings used both
+    # and 25 of them went unattributed until this was handled.
+    assert sector_for_industry_group("Other Banking and Financial Services") == "banks"
+    assert sector_for_industry_group("Other Banking & Financial Services") == "banks"
+    assert sector_for_industry_group("REITS and Finance") == "real-estate"
+    assert sector_for_industry_group("REITS & Finance") == "real-estate"
+    assert sector_for_industry_group("Oil & Gas") == "energy"
+    assert sector_for_industry_group("Oil and Gas") == "energy"
