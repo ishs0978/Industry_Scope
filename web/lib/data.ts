@@ -61,6 +61,11 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
   if (!sector) return null;
   if (!process.env.DATABASE_URL) return emptyPayload(sector);
 
+  // Every `date` column is cast to text so the components receive bare
+  // YYYY-MM-DD. The driver hands back a JS Date, which serializable() turns into
+  // a full ISO timestamp; that broke `row.date <= end` for the final day of any
+  // range, because "2026-08-14T00:00:00.000Z" sorts after "2026-08-14".
+  // timestamptz columns are left alone: M20 renders those with a clock time.
   const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 4, idle_timeout: 20 });
   const tickers = [sector.primary_etf, ...sector.comparison_etfs, "SPY"];
   const macroIds = macroIdsForSector(slug);
@@ -71,7 +76,7 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
       prices, etfMeta, holdings, macroMeta, macroSeries, companyFacts, companyMeta,
       formD, headlines, newsVolume, events, freshness,
     ] = await Promise.all([
-      sql`SELECT ticker,date,adj_close::float,close::float,volume FROM prices WHERE ticker = ANY(${tickers}) ORDER BY date`,
+      sql`SELECT ticker,date::text AS date,adj_close::float,close::float,volume FROM prices WHERE ticker = ANY(${tickers}) ORDER BY date`,
       sql`SELECT ticker,name,expense_ratio::float,aum::float,issuer,as_of,holdings_status,holdings_error FROM etf_meta WHERE ticker = ANY(${tickers})`,
       sql`WITH valid_snapshots AS (
             SELECT fund_ticker,as_of
@@ -83,14 +88,14 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
             SELECT DISTINCT ON (fund_ticker) fund_ticker,as_of
             FROM valid_snapshots ORDER BY fund_ticker,as_of DESC
           )
-          SELECT h.fund_ticker,h.as_of,h.constituent_ticker,h.constituent_name,h.weight::float,h.sub_sector
+          SELECT h.fund_ticker,h.as_of::text AS as_of,h.constituent_ticker,h.constituent_name,h.weight::float,h.sub_sector
           FROM holdings h JOIN latest_valid latest USING (fund_ticker,as_of)
           ORDER BY h.fund_ticker,h.weight DESC`,
-      sql`SELECT series_id,label,units,frequency,source,last_release_date,next_release_date,realtime_start,as_of FROM macro_meta
+      sql`SELECT series_id,label,units,frequency,source,last_release_date::text AS last_release_date,next_release_date::text AS next_release_date,realtime_start::text AS realtime_start,as_of FROM macro_meta
           WHERE series_id = ANY(${macroIds}) OR (${includeEia} AND series_id LIKE 'EIA:%') OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY source,label`,
-      sql`SELECT series_id,date,value::float FROM macro_series
+      sql`SELECT series_id,date::text AS date,value::float FROM macro_series
           WHERE series_id = ANY(${macroIds}) OR (${includeEia} AND series_id LIKE 'EIA:%') OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY series_id,date`,
-      sql`SELECT cf.cik,cf.ticker,cf.fiscal_period,cf.metric,cf.value::float,cf.filed_date FROM company_facts cf
+      sql`SELECT cf.cik,cf.ticker,cf.fiscal_period,cf.metric,cf.value::float,cf.filed_date::text AS filed_date FROM company_facts cf
           WHERE cf.ticker IN (
             SELECT constituent_ticker FROM holdings
             WHERE fund_ticker=${sector.primary_etf} AND as_of=(
@@ -106,10 +111,10 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
              GROUP BY as_of HAVING count(*) >= 5 AND sum(weight) BETWEEN 0.98 AND 1.02
              ORDER BY as_of DESC LIMIT 1
            ))`,
-      sql`SELECT accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount::float,amount_sold::float,state,submission_type,previous_accession_no FROM form_d WHERE sector_slug=${slug} ORDER BY filed_date`,
+      sql`SELECT accession_no,filed_date::text AS filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount::float,amount_sold::float,state,submission_type,previous_accession_no FROM form_d WHERE sector_slug=${slug} ORDER BY filed_date`,
       sql`SELECT id,sector_slug,published_date,source,headline,abstract,section,url FROM headlines WHERE sector_slug=${slug} ORDER BY published_date`,
-      sql`SELECT sector_slug,date,article_volume::float,avg_tone::float FROM news_volume WHERE sector_slug=${slug} ORDER BY date`,
-      sql`SELECT id,start_date,end_date,sectors,title,blurb,source_url,impact FROM events WHERE sectors && ARRAY[${slug},'all']::text[] ORDER BY start_date`,
+      sql`SELECT sector_slug,date::text AS date,article_volume::float,avg_tone::float FROM news_volume WHERE sector_slug=${slug} ORDER BY date`,
+      sql`SELECT id,start_date::text AS start_date,end_date::text AS end_date,sectors,title,blurb,source_url,impact FROM events WHERE sectors && ARRAY[${slug},'all']::text[] ORDER BY start_date`,
       sql`SELECT DISTINCT ON (source) source,started_at,finished_at,status,rows_written,error_message,details
           FROM ingest_runs WHERE source NOT LIKE 'holdings:%' ORDER BY source,started_at DESC`,
     ]);
@@ -172,7 +177,12 @@ export async function getHomePerformance(): Promise<HomeData> {
     // adj_close drives every return; close is the traded price a reader can
     // check against a broker. Mixing them produces a price that disagrees with
     // every other quote source.
-    const rows = await sql`SELECT ticker,date,adj_close::float AS value,close::float AS close FROM prices
+    // date::text, not a bare date. The driver returns a JS Date for date
+    // columns, and String() on that yields "Sat Aug 15 2026 …" rather than an
+    // ISO day, which breaks both date parsing and the string comparisons the
+    // components do. getIndustryPayload avoids this only because serializable()
+    // JSON-round-trips its rows.
+    const rows = await sql`SELECT ticker,date::text AS date,adj_close::float AS value,close::float AS close FROM prices
       WHERE date >= (SELECT max(date) FROM prices WHERE date < date_trunc('year',current_date))
       ORDER BY ticker,date`;
     for (const row of rows) {

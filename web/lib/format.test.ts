@@ -57,3 +57,14 @@ describe("prices", () => {
     expect(formatPriceChange(null)).toBe("—");
   });
 });
+
+describe("date-only helpers tolerate bad input", () => {
+  it("does not throw on a non-ISO date string", () => {
+    // The postgres driver returns a JS Date for date columns; String() on that
+    // gives "Sat Aug 15 2026 …", which slice(0,10) turns into "Sat Aug 15".
+    // This crashed the home page with RangeError: Invalid time value.
+    expect(() => stampDate("Sat Aug 15 2026 00:00:00 GMT+0000")).not.toThrow();
+    expect(stampDate("Sat Aug 15 2026 00:00:00 GMT+0000")).toBe("unavailable");
+    expect(stampDate("2026-08-15")).toBe("Aug 15, 2026");
+  });
+});

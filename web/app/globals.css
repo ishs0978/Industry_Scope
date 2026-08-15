@@ -59,11 +59,15 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .event-window-table td:last-child { font-variant-numeric: tabular-nums; text-align: right; }
 .event-window-relative td { border-top: 1px solid var(--line); font-weight: 600; }
 .event-window-note { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
-.sector-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+/* The container background used to show through unfilled cells as a solid
+   slab. With 21 sectors that is three empty cells at four columns and one at
+   two, so the hairlines are drawn by the cards instead and empty cells simply
+   read as empty. */
+.sector-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--panel); border: 1px solid var(--line); }
 /* .return used a fixed 36px top margin measured from a title that wraps to two
    lines on several cards, so those percentages sat lower than their row
    neighbours. Flex with margin-top:auto pins them to one baseline instead. */
-.sector-card { background: var(--panel); display: flex; flex-direction: column; min-height: 190px; padding: 22px; transition: background .2s, transform .2s; }
+.sector-card { background: var(--panel); box-shadow: 0 0 0 1px var(--line); display: flex; flex-direction: column; min-height: 190px; padding: 22px; transition: background .2s, transform .2s; }
 .sector-card:hover { background: #edf2e8; transform: translateY(-2px); }
 .sector-card-top { display: flex; justify-content: space-between; gap: 12px; min-height: 62px; }
 .sector-card h3 { font-family: Georgia, serif; font-size: 22px; font-weight: 500; }
@@ -108,10 +112,12 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .chart-empty { align-items: center; color: var(--muted); display: flex; min-height: 280px; justify-content: center; padding: 30px; text-align: center; }
 .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin-top: 16px; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 16px 0; }
-.stat { background: var(--panel); padding: 18px; }
+/* Stats that carry a term line would otherwise push their value below the
+   neighbours that do not. Bottom-align every value in the row. */
+.stat { background: var(--panel); display: flex; flex-direction: column; padding: 18px; }
 .stat-label { font-size: 14px; font-weight: 500; }
 .stat .chart-term { margin-bottom: 2px; }
-.stat-value { font-family: Georgia, serif; font-size: 28px; margin-top: 8px; }
+.stat-value { font-family: Georgia, serif; font-size: 28px; margin-top: 8px; margin-top: auto; padding-top: 10px; }
 .data-table-wrap { background: var(--panel); border: 1px solid var(--line); overflow: auto; }
 table { border-collapse: collapse; font-size: 13px; width: 100%; }
 th { background: #e8ece5; cursor: default; font-size: 10px; letter-spacing: .08em; position: sticky; text-transform: uppercase; top: 0; }
@@ -120,7 +126,7 @@ th:first-child, td:first-child, .left { text-align: left; }
 .positive-cell { background: #dff0d8; }
 .negative-cell { background: #f4dcd7; }
 .fund-selector { border: 1px solid var(--line); padding: 10px; }
-.overlap-grid { display: grid; gap: 2px; margin-top: 14px; }
+.overlap-grid { display: grid; gap: 2px; justify-content: start; margin-top: 14px; overflow-x: auto; }
 .overlap-cell { align-items: center; aspect-ratio: 1.4; display: flex; font-size: 12px; justify-content: center; }
 .overlap-cell.self { color: white; font-size: 11px; font-weight: 700; }
 .small-multiples { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
@@ -179,9 +185,11 @@ th:first-child, td:first-child, .left { text-align: left; }
 .close-line .up { color: var(--green); }
 .close-line .down { color: var(--red); }
 .hero-stats { border: 1px solid var(--line); display: grid; gap: 1px; background: var(--line); grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 24px; }
-.hero-stat { background: var(--panel); padding: 16px 18px; }
+/* Same problem M3 fixed on the cards: the Close cell carries an extra term
+   line, so a fixed flow put its value lower than its three neighbours. */
+.hero-stat { background: var(--panel); display: flex; flex-direction: column; padding: 16px 18px; }
 .hero-stat-label { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-.hero-stat-value { font-size: 20px; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.hero-stat-value { font-size: 20px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 10px; }
 .hero-stat-value .up { color: var(--green); }
 .hero-stat-value .down { color: var(--red); }
 @media (max-width: 900px) { .hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

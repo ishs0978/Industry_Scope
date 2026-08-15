@@ -11,7 +11,14 @@ type Performance = Record<string, { prices: { date: string; value: number; close
 // Ingest runs once a day, so the newest row is always the previous session's
 // close. Labelling it "Price" would teach a reader opening this mid-morning
 // that the site is wrong; "Close · 13 Aug" is simply correct.
-const closeDay = (value: string) => new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${value.slice(0, 10)}T00:00:00Z`));
+// Returns null rather than throwing. An unparseable date should drop the close
+// line, never take down the whole page with RangeError: Invalid time value.
+const closeDay = (value: string): string | null => {
+  const parsed = new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(parsed);
+};
 
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 function distance(a: string, b: string): number {
@@ -79,7 +86,7 @@ export default function HomeExplorer({ sectors, performance, pricesThrough, last
               <div className="sector-card-top"><h3>{sector.name}</h3><span className="ticker">{sector.primary_etf}</span></div>
               <div className={`return ${ytd !== null && ytd < 0 ? "negative" : ""}`}>{ytd === null ? "Unavailable" : formatPercent(ytd)} <small>YTD</small></div>
               {last?.close != null && <div className="close-line">
-                {formatPrice(last.close)} <span className="close-day">Close · {closeDay(last.date)}</span>
+                {formatPrice(last.close)} {closeDay(last.date) && <span className="close-day">Close · {closeDay(last.date)}</span>}
                 {change !== null && <span className={change >= 0 ? "up" : "down"}> {formatPriceChange(change)} ({formatPercent(changePercent)})</span>}
               </div>}
               {/* Recharts defaults the y-domain to [0, dataMax], which compressed a
