@@ -116,3 +116,21 @@ def test_non_json_response_reports_the_body():
 def test_rate_limiter_spaces_requests():
     limiter = RateLimiter(requests_per_second=1 / 5)
     assert limiter.minimum_interval == pytest.approx(5.0)
+
+
+def test_ord_terms_are_wrapped_in_parentheses():
+    # GDELT answers HTTP 200 with "Queries containing OR'd terms must be
+    # surrounded by ()." and no JSON body when they are not. Every sector query
+    # contains OR, so this broke every sector on every run.
+    query = __import__("ingest.sources.gdelt", fromlist=["query_for_sector"]).query_for_sector(
+        FakeSector("multi", ("gold price", "gold mining", "silver price"))
+    )
+    assert query.startswith("(") and query.endswith(")")
+    assert " OR " in query
+
+
+def test_single_keyword_needs_no_parentheses():
+    query = __import__("ingest.sources.gdelt", fromlist=["query_for_sector"]).query_for_sector(
+        FakeSector("single", ("semiconductor",))
+    )
+    assert query == '"semiconductor"'

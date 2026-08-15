@@ -14,10 +14,14 @@ from ingest.sources.common import (
 )
 
 
-# GDELT publishes no formal limit; five seconds between calls is the widely used
-# convention. Two calls per sector across 20 sectors is roughly 200 seconds,
-# well inside the workflow timeout.
-GDELT_MIN_INTERVAL_SECONDS = float(os.environ.get("GDELT_MIN_INTERVAL_SECONDS", "5"))
+# GDELT states its limit in the 429 body: "Please limit requests to one every 5
+# seconds". Six gives margin against clock skew and network jitter rather than
+# sitting exactly on their boundary. Two calls per sector across 21 sectors is
+# roughly 250 seconds, inside the 30-minute workflow timeout.
+#
+# Exceeding it earns a cooldown that outlives the run, so a burst of failed
+# requests keeps failing for a while afterwards even once the cause is fixed.
+GDELT_MIN_INTERVAL_SECONDS = float(os.environ.get("GDELT_MIN_INTERVAL_SECONDS", "6"))
 
 
 class GdeltUnavailable(SourceUnavailable):
@@ -25,7 +29,17 @@ class GdeltUnavailable(SourceUnavailable):
 
 
 def query_for_sector(sector: Sector) -> str:
-    return " OR ".join(f'"{keyword}"' for keyword in sector.news_keywords)
+    """Build a DOC 2.0 query.
+
+    GDELT rejects OR'd terms that are not wrapped in parentheses, answering
+    HTTP 200 with the plain-text message "Queries containing OR'd terms must be
+    surrounded by ()." rather than an error status. `.json()` then raises, which
+    the caller used to read as the shared endpoint being unavailable. Every
+    sector query has always contained OR, so this failed for every sector on
+    every run.
+    """
+    joined = " OR ".join(f'"{keyword}"' for keyword in sector.news_keywords)
+    return f"({joined})" if len(sector.news_keywords) > 1 else joined
 
 
 def rotated_sectors(sectors: list[Sector], day_of_year: int) -> list[Sector]:
