@@ -21,7 +21,12 @@ from ingest.sources.common import (
 #
 # Exceeding it earns a cooldown that outlives the run, so a burst of failed
 # requests keeps failing for a while afterwards even once the cause is fixed.
-GDELT_MIN_INTERVAL_SECONDS = float(os.environ.get("GDELT_MIN_INTERVAL_SECONDS", "6"))
+#
+# Observed behaviour is a window quota rather than a simple interval: at six
+# seconds the first call of a pair succeeded and the second returned 429 for
+# more than a minute. Twelve seconds puts a full 21-sector pass at roughly
+# eight minutes, inside the 30-minute workflow timeout.
+GDELT_MIN_INTERVAL_SECONDS = float(os.environ.get("GDELT_MIN_INTERVAL_SECONDS", "12"))
 
 
 class GdeltUnavailable(SourceUnavailable):
