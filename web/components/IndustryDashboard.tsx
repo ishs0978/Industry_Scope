@@ -13,7 +13,7 @@ import {
 import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
 import { validatedFundHoldings } from "@/lib/holdings";
 import { latestFilingPerOffering } from "@/lib/formd";
-import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatUnitValue as unitValue, isStale, relativeTime, stamp, stampDate } from "@/lib/format";
+import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatSignedPercent as signedPercent, formatUnitValue as unitValue, isStale, readableError, relativeTime, stamp, stampDate } from "@/lib/format";
 import type { IndustryPayload, MacroMeta } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
 
@@ -29,6 +29,7 @@ const fullDate = (value: string) => new Intl.DateTimeFormat("en-US", { day: "num
 // Sort the tooltip so its top line is the top line on the chart.
 const byValueDescending = (item: { value?: unknown }) => -Number(item.value ?? 0);
 const closeDay = (value: string) => new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${String(value).slice(0, 10)}T00:00:00Z`));
+const RANGE_DEFINITION = "The highest and lowest closing prices over the last year. Brokers usually quote a 52-week range from intraday highs and lows, which are wider, so this range will sit slightly inside the one on a quote page.";
 const CLOSE_DEFINITION = "The fund's last traded closing price. This site stores end-of-day prices only, so this is the most recent session's close, not a live quote. Returns elsewhere on the page use dividend-adjusted prices, which is why a return will not equal the change in this number.";
 
 /** Traded closes, never adjusted closes. */
@@ -379,6 +380,9 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     .reduce((sum, holding) => sum + holding.weight, 0);
   const factsAsOfEnd = payload.companyFacts.filter((fact) => fact.filed_date <= end);
   const factsPayload = { ...payload, companyFacts: factsAsOfEnd };
+  // The margins chart plots fiscal periods, but "data through" means the most
+  // recent filing that fed it.
+  const latestFactFiled = [...factsAsOfEnd].map((fact) => fact.filed_date).sort().at(-1);
   const comps = compsRows(factsPayload);
   const marginTrends = marginTrend(factsPayload);
   const reportedWeightTotal = selectedHoldings.reduce((sum, holding) => sum + holding.weight, 0);
@@ -477,14 +481,14 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
         </div>
         <div className="hero-stat">
           <div className="hero-stat-label">Day change</div>
-          <div className="hero-stat-value">{quote.change === null ? "—" : <span className={quote.change >= 0 ? "up" : "down"}>{priceChange(quote.change)} ({percent(quote.changePercent)})</span>}</div>
+          <div className="hero-stat-value">{quote.change === null ? "—" : <span className={quote.change >= 0 ? "up" : "down"}>{priceChange(quote.change)} ({signedPercent(quote.changePercent)})</span>}</div>
         </div>
         <div className="hero-stat">
           <div className="hero-stat-label">Year to date</div>
           <div className="hero-stat-value">{percent(ytdReturn)}</div>
         </div>
         <div className="hero-stat">
-          <div className="hero-stat-label">52-week range</div>
+          <ChartHeading title="52-week range" term="Closing basis" definition={RANGE_DEFINITION} />
           <div className="hero-stat-value">{price(quote.low)} — {price(quote.high)}</div>
         </div>
       </div>}
@@ -499,7 +503,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
 
     {payload.errors.length > 0 && <details className="source-errors-summary">
       <summary><strong>{payload.errors.length} data {payload.errors.length === 1 ? "source is" : "sources are"} temporarily unavailable</strong> · failed data is automatically suppressed</summary>
-      <div className="source-errors-list">{payload.errors.map((error) => <div key={`${error.source}:${error.reason}`}><strong>{error.source}</strong>: {error.reason}</div>)}</div>
+      <div className="source-errors-list">{payload.errors.map((error) => <div key={`${error.source}:${error.reason}`}><strong>{error.source}</strong>: {readableError(error.reason)}</div>)}</div>
     </details>}
     <div className="freshness">{payload.freshness.map((item) => <div className={`freshness-item ${item.status === "failed" ? "failed" : isStale(item.finished_at ?? item.started_at) ? "stale" : ""}`} key={item.source}><strong>{item.source}</strong> · {item.details.skipped ? "skipped (not due)" : item.status} · {stamp(item.finished_at ?? item.started_at)}</div>)}</div>
 
@@ -548,11 +552,11 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     <section className="panel" id="fundamentals">
       <SectionHead index="03" title="How the companies are doing" term="SEC XBRL reported facts" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
       {comps.length ? <CompsTable rows={comps} /> : <div className="source-error">SEC XBRL: no company facts are available for the latest primary-fund constituents.</div>}
-      {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" definition={CHART_COPY.margins.definition} /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} itemSorter={byValueDescending} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer><ChartCaption lines={CHART_COPY.margins.lines} more={CHART_COPY.margins.more} /><ChartFreshness payload={payload} source="sec_xbrl" dataThrough={marginTrends.at(-1)?.period} /></div>}
+      {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" definition={CHART_COPY.margins.definition} /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} itemSorter={byValueDescending} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer><ChartCaption lines={CHART_COPY.margins.lines} more={CHART_COPY.margins.more} /><ChartFreshness payload={payload} source="sec_xbrl" dataThrough={latestFactFiled} /></div>}
     </section>
 
     <section className="panel" id="private-capital">
-      <SectionHead index="04" title="Private fundraising" term="SEC Form D filings" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
+      <SectionHead index="04" title="Private fundraising" term="SEC Form D filings" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once. Issuers that classify themselves as pooled investment funds are excluded, because a fund raising capital is not an operating industry; they are most Form D filings, so these counts are a minority of all filings." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
       <div className="stat-grid"><Stat label="Form D filings" term="Including amendments" value={privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"} /><Stat label="Typical raise" term="Median" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Distinct issuers" term="Unique filers in range" value={new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()} /></div>
       <div className="chart-shell"><ChartHeading title="Private fundraising against the fund's price" term="Form D amount sold by quarter" definition={CHART_COPY.formd.definition} />{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}<ChartCaption lines={CHART_COPY.formd.lines} more={CHART_COPY.formd.more} /><ChartFreshness payload={payload} source="form_d" dataThrough={formDInRange.at(-1)?.filed_date} /></div>
     </section>
@@ -569,7 +573,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
 
     <section className="panel" id="timeline">
       <SectionHead index="06" title="News and events" term="GDELT volume and NYT headlines" description="Quantitative GDELT activity above; human-curated events and verbatim NYT headlines below." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
-      {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {gdeltRun.error_message ?? "Last ingest failed"} · coverage below may be incomplete.</div>}
+      {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {readableError(gdeltRun.error_message)} · coverage below may be incomplete.</div>}
       <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" definition={CHART_COPY.news.definition} />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} labelFormatter={(value) => fullDate(String(value))} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><EventBands events={payload.events} start={start} end={end} /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}<EventRail events={timelineEvents} start={start} end={end} onSelect={selectEvent} /><ChartCaption lines={CHART_COPY.news.lines} more={CHART_COPY.news.more} /><ChartFreshness payload={payload} source="gdelt" dataThrough={newsInRange.at(-1)?.date} /></div>
       {timelineEvents.length > 0 && <>
         <h3 className="timeline-group">Events</h3>

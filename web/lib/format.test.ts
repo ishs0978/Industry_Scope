@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, formatNumber, formatPercent, formatPrice, formatPriceChange, formatUnitValue, isStale, relativeTime, stamp, stampDate } from "./format";
+import { formatMoney, formatNumber, formatPercent, formatPrice, formatPriceChange, formatSignedPercent, formatUnitValue, isStale, readableError, relativeTime, stamp, stampDate } from "./format";
 
 describe("numeric presentation", () => {
   it("limits displayed values to two decimal places", () => {
@@ -66,5 +66,27 @@ describe("date-only helpers tolerate bad input", () => {
     expect(() => stampDate("Sat Aug 15 2026 00:00:00 GMT+0000")).not.toThrow();
     expect(stampDate("Sat Aug 15 2026 00:00:00 GMT+0000")).toBe("unavailable");
     expect(stampDate("2026-08-15")).toBe("Aug 15, 2026");
+  });
+});
+
+describe("signed percent and readable errors", () => {
+  it("signs both halves of a change with the same glyph", () => {
+    // "+0.85 (1.39%)" read as a typo: dollars signed, percent not.
+    expect(formatSignedPercent(0.0139)).toBe("+1.39%");
+    expect(formatSignedPercent(-0.0022)).toBe("−0.22%");
+    expect(formatSignedPercent(-0.0022)[0]).toBe(formatPriceChange(-1.3)[0]);
+    expect(formatSignedPercent(null)).toBe("—");
+  });
+
+  it("strips the exception class ingest stores in front of a message", () => {
+    // Readers were shown "SourceUnavailable: GDELT failed for 1 sector ranges".
+    expect(readableError("SourceUnavailable: could not collect news volume for 1 of 21 sectors"))
+      .toBe("could not collect news volume for 1 of 21 sectors");
+    expect(readableError("RuntimeError: boom")).toBe("boom");
+    expect(readableError("psycopg.OperationalError: timeout")).toBe("timeout");
+    // A plain message is left alone, and a missing one still says something.
+    expect(readableError("Issuer feed returned HTML")).toBe("Issuer feed returned HTML");
+    expect(readableError(null)).toBe("Last ingest failed");
+    expect(readableError("SourceUnavailable:")).toBe("Last ingest failed");
   });
 });

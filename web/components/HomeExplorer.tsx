@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
-import { formatPercent, formatPrice, formatPriceChange, stamp, stampDate } from "@/lib/format";
+import { formatPercent, formatPrice, formatPriceChange, formatSignedPercent, stamp, stampDate } from "@/lib/format";
 import type { Sector } from "@/lib/types";
 
 type Performance = Record<string, { prices: { date: string; value: number; close: number | null }[]; error?: string }>;
@@ -87,7 +87,7 @@ export default function HomeExplorer({ sectors, performance, pricesThrough, last
               <div className={`return ${ytd !== null && ytd < 0 ? "negative" : ""}`}>{ytd === null ? "Unavailable" : formatPercent(ytd)} <small>YTD</small></div>
               {last?.close != null && <div className="close-line">
                 {formatPrice(last.close)} {closeDay(last.date) && <span className="close-day">Close · {closeDay(last.date)}</span>}
-                {change !== null && <span className={change >= 0 ? "up" : "down"}> {formatPriceChange(change)} ({formatPercent(changePercent)})</span>}
+                {change !== null && <span className={change >= 0 ? "up" : "down"}> {formatPriceChange(change)} ({formatSignedPercent(changePercent)})</span>}
               </div>}
               {/* Recharts defaults the y-domain to [0, dataMax], which compressed a
                   $290 fund's 56% move against the top of a box starting at zero.

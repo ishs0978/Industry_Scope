@@ -53,6 +53,12 @@ export default function MethodologyPage() {
     header. That is the fund&rsquo;s last traded close, not a dividend-adjusted figure, so it matches
     what a broker shows. This is also why the day change on that line will not equal the return
     measured over the same day on an ex-dividend date.</p>
+    <p>The 52-week range is built from those same closing prices. A broker usually quotes the range
+    from intraday highs and lows, which are wider, so the range here will sit slightly inside the one
+    on a quote page.</p>
+    <p>Total return can differ from another site&rsquo;s figure for the same fund by a few hundredths
+    of a point, because providers do not all reinvest a dividend on the same day or at the same price.
+    The arithmetic behind every number here is written above.</p>
 
     <ul>
       <li><strong>Return over a period</strong> is the ending adjusted close divided by the beginning
@@ -112,9 +118,15 @@ export default function MethodologyPage() {
     <p>Companies amend Form D filings, and an amendment restates the cumulative amount raised rather
     than a new increment. Dollar totals therefore count only the most recent filing for each offering.
     Filing counts include amendments and are labeled that way.</p>
-    <p>Sector assignment uses the SIC code in the SEC&rsquo;s own metadata, resolved to the sector
-    claiming the longest matching prefix. No two sectors may claim the same prefix. This is still
-    approximate: some codes map cleanly to an industry and some do not.</p>
+    <p>Sector assignment uses the industry the issuer selects on the form itself. EDGAR leaves its own
+    SIC field blank for most private issuers, so that field alone left the great majority of filings
+    attributed to nothing; the filer&rsquo;s own answer is both better populated and closer to the
+    truth. Where a filing carries no industry, the SIC code is used as a fallback, resolved to the
+    sector claiming the longest matching prefix, and no two sectors may claim the same prefix.</p>
+    <p>Issuers that describe themselves as pooled investment funds are deliberately left unassigned. A
+    fund raising capital is not an operating industry, and counting one would overstate whichever
+    sector it landed in. Those filings are the majority of all Form D submissions, so the counts and
+    dollar figures on a sector page describe a minority of filings by design, not a collection gap.</p>
 
     <h2>News and events</h2>
     <p>The NYT Archive API supplies headline, abstract, publication date, section, and a link. Full
@@ -201,6 +213,12 @@ export default function MethodologyPage() {
       newest was dated September 2024. All events were given a sourced two-sentence description,
       entries through June 2026 were added, and the collector now raises an alarm when the newest
       event is more than 90 days old.</li>
+      <li><strong>August 15, 2026</strong> A fact-check against the deployed site found this page
+      still describing Form D sector assignment as SIC-based after the code moved to the issuer&rsquo;s
+      own industry selection. Corrected, and the exclusion of pooled investment funds is now stated.
+      The margins panel showed &ldquo;data through unavailable&rdquo; because it was handed a fiscal
+      period where a date belonged, source failures printed their Python exception class to the
+      reader, and a day change signed its dollar half but not its percent half. All corrected.</li>
       <li><strong>August 12, 2026</strong> A verification pass found the calendar table omitted the
       prior year-end boundary. On stored prices, corrected full-year results are SMH 39.10% and SOXX
       12.92% for 2024, and GLD 63.68%, GDX 154.77% and SIL 166.16% for 2025. The gap between miners

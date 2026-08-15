@@ -26,6 +26,29 @@ export function formatPriceChange(value: number | null): string {
     : `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}`;
 }
 
+/**
+ * Signed percent using the same glyphs as formatPriceChange.
+ * The pair is always read together ("+0.85 (+1.39%)"), so one half carrying a
+ * sign while the other does not, or the two using different minus characters,
+ * reads as a typo.
+ */
+export function formatSignedPercent(value: number | null, digits = 2): string {
+  return value === null || !Number.isFinite(value)
+    ? "—"
+    : `${value >= 0 ? "+" : "−"}${Math.abs(value * 100).toFixed(digits)}%`;
+}
+
+/**
+ * Strip the exception class name that ingest stores in front of a failure
+ * message. `SourceUnavailable: ...` is useful in ingest_runs and meaningless to
+ * a reader looking at a panel.
+ */
+export function readableError(value: string | null | undefined): string {
+  if (!value) return "Last ingest failed";
+  return value.replace(/^[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Unavailable):\s*/, "").trim()
+    || "Last ingest failed";
+}
+
 export function formatPercent(value: number | null, digits = 2): string {
   return value === null || !Number.isFinite(value) ? "—" : `${(value * 100).toFixed(digits)}%`;
 }

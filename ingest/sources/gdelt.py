@@ -165,4 +165,6 @@ def run(connection: Any) -> None:
             "min_interval_seconds": GDELT_MIN_INTERVAL_SECONDS,
         }
         if failures:
-            raise SourceUnavailable(f"GDELT failed for {len(failures)} sector ranges")
+            raise SourceUnavailable(
+                f"could not collect news volume for {len(failures)} of {len(sectors)} sectors"
+            )
