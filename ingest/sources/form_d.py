@@ -14,7 +14,77 @@ from ingest.sources.common import SourceUnavailable, logged_run, request, upsert
 from ingest.sources.sec_xbrl import SecRateLimiter, fetch_json, sec_session
 
 
+# Form D asks the issuer to pick its own industry from a fixed list, and EDGAR
+# leaves `sic` blank for most private issuers and pooled funds. The filer's own
+# answer is therefore both better populated and closer to the truth than the SIC
+# metadata, so it is tried first.
+#
+# "Pooled Investment Fund", "Business Services" and "Other" are deliberately
+# unmapped: a feeder fund raising capital is not an operating industry, and
+# attributing it to one would overstate that sector.
+INDUSTRY_GROUP_SECTORS = {
+    "coal mining": "materials-mining",
+    "electric utilities": "utilities",
+    "energy conservation": "clean-energy",
+    "environmental services": "clean-energy",
+    "oil and gas": "energy",
+    "other energy": "energy",
+    "commercial banking": "banks",
+    "insurance": "banks",
+    "investing": "banks",
+    "investment banking": "banks",
+    "other banking and financial services": "banks",
+    "biotechnology": "healthcare-pharma",
+    "health insurance": "healthcare-pharma",
+    "hospitals and physicians": "healthcare-pharma",
+    "pharmaceuticals": "healthcare-pharma",
+    "other health care": "healthcare-pharma",
+    "computers": "technology",
+    "other technology": "technology",
+    "telecommunications": "communication-services",
+    "commercial": "real-estate",
+    "reits and finance": "real-estate",
+    "other real estate": "real-estate",
+    "construction": "homebuilders",
+    "residential": "homebuilders",
+    "manufacturing": "industrials",
+    "retailing": "consumer-discretionary",
+    "restaurants": "consumer-discretionary",
+    "lodging and conventions": "consumer-discretionary",
+    "tourism & travel services": "consumer-discretionary",
+    "other travel": "consumer-discretionary",
+    "airlines and airports": "transport-shipping",
+    "agriculture": "consumer-staples",
+}
+
+
+def sector_for_industry_group(industry_group: str | None) -> str | None:
+    """Look up a Form D industry group, tolerating "&" versus "and".
+
+    EDGAR emits "Other Banking and Financial Services" and "REITS and Finance"
+    while the printed form uses ampersands, so both spellings must resolve.
+    """
+    if not industry_group:
+        return None
+    key = " ".join(industry_group.strip().lower().replace("&", "and").split())
+    return INDUSTRY_GROUP_SECTORS.get(key)
+
+
+def sector_for_filing(industry_group: str | None, sic_code: str | None) -> str | None:
+    """Resolve a filing to a sector, preferring the issuer's own classification."""
+    return sector_for_industry_group(industry_group) or sector_for_sic(sic_code)
+
+
 def sector_for_sic(sic_code: str | None) -> str | None:
+    """Resolve a SIC code to one sector by longest matching prefix.
+
+    The registry rejects two sectors claiming an identical prefix, so the
+    longest match is always unambiguous. Nested prefixes are intentional and
+    resolve to the more specific sector: 7373 is cybersecurity while the rest of
+    737, including 7372, is software-cloud; 3674 is semiconductors while the
+    rest of 367 is technology; 4931 is clean-energy while the rest of 49,
+    including 4911, is utilities.
+    """
     if not sic_code:
         return None
     matches = [
@@ -26,6 +96,9 @@ def sector_for_sic(sic_code: str | None) -> str | None:
     return max(matches)[1] if matches else None
 
 
+FORM_D_TYPES = {"D", "D/A"}
+
+
 def full_index_rows(text: str) -> list[dict[str, str]]:
     marker = "CIK|Company Name|Form Type|Date Filed|Filename"
     if marker not in text:
@@ -33,7 +106,10 @@ def full_index_rows(text: str) -> list[dict[str, str]]:
     records = []
     for line in text.split(marker, 1)[1].splitlines():
         parts = line.strip().split("|")
-        if len(parts) == 5 and parts[2] == "D":
+        # Amendments file as "D/A" and restate the cumulative amount raised.
+        # They are collected so dollar aggregates can read the latest figure for
+        # an offering; excluding them leaves amended offerings understated.
+        if len(parts) == 5 and parts[2] in FORM_D_TYPES:
             records.append(dict(zip(("cik", "name", "form", "filed", "filename"), parts)))
     return records
 
@@ -63,9 +139,16 @@ def parse_form_d_xml(xml_text: str, accession_no: str, filed_date: date, cik: st
         except ValueError:
             return None
 
+    industry_group = _text(root, "industryGroupType")
     return (
-        accession_no, filed_date, cik, issuer_name, sic, sector_for_sic(sic),
+        accession_no, filed_date, cik, issuer_name, sic,
+        sector_for_filing(industry_group, sic),
         number("totalOfferingAmount"), number("totalAmountSold"), _text(root, "stateOrCountry"),
+        # submissionType distinguishes an original filing from an amendment.
+        # previousAccessionNumber, present on most amendments, chains a
+        # restatement back to the offering it supersedes.
+        _text(root, "submissionType"), _text(root, "previousAccessionNumber"),
+        industry_group,
     )
 
 
@@ -120,8 +203,8 @@ def run(connection: Any) -> None:
                 row = parse_form_d_xml(filing.text, accession, date.fromisoformat(record["filed"]), cik10, sic)
                 result.rows_written += upsert_rows(
                     connection,
-                    """INSERT INTO form_d (accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount,amount_sold,state)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """INSERT INTO form_d (accession_no,filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount,amount_sold,state,submission_type,previous_accession_no,industry_group)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (accession_no) DO NOTHING""",
                     [row],
                 )

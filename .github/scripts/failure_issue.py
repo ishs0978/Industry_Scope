@@ -11,7 +11,18 @@ import requests
 
 
 def main() -> int:
-    failures = json.loads(Path("ingest/failures.json").read_text())
+    report = Path("ingest/failures.json")
+    if report.exists():
+        failures = json.loads(report.read_text())
+    else:
+        # The file is written last, and is no longer committed to the repo, so a
+        # missing one means the ingest died before it could report anything.
+        # Saying so beats crashing here and beats reading a stale committed file
+        # and reporting a failure that did not happen.
+        failures = [{
+            "source": "ingest",
+            "reason": "Ingest did not finish; no failure report was written.",
+        }]
     if not failures:
         print("No ingest failures")
         return 0

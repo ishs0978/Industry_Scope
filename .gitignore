@@ -7,3 +7,4 @@ ingest/cache/
 web/.next/
 web/node_modules/
 
+ingest/failures.json

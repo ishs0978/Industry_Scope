@@ -37,6 +37,25 @@ describe("return and risk metrics", () => {
     expect(sharpeRatio(points, riskFree)).toBeCloseTo((mean * 252) / Math.sqrt(variance * 252));
   });
 
+  it("computes Sharpe from excess returns on both sides of the ratio", () => {
+    const points = series([100, 110, 99, 108.9]);
+    // A risk-free series that moves, so var(excess) and var(raw returns) diverge.
+    // A flat series cannot detect the denominator, because subtracting a
+    // constant leaves variance unchanged.
+    const riskFree = series([0, 2520, 0, 2520]);
+    const daily = (percent: number) => percent / 100 / 252;
+    const excess = [0.1 - daily(2520), -0.1 - daily(0), 0.1 - daily(2520)];
+    const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const variance = (values: number[]) =>
+      values.reduce((sum, value) => sum + (value - average(values)) ** 2, 0) / (values.length - 1);
+
+    expect(sharpeRatio(points, riskFree))
+      .toBeCloseTo((average(excess) * 252) / Math.sqrt(variance(excess) * 252), 6);
+    // The raw-return denominator this replaced gives a materially different number.
+    expect(sharpeRatio(points, riskFree))
+      .not.toBeCloseTo((average(excess) * 252) / Math.sqrt(variance([0.1, -0.1, 0.1]) * 252), 3);
+  });
+
   it("finds drawdown peak, trough, recovery, and duration", () => {
     const result = maxDrawdown(series([100, 120, 90, 80, 100, 120]));
     expect(result?.maxDrawdown).toBeCloseTo(-1 / 3);
@@ -122,7 +141,7 @@ describe("comparison and holdings metrics", () => {
   });
 
   it("computes concentration and a symmetric overlap matrix", () => {
-    expect(concentration([0.5, 0.3, 0.2])).toEqual({ top10Weight: 1, hhi: 0.38 });
+    expect(concentration([0.5, 0.3, 0.2])).toEqual({ hhi: 0.38 });
     const matrix = holdingsOverlap({
       A: [{ ticker: "X", weight: 0.6 }, { ticker: "Y", weight: 0.4 }],
       B: [{ ticker: "X", weight: 0.3 }, { ticker: "Z", weight: 0.7 }],
@@ -140,9 +159,12 @@ describe("comparison and holdings metrics", () => {
     }
   });
 
-  it("test_top10_bounded", () => {
-    expect(concentration([0.25, 0.25, 0.25, 0.25]).top10Weight).toBeLessThanOrEqual(1);
-    expect(concentration([25, 25, 25, 25]).top10Weight).toBeLessThanOrEqual(1);
+  it("test_hhi_renders_on_the_0_to_10000_scale", () => {
+    // Raw issuer weights and their normalized equivalents must score identically.
+    expect(concentration([25, 25, 25, 25]).hhi).toBeCloseTo(concentration([0.25, 0.25, 0.25, 0.25]).hhi);
+    // One holding scores 10,000; a hundred equal holdings score 100.
+    expect(Math.round(concentration([1]).hhi * 10_000)).toBe(10_000);
+    expect(Math.round(concentration(Array(100).fill(0.01)).hhi * 10_000)).toBe(100);
   });
 
   it("test_self_overlap_is_100", () => {

@@ -1,0 +1,38 @@
+name: Ingest watchdog
+
+# Separate from the ingest workflow on purpose. A watchdog that lives inside the
+# thing it watches cannot report that the thing never started.
+
+on:
+  schedule:
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.11.13"
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: python -m pip install --requirement requirements.txt
+
+      - name: Fail if no ingest has run in 48 hours
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python .github/scripts/watchdog.py

@@ -23,6 +23,9 @@ export type MacroMeta = {
   series_id: string; label: string; units: string | null; frequency: string | null;
   source: string; last_release_date: string | null; next_release_date: string | null;
   realtime_start: string | null; as_of: string;
+  // Both come from fred_map.yaml, not from the database, so that the copy lives
+  // beside the series it describes rather than inside a component.
+  definition?: string | null; blurb?: string | null;
 };
 export type CompanyFact = {
   cik: string; ticker: string | null; fiscal_period: string; metric: string;
@@ -33,6 +36,7 @@ export type FormD = {
   accession_no: string; filed_date: string; cik: string | null; issuer_name: string;
   sic_code: string | null; sector_slug: string | null; total_offering_amount: number | null;
   amount_sold: number | null; state: string | null;
+  submission_type: string | null; previous_accession_no: string | null;
 };
 export type Headline = {
   id: string; sector_slug: string; published_date: string; source: string;

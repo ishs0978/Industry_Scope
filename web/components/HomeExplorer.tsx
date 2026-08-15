@@ -2,11 +2,23 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Line, LineChart, ResponsiveContainer } from "recharts";
-import { formatPercent } from "@/lib/format";
+import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
+import { formatPercent, formatPrice, formatPriceChange, stamp, stampDate } from "@/lib/format";
 import type { Sector } from "@/lib/types";
 
-type Performance = Record<string, { prices: { date: string; value: number }[]; error?: string }>;
+type Performance = Record<string, { prices: { date: string; value: number; close: number | null }[]; error?: string }>;
+
+// Ingest runs once a day, so the newest row is always the previous session's
+// close. Labelling it "Price" would teach a reader opening this mid-morning
+// that the site is wrong; "Close · 13 Aug" is simply correct.
+// Returns null rather than throwing. An unparseable date should drop the close
+// line, never take down the whole page with RangeError: Invalid time value.
+const closeDay = (value: string): string | null => {
+  const parsed = new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(parsed);
+};
 
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 function distance(a: string, b: string): number {
@@ -19,7 +31,7 @@ function distance(a: string, b: string): number {
   return matrix[a.length][b.length];
 }
 
-export default function HomeExplorer({ sectors, performance }: { sectors: Sector[]; performance: Performance }) {
+export default function HomeExplorer({ sectors, performance, pricesThrough, lastChecked }: { sectors: Sector[]; performance: Performance; pricesThrough: string | null; lastChecked: string | null }) {
   const [query, setQuery] = useState("");
   const search = useMemo(() => {
     const q = normalize(query);
@@ -38,7 +50,7 @@ export default function HomeExplorer({ sectors, performance }: { sectors: Sector
   return (
     <main>
       <section className="home-hero">
-        <div className="eyebrow">Public industry intelligence</div>
+        <div className="eyebrow">Built only from public data</div>
         <h1>See the whole industry.</h1>
         <p>Market performance, fund composition, SEC fundamentals, private capital, macro indicators, and sourced events—aligned to one date range.</p>
         <div className="search-wrap">
@@ -51,16 +63,36 @@ export default function HomeExplorer({ sectors, performance }: { sectors: Sector
       </section>
 
       <section>
-        <div className="section-heading"><h2>Industry registry</h2><span className="eyebrow">20 sectors</span></div>
+        <div className="section-heading"><h2>All industries</h2><span className="eyebrow">{sectors.length} sectors</span></div>
+        <p className="grid-note">This registry mixes broad GICS sector funds with narrower thematic funds. Semiconductors, Technology, Software &amp; Cloud, AI &amp; Robotics and Cybersecurity overlap heavily by design, so compare them against each other rather than adding them together.</p>
+        {/* prices.py stores Yahoo's Adj Close, which reinvests dividends, so
+            "adjusted close" alone would not tell a reader whether XLU's number
+            includes its yield. Say total return, and print both dates. */}
+        <p className="grid-note">Total return, dividends reinvested. Prices through {stampDate(pricesThrough)}. Last checked {stamp(lastChecked)}.</p>
+        <p className="grid-note">Each line is that fund&rsquo;s price path so far this year, scaled to its own range. Compare the shapes, not the heights.</p>
         {performance.__error?.error && <div className="source-error">Neon Postgres: {performance.__error.error}</div>}
         <div className="sector-grid">
           {sectors.map((sector) => {
             const prices = performance[sector.primary_etf]?.prices ?? [];
             const ytd = prices.length > 1 && prices[0].value > 0 ? prices.at(-1)!.value / prices[0].value - 1 : null;
+            // Close-to-close, both from `close`. On an ex-dividend day this
+            // differs slightly from the adjusted return, which matches every
+            // other quote source and must not be "fixed" with adj_close.
+            const last = prices.at(-1);
+            const previous = prices.at(-2);
+            const change = last?.close != null && previous?.close != null ? last.close - previous.close : null;
+            const changePercent = change !== null && previous?.close ? change / previous.close : null;
             return <Link className="sector-card" href={`/industry/${sector.slug}`} key={sector.slug}>
               <div className="sector-card-top"><h3>{sector.name}</h3><span className="ticker">{sector.primary_etf}</span></div>
               <div className={`return ${ytd !== null && ytd < 0 ? "negative" : ""}`}>{ytd === null ? "Unavailable" : formatPercent(ytd)} <small>YTD</small></div>
-              <div className="mini-chart">{prices.length > 1 && <ResponsiveContainer width="100%" height="100%"><LineChart data={prices}><Line dataKey="value" dot={false} stroke={ytd !== null && ytd < 0 ? "#a4463f" : "#1d6b4d"} strokeWidth={1.6} /></LineChart></ResponsiveContainer>}</div>
+              {last?.close != null && <div className="close-line">
+                {formatPrice(last.close)} {closeDay(last.date) && <span className="close-day">Close · {closeDay(last.date)}</span>}
+                {change !== null && <span className={change >= 0 ? "up" : "down"}> {formatPriceChange(change)} ({formatPercent(changePercent)})</span>}
+              </div>}
+              {/* Recharts defaults the y-domain to [0, dataMax], which compressed a
+                  $290 fund's 56% move against the top of a box starting at zero.
+                  Amplitude then encoded price level rather than return. */}
+              <div className="mini-chart">{prices.length > 1 && <ResponsiveContainer width="100%" height="100%"><LineChart data={prices}><YAxis hide domain={["dataMin", "dataMax"]} /><Line dataKey="value" dot={false} stroke={ytd !== null && ytd < 0 ? "#a4463f" : "#1d6b4d"} strokeWidth={1.6} /></LineChart></ResponsiveContainer>}</div>
             </Link>;
           })}
         </div>

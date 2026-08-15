@@ -1,0 +1,42 @@
+name: Keepalive
+
+# GitHub disables scheduled workflows after 60 days of repository inactivity.
+# This project writes only to Postgres, so a quiet stretch with no commits
+# switches the daily cron off silently: the site keeps loading and the numbers
+# freeze. That is the single most likely way this dashboard goes stale, and the
+# periods with the fewest commits are exactly the periods someone is most
+# likely to open it.
+#
+# A dated marker pushed once a month resets the inactivity clock.
+#
+# The stronger fix is to stop depending on GitHub's scheduler at all: have an
+# external scheduler call the workflow_dispatch API daily, which is not subject
+# to the inactivity rule. See docs/operations.md.
+
+on:
+  schedule:
+    - cron: "17 5 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Touch the activity marker
+        run: |
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/last-activity
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/last-activity
+          git diff --staged --quiet || git commit -m "chore: keepalive so the scheduled ingest stays enabled"
+          git push

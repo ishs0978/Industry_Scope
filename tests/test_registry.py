@@ -4,6 +4,7 @@ from ingest.registry import load_sectors, search_sectors
 EXPECTED_PRIMARY_ETFS = {
     "energy": ("XLE", ("OIH", "XOP", "AMLP")),
     "semiconductors": ("SMH", ("SOXX", "XSD")),
+    "technology": ("XLK", ()),
     "ai-robotics": ("BOTZ", ("ROBO", "IRBO", "ARKQ")),
     "software-cloud": ("IGV", ("WCLD", "SKYY")),
     "cybersecurity": ("CIBR", ("HACK", "BUG")),
@@ -17,7 +18,7 @@ EXPECTED_PRIMARY_ETFS = {
     "utilities": ("XLU", ()),
     "real-estate": ("XLRE", ("VNQ",)),
     "materials-mining": ("XLB", ("XME",)),
-    "gold-metals": ("GLD", ("GDX", "SIL")),
+    "gold-metals": ("GDX", ("GLD", "SIL")),
     "clean-energy": ("ICLN", ("TAN", "FAN")),
     "uranium-nuclear": ("URA", ("NLR",)),
     "communication-services": ("XLC", ()),
@@ -25,7 +26,7 @@ EXPECTED_PRIMARY_ETFS = {
 }
 
 
-def test_registry_contains_the_required_20_sectors_and_etfs():
+def test_registry_contains_the_required_21_sectors_and_etfs():
     sectors = load_sectors()
     actual = {
         sector.slug: (sector.primary_etf, sector.comparison_etfs)
@@ -70,3 +71,30 @@ def test_blank_search_is_an_empty_state_without_suggestions():
     assert search_sectors("   ").matches == ()
     assert search_sectors("   ").suggestions == ()
 
+
+
+def test_no_two_sectors_claim_the_same_sic_prefix():
+    # Form D routes on these. An identical prefix in two sectors has no longest
+    # match, so the winner comes from an alphabetical tiebreak nobody chose.
+    claimed = {}
+    for sector in load_sectors():
+        for prefix in sector.sic_prefixes:
+            assert prefix not in claimed, f"{prefix} claimed by {claimed.get(prefix)} and {sector.slug}"
+            claimed[prefix] = sector.slug
+
+
+def test_sic_resolution_prefers_the_more_specific_sector():
+    from ingest.sources.form_d import sector_for_sic
+
+    # 7372 used to be claimed outright by two sectors at once.
+    assert sector_for_sic("7372") == "software-cloud"
+    assert sector_for_sic("7373") == "cybersecurity"
+    # 4911 is electric services generally and belongs to utilities, not to the
+    # narrower clean-energy sector that used to claim it.
+    assert sector_for_sic("4911") == "utilities"
+    assert sector_for_sic("4931") == "clean-energy"
+    # 1094 is uranium ore.
+    assert sector_for_sic("1094") == "uranium-nuclear"
+    assert sector_for_sic("1041") == "gold-metals"
+    assert sector_for_sic("3674") == "semiconductors"
+    assert sector_for_sic("3576") == "technology"

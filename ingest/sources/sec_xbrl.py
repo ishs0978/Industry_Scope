@@ -11,7 +11,9 @@ from typing import Any
 import requests
 
 from ingest.registry import load_sectors
-from ingest.sources.common import SourceUnavailable, logged_run, request, upsert_rows
+from ingest.sources.common import (
+    RateLimiter, SourceUnavailable, logged_run, request, upsert_rows,
+)
 
 
 SEC_DATA = "https://data.sec.gov"
@@ -23,16 +25,9 @@ US_GAAP_TAGS = (
 )
 
 
-class SecRateLimiter:
-    def __init__(self, requests_per_second: float = 9.5):
-        self.minimum_interval = 1 / requests_per_second
-        self.last_request = 0.0
-
-    def wait(self) -> None:
-        elapsed = time.monotonic() - self.last_request
-        if elapsed < self.minimum_interval:
-            time.sleep(self.minimum_interval - elapsed)
-        self.last_request = time.monotonic()
+# The SEC limiter is the shared one; GDELT uses the same class at a far slower
+# rate. Keeping one implementation means one place to fix pacing bugs.
+SecRateLimiter = RateLimiter
 
 
 def sec_session() -> requests.Session:

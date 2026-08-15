@@ -7,7 +7,9 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
+import random
 import re
+import time
 from typing import Any, Iterator
 
 import requests
@@ -15,6 +17,8 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 
 DEFAULT_TIMEOUT = 45
+# 429 plus the transient 5xx family. Everything else is a real answer.
+RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 CURRENT_BATCH_ID: ContextVar[str | None] = ContextVar("ingest_batch_id", default=None)
 # Stop at URL separators and at string delimiters. Error details are serialized
 # to JSON before redaction, so consuming a closing quote would corrupt the JSON
@@ -65,6 +69,84 @@ def request(
     response = session.request(method, url, **kwargs)
     response.raise_for_status()
     return response
+
+
+class RateLimiter:
+    """Minimum spacing between requests to one upstream host."""
+
+    def __init__(self, requests_per_second: float = 9.5):
+        self.minimum_interval = 1 / requests_per_second
+        self.last_request = 0.0
+
+    def wait(self) -> None:
+        elapsed = time.monotonic() - self.last_request
+        if elapsed < self.minimum_interval:
+            time.sleep(self.minimum_interval - elapsed)
+        self.last_request = time.monotonic()
+
+
+def _backoff_delay(attempt: int, base_delay: float, max_delay: float) -> float:
+    # Exponential with full jitter, so retries do not resynchronize.
+    ceiling = min(max_delay, base_delay * (2**attempt))
+    return random.uniform(0, ceiling)
+
+
+def _retry_delay(
+    response: requests.Response, attempt: int, base_delay: float, max_delay: float
+) -> float:
+    header = response.headers.get("Retry-After")
+    if header:
+        try:
+            return min(max_delay, float(header))
+        except ValueError:
+            pass
+    return _backoff_delay(attempt, base_delay, max_delay)
+
+
+def request_with_backoff(
+    session: requests.Session,
+    method: str,
+    url: str,
+    *,
+    limiter: RateLimiter | None = None,
+    attempts: int = 4,
+    base_delay: float = 2.0,
+    max_delay: float = 30.0,
+    sleep: Any = time.sleep,
+    **kwargs: Any,
+) -> requests.Response:
+    """Throttled request that retries 429 and 5xx before giving up.
+
+    `request` has no throttle and raises on the first non-2xx, which is why a
+    rate-limited endpoint fails immediately rather than slowing down. Pass a
+    limiter to space calls out; a 429 from an aggressive API is expected
+    behaviour, not bad luck.
+    """
+    kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
+    last_error: Exception | None = None
+    last_response: requests.Response | None = None
+    for attempt in range(attempts):
+        if limiter is not None:
+            limiter.wait()
+        try:
+            response = session.request(method, url, **kwargs)
+        except requests.RequestException as exc:
+            last_error, last_response = exc, None
+            delay = _backoff_delay(attempt, base_delay, max_delay)
+        else:
+            if response.status_code not in RETRYABLE_STATUS:
+                response.raise_for_status()
+                return response
+            last_response = response
+            last_error = None
+            delay = _retry_delay(response, attempt, base_delay, max_delay)
+        if attempt + 1 < attempts:
+            sleep(delay)
+    # Raising through raise_for_status keeps the response on the exception, so
+    # callers can still distinguish a 429 from a transport error.
+    if last_response is not None:
+        last_response.raise_for_status()
+    raise last_error if last_error else SourceUnavailable(f"{url} could not be reached")
 
 
 @contextmanager

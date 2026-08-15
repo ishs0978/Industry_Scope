@@ -1,59 +1,285 @@
+# Every series carries a definition (what it measures) and a blurb (why it
+# matters to this sector). The dashboard reads both; nothing is hardcoded
+# in the component.
 common:
-  - {series_id: VIXCLS, label: CBOE Volatility Index, units: Index, frequency: Daily}
-  - {series_id: DTWEXBGS, label: Trade Weighted U.S. Dollar Index, units: Index, frequency: Daily}
+- series_id: VIXCLS
+  label: CBOE Volatility Index
+  units: Index
+  frequency: Daily
+  definition: The options market's estimate of how much the S&P 500 will move over the next 30 days, quoted
+    as an annual percentage.
+  blurb: A general measure of how nervous the market is. It rises in most sector selloffs, so read it
+    as context rather than as a signal about this industry.
+- series_id: DTWEXBGS
+  label: Trade Weighted U.S. Dollar Index
+  units: Index
+  frequency: Daily
+  definition: The dollar's value against a trade-weighted basket of other currencies.
+  blurb: A stronger dollar makes US exports more expensive abroad and shrinks the dollar value of overseas
+    earnings when they are translated back.
 sectors:
   energy:
-    - {series_id: DCOILWTICO, label: WTI Crude Oil Spot Price, units: Dollars per Barrel, frequency: Daily}
-    - {series_id: DHHNGSP, label: Henry Hub Natural Gas Spot Price, units: Dollars per MMBtu, frequency: Daily}
-    - {series_id: GASREGW, label: U.S. Regular Gasoline Price, units: Dollars per Gallon, frequency: Weekly}
+  - series_id: DCOILWTICO
+    label: WTI Crude Oil Spot Price
+    units: Dollars per Barrel
+    frequency: Daily
+    definition: The spot price of West Texas Intermediate crude, the US benchmark grade.
+    blurb: The single input most producer revenue and most drilling decisions key off.
+  - series_id: DHHNGSP
+    label: Henry Hub Natural Gas Spot Price
+    units: Dollars per MMBtu
+    frequency: Daily
+    definition: The spot price of natural gas at the Henry Hub in Louisiana, the US benchmark delivery
+      point.
+    blurb: Sets the revenue side for gas producers and the fuel cost for gas-fired power and petrochemicals
+      at the same time.
+  - series_id: GASREGW
+    label: U.S. Regular Gasoline Price
+    units: Dollars per Gallon
+    frequency: Weekly
+    definition: The average US retail price of regular gasoline, surveyed weekly.
+    blurb: The point where crude costs reach households, which is why it moves refining margins and discretionary
+      spending together.
   semiconductors:
-    - {series_id: IPG3344S, label: Semiconductor Industrial Production, units: Index, frequency: Monthly}
+  - series_id: IPG3344S
+    label: Semiconductor Industrial Production
+    units: Index
+    frequency: Monthly
+    definition: Industrial production of semiconductors and related components, indexed to a base year.
+    blurb: A physical output measure, so it follows fab utilisation rather than chip prices or company
+      revenue.
   ai-robotics:
-    - {series_id: A939RX0Q048SBEA, label: Real Private Fixed Investment in Information Processing Equipment, units: Billions of Chained Dollars, frequency: Quarterly}
+  - series_id: A939RX0Q048SBEA
+    label: Real Private Fixed Investment in Information Processing Equipment
+    units: Billions of Chained Dollars
+    frequency: Quarterly
+    definition: Real private fixed investment in information processing equipment.
+    blurb: What businesses actually spend on computing hardware, which is the demand automation and AI
+      vendors sell into.
   software-cloud:
-    - {series_id: IIPUSNETIQ, label: Investment in Software, units: Billions of Dollars, frequency: Quarterly}
+  - series_id: IIPUSNETIQ
+    label: Investment in Software
+    units: Billions of Dollars
+    frequency: Quarterly
+    definition: US investment in software, measured within the national accounts.
+    blurb: Software is booked as investment rather than as a running cost, so this is the closest public
+      proxy for aggregate enterprise software demand.
   cybersecurity:
-    - {series_id: IIPUSNETIQ, label: Investment in Software, units: Billions of Dollars, frequency: Quarterly}
+  - series_id: IIPUSNETIQ
+    label: Investment in Software
+    units: Billions of Dollars
+    frequency: Quarterly
+    definition: US investment in software, measured within the national accounts.
+    blurb: Software is booked as investment rather than as a running cost, so this is the closest public
+      proxy for aggregate enterprise software demand.
   banks:
-    - {series_id: DGS10, label: 10-Year Treasury Yield, units: Percent, frequency: Daily}
-    - {series_id: T10Y2Y, label: 10Y Minus 2Y Treasury Spread, units: Percent, frequency: Daily}
-    - {series_id: DFF, label: Effective Federal Funds Rate, units: Percent, frequency: Daily}
-    - {series_id: BAMLH0A0HYM2, label: U.S. High Yield Option-Adjusted Spread, units: Percent, frequency: Daily}
+  - series_id: DGS10
+    label: 10-Year Treasury Yield
+    units: Percent
+    frequency: Daily
+    definition: The yield on the 10-year US Treasury note.
+    blurb: The reference rate for long-dated lending. Bank securities portfolios and loan pricing both
+      key off it.
+  - series_id: T10Y2Y
+    label: 10Y Minus 2Y Treasury Spread
+    units: Percent
+    frequency: Daily
+    definition: The 10-year Treasury yield minus the 2-year, the standard measure of the yield curve's
+      slope.
+    blurb: Banks fund short and lend long, so a steeper curve widens the spread they earn and an inverted
+      one compresses it.
+  - series_id: DFF
+    label: Effective Federal Funds Rate
+    units: Percent
+    frequency: Daily
+    definition: The effective federal funds rate, the overnight rate at which banks lend reserves to each
+      other.
+    blurb: The rate the Federal Reserve actually sets. Deposit costs follow it closely and quickly.
+  - series_id: BAMLH0A0HYM2
+    label: U.S. High Yield Option-Adjusted Spread
+    units: Percent
+    frequency: Daily
+    definition: The extra yield investors demand to hold US high-yield corporate bonds instead of Treasuries.
+    blurb: The market's price for corporate default risk, and an early read on stress in bank loan books.
   healthcare-pharma:
-    - {series_id: HLTHSCPCHCSA, label: Health Care Services CPI, units: Index, frequency: Monthly}
+  - series_id: HLTHSCPCHCSA
+    label: Health Care Services CPI
+    units: Index
+    frequency: Monthly
+    definition: The consumer price index for health care services.
+    blurb: What care costs households, which is the revenue side for providers and the pressure behind
+      drug and service pricing policy.
   defense-aerospace:
-    - {series_id: A091RC1Q027SBEA, label: Federal Defense Consumption and Investment, units: Billions of Dollars, frequency: Quarterly}
+  - series_id: A091RC1Q027SBEA
+    label: Federal Defense Consumption and Investment
+    units: Billions of Dollars
+    frequency: Quarterly
+    definition: Federal defence consumption and investment, from the national accounts.
+    blurb: The budget contractors bid against. It moves with appropriations rather than with the news
+      cycle.
   homebuilders:
-    - {series_id: HOUST, label: Housing Starts, units: Thousands of Units, frequency: Monthly}
-    - {series_id: PERMIT, label: Building Permits, units: Thousands of Units, frequency: Monthly}
-    - {series_id: MORTGAGE30US, label: 30-Year Fixed Mortgage Rate, units: Percent, frequency: Weekly}
-    - {series_id: CSUSHPINSA, label: S&P CoreLogic Case-Shiller U.S. Home Price Index, units: Index, frequency: Monthly}
+  - series_id: HOUST
+    label: Housing Starts
+    units: Thousands of Units
+    frequency: Monthly
+    definition: The number of new privately owned housing units started, stated at an annual rate.
+    blurb: A start commits a builder to materials and labour, so this leads reported revenue by roughly
+      two to three quarters.
+  - series_id: PERMIT
+    label: Building Permits
+    units: Thousands of Units
+    frequency: Monthly
+    definition: Building permits issued for new privately owned housing units, stated at an annual rate.
+    blurb: Permits precede starts, which makes this the earliest widely published signal of construction
+      intent.
+  - series_id: MORTGAGE30US
+    label: 30-Year Fixed Mortgage Rate
+    units: Percent
+    frequency: Weekly
+    definition: The average rate on a 30-year fixed-rate US mortgage.
+    blurb: Sets the monthly payment, so it governs affordability, transaction volume and order cancellation
+      rates.
+  - series_id: CSUSHPINSA
+    label: S&P CoreLogic Case-Shiller U.S. Home Price Index
+    units: Index
+    frequency: Monthly
+    definition: The S&P CoreLogic Case-Shiller national home price index.
+    blurb: Built from repeat sales of the same homes, so it tracks price rather than the mix of what happened
+      to sell that month.
   industrials:
-    - {series_id: INDPRO, label: Industrial Production, units: Index, frequency: Monthly}
-    - {series_id: PPIACO, label: Producer Price Index, units: Index, frequency: Monthly}
+  - series_id: INDPRO
+    label: Industrial Production
+    units: Index
+    frequency: Monthly
+    definition: Total industrial production across manufacturing, mining and utilities, indexed.
+    blurb: A physical output measure covering the customers most industrial and materials companies sell
+      to.
+  - series_id: PPIACO
+    label: Producer Price Index
+    units: Index
+    frequency: Monthly
+    definition: The producer price index for all commodities.
+    blurb: Input costs before they reach the consumer, which is what widens or compresses manufacturer
+      margins.
   consumer-discretionary:
-    - {series_id: RSXFS, label: Retail and Food Services Sales, units: Millions of Dollars, frequency: Monthly}
-    - {series_id: UMCSENT, label: Consumer Sentiment, units: Index, frequency: Monthly}
-    - {series_id: TOTALSA, label: Light Vehicle Sales, units: Millions of Units, frequency: Monthly}
+  - series_id: RSXFS
+    label: Retail and Food Services Sales
+    units: Millions of Dollars
+    frequency: Monthly
+    definition: Retail and food services sales, excluding motor vehicle and parts dealers.
+    blurb: The closest monthly read on discretionary spending, published well before company results.
+  - series_id: UMCSENT
+    label: Consumer Sentiment
+    units: Index
+    frequency: Monthly
+    definition: The University of Michigan index of consumer sentiment.
+    blurb: A survey of intent rather than a record of spending, so treat it as a leading indicator that
+      is often wrong.
+  - series_id: TOTALSA
+    label: Light Vehicle Sales
+    units: Millions of Units
+    frequency: Monthly
+    definition: Total light vehicle sales, stated at an annual rate.
+    blurb: A vehicle is the largest single discretionary purchase most households make, so this turns
+      early in a spending cycle.
   consumer-staples:
-    - {series_id: CPIUFDSL, label: CPI Food, units: Index, frequency: Monthly}
+  - series_id: CPIUFDSL
+    label: CPI Food
+    units: Index
+    frequency: Monthly
+    definition: The consumer price index for food.
+    blurb: Staples makers pass input costs through slowly, so food inflation reaches their margins before
+      it reaches their shelf prices.
   utilities:
-    - {series_id: APU000072610, label: Average Electricity Price, units: Cents per Kilowatt-hour, frequency: Monthly}
+  - series_id: APU000072610
+    label: Average Electricity Price
+    units: Cents per Kilowatt-hour
+    frequency: Monthly
+    definition: The average US retail price of electricity per kilowatt-hour.
+    blurb: Regulated utilities recover costs through this rate, so it moves with rate cases rather than
+      with markets.
   real-estate:
-    - {series_id: CREACBM027SBOG, label: Commercial Real Estate Loans, units: Billions of Dollars, frequency: Weekly}
+  - series_id: CREACBM027SBOG
+    label: Commercial Real Estate Loans
+    units: Billions of Dollars
+    frequency: Weekly
+    definition: Commercial real estate loans held on the books of US commercial banks.
+    blurb: Shows whether banks are still lending against property, which is the financing that sets transaction
+      volume.
   materials-mining:
-    - {series_id: INDPRO, label: Industrial Production, units: Index, frequency: Monthly}
-    - {series_id: PPIACO, label: Producer Price Index, units: Index, frequency: Monthly}
+  - series_id: INDPRO
+    label: Industrial Production
+    units: Index
+    frequency: Monthly
+    definition: Total industrial production across manufacturing, mining and utilities, indexed.
+    blurb: A physical output measure covering the customers most industrial and materials companies sell
+      to.
+  - series_id: PPIACO
+    label: Producer Price Index
+    units: Index
+    frequency: Monthly
+    definition: The producer price index for all commodities.
+    blurb: Input costs before they reach the consumer, which is what widens or compresses manufacturer
+      margins.
   gold-metals:
-    - {series_id: GOLDAMGBD228NLBM, label: Gold Fixing Price, units: U.S. Dollars per Troy Ounce, frequency: Daily}
+  - series_id: GOLDAMGBD228NLBM
+    label: Gold Fixing Price
+    units: U.S. Dollars per Troy Ounce
+    frequency: Daily
+    definition: The London gold fixing price per troy ounce.
+    blurb: Bullion produces no cash flow, so this is the entire fundamental for a gold trust and the revenue
+      line for a miner.
   clean-energy:
-    - {series_id: IPG2211A2N, label: Renewable Electric Power Generation, units: Index, frequency: Monthly}
+  - series_id: IPG2211A2N
+    label: Renewable Electric Power Generation
+    units: Index
+    frequency: Monthly
+    definition: Industrial production of renewable electric power generation, indexed.
+    blurb: Electricity actually generated from renewables, which follows installed capacity with a lag.
   uranium-nuclear:
-    - {series_id: IPG221113A, label: Nuclear Electric Power Generation, units: Index, frequency: Monthly}
+  - series_id: IPG221113A
+    label: Nuclear Electric Power Generation
+    units: Index
+    frequency: Monthly
+    definition: Industrial production of nuclear electric power generation, indexed.
+    blurb: Reactor output is the demand side for uranium, and it moves with outages and licence renewals
+      rather than with price.
   communication-services:
-    - {series_id: PCU517311517311, label: Wired Telecommunications Producer Prices, units: Index, frequency: Monthly}
+  - series_id: PCU517311517311
+    label: Wired Telecommunications Producer Prices
+    units: Index
+    frequency: Monthly
+    definition: Producer prices for wired telecommunications carriers.
+    blurb: What carriers can charge for connectivity, which is the pricing environment behind most communication
+      services revenue.
   transport-shipping:
-    - {series_id: TSIFRGHT, label: Freight Transportation Services Index, units: Index, frequency: Monthly}
+  - series_id: TSIFRGHT
+    label: Freight Transportation Services Index
+    units: Index
+    frequency: Monthly
+    definition: The freight transportation services index, measuring the volume of freight moved.
+    blurb: A volume measure rather than a revenue one, so it separates how much is shipped from what shippers
+      are paid to ship it.
+  technology:
+  - series_id: A939RX0Q048SBEA
+    label: Real Private Fixed Investment in Information Processing Equipment
+    units: Billions of Chained Dollars
+    frequency: Quarterly
+    definition: Real private fixed investment in information processing equipment.
+    blurb: What businesses actually spend on computing hardware, which is the demand automation and AI
+      vendors sell into.
+  - series_id: IIPUSNETIQ
+    label: Investment in Software
+    units: Billions of Dollars
+    frequency: Quarterly
+    definition: US investment in software, measured within the national accounts.
+    blurb: Software is booked as investment rather than as a running cost, so this is the closest public
+      proxy for aggregate enterprise software demand.
 risk_free:
-  - {series_id: DGS3MO, label: 3-Month Treasury Yield, units: Percent, frequency: Daily}
-
+- series_id: DGS3MO
+  label: 3-Month Treasury Yield
+  units: Percent
+  frequency: Daily
+  definition: The yield on 3-month US Treasury bills, the closest thing to a risk-free return.
+  blurb: The baseline the Sharpe ratio measures against. Rising short rates raise the bar every other
+    investment has to clear.

@@ -12,7 +12,7 @@ import yaml
 
 
 REGISTRY_PATH = Path(__file__).parent / "config" / "sectors.yaml"
-EXPECTED_SECTOR_COUNT = 20
+EXPECTED_SECTOR_COUNT = 21
 REQUIRED_FIELDS = {
     "slug",
     "name",
@@ -116,6 +116,20 @@ def load_sectors(path: Path = REGISTRY_PATH) -> tuple[Sector, ...]:
     primary_etfs = [sector.primary_etf for sector in sectors]
     if len(primary_etfs) != len(set(primary_etfs)):
         raise ValueError("primary ETFs must be unique")
+
+    # Form D routes on these prefixes and `sector_for_sic` resolves by longest
+    # match. Two sectors claiming the identical prefix has no longest match, so
+    # the winner falls out of an alphabetical tiebreak nobody chose. Reject it
+    # here rather than let filings land in an arbitrary sector.
+    claimed: dict[str, str] = {}
+    for sector in sectors:
+        for prefix in sector.sic_prefixes:
+            if prefix in claimed:
+                raise ValueError(
+                    f"SIC prefix {prefix!r} is claimed by both {claimed[prefix]!r} "
+                    f"and {sector.slug!r}; give one of them a more specific prefix"
+                )
+            claimed[prefix] = sector.slug
 
     return tuple(sectors)
 

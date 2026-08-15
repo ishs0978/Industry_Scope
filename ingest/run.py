@@ -50,10 +50,36 @@ EXPECTED_SOURCES = tuple(
 )
 
 
-def due(source: ScheduledSource, today: date, force_all: bool = False) -> bool:
+WEEKLY_INTERVAL_DAYS = 7
+
+
+def days_since_last_success(connection: Any, source: str) -> float | None:
+    """Days since the source last really succeeded, or None if it never has.
+
+    A source that was skipped for cadence is recorded with status 'success' and
+    details.skipped, so those rows must be excluded or a weekly source would
+    look freshly successful every single day and never come due again.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT EXTRACT(EPOCH FROM (now() - max(started_at))) / 86400
+            FROM ingest_runs
+            WHERE source = %s AND status = 'success'
+              AND COALESCE((details->>'skipped')::boolean, false) = false""",
+            (source,),
+        )
+        row = cursor.fetchone()
+    elapsed = row[0] if row else None
+    return None if elapsed is None else float(elapsed)
+
+
+def due(source: ScheduledSource, connection: Any, force_all: bool = False) -> bool:
     if force_all or source.cadence == "daily":
         return True
-    return source.cadence == "weekly" and today.weekday() == 0
+    # A weekday check turns one missed Monday into a full week with no retry.
+    # Ask when the source last actually succeeded instead.
+    elapsed = days_since_last_success(connection, source.name)
+    return elapsed is None or elapsed >= WEEKLY_INTERVAL_DAYS
 
 
 def seed_expected_sources(connection: Any, batch_id: str, started_at: datetime) -> None:
@@ -139,7 +165,7 @@ def run_all(connection: Any, *, today: date | None = None, force_all: bool = Fal
     try:
         for source in SOURCES:
             reported = source.reports or (source.name,)
-            if not due(source, run_date, force_all):
+            if not due(source, connection, force_all):
                 finish_pending(
                     connection, batch_id, reported, status="success", message="",
                     details={"skipped": True, "cadence": source.cadence, "run_date": run_date.isoformat()},

@@ -97,7 +97,10 @@ export function sharpeRatio(points: SeriesPoint[], dgs3mo: SeriesPoint[]): numbe
     }
     if (currentRate !== null) excess.push(point.value - currentRate / TRADING_DAYS);
   }
-  const variance = sampleVariance(dailyReturns.map((point) => point.value));
+  // Both sides are computed from `excess` so the ratio is defined on one series.
+  // `excess` can be shorter than `dailyReturns` when the risk-free series starts
+  // later, and sampling the two sides over different windows is not a Sharpe.
+  const variance = sampleVariance(excess);
   const averageExcess = mean(excess);
   if (variance === null || averageExcess === null || variance === 0) return null;
   return (averageExcess * TRADING_DAYS) / Math.sqrt(variance * TRADING_DAYS);
@@ -252,14 +255,12 @@ export function calendarPeriodReturns(
   });
 }
 
-export function concentration(weights: number[]): { top10Weight: number; hhi: number } {
+/** HHI on a 0-to-1 scale; callers render it on the standard 0-to-10,000 scale. */
+export function concentration(weights: number[]): { hhi: number } {
   const valid = weights.filter((weight) => Number.isFinite(weight) && weight >= 0).sort((a, b) => b - a);
   const total = valid.reduce((sum, weight) => sum + weight, 0);
   const normalized = total > 0 ? valid.map((weight) => weight / total) : [];
-  return {
-    top10Weight: normalized.slice(0, 10).reduce((sum, weight) => sum + weight, 0),
-    hhi: normalized.reduce((sum, weight) => sum + weight ** 2, 0),
-  };
+  return { hhi: normalized.reduce((sum, weight) => sum + weight ** 2, 0) };
 }
 
 export type HoldingWeight = { ticker: string; weight: number };
