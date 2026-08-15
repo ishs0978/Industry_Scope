@@ -25,6 +25,14 @@ sectors:
     frequency: Daily
     definition: The spot price of West Texas Intermediate crude, the US benchmark grade.
     blurb: The single input most producer revenue and most drilling decisions key off.
+  - series_id: DCOILBRENTEU
+    label: Brent Crude Oil Spot Price
+    units: Dollars per Barrel
+    frequency: Daily
+    definition: The spot price of Brent crude, the seaborne benchmark that prices roughly two thirds of
+      the world's traded oil.
+    blurb: 'Read it against WTI: the gap between the two is what makes US barrels worth exporting, and
+      it widens when US supply is landlocked or freight is tight.'
   - series_id: DHHNGSP
     label: Henry Hub Natural Gas Spot Price
     units: Dollars per MMBtu
@@ -253,6 +261,14 @@ sectors:
     blurb: What carriers can charge for connectivity, which is the pricing environment behind most communication
       services revenue.
   transport-shipping:
+  - series_id: DCOILBRENTEU
+    label: Brent Crude Oil Spot Price
+    units: Dollars per Barrel
+    frequency: Daily
+    definition: The spot price of Brent crude, the seaborne benchmark that prices roughly two thirds of
+      the world's traded oil.
+    blurb: Bunker and jet fuel are refined from crude priced off Brent, so it is the largest variable
+      cost line for shipping and airline operators.
   - series_id: TSIFRGHT
     label: Freight Transportation Services Index
     units: Index

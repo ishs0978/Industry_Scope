@@ -37,6 +37,8 @@ export type FormD = {
   sic_code: string | null; sector_slug: string | null; total_offering_amount: number | null;
   amount_sold: number | null; state: string | null;
   submission_type: string | null; previous_accession_no: string | null;
+  /** The industry the issuer selected on the form itself. */
+  industry_group: string | null;
 };
 export type Headline = {
   id: string; sector_slug: string; published_date: string; source: string;

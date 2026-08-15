@@ -216,3 +216,21 @@ th:first-child, td:first-child, .left { text-align: left; }
 
 .methodology .lede { color: var(--ink); font-size: 19px; }
 .methodology .data-table-wrap { margin: 20px 0; }
+
+.provenance { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 10px 0 14px; max-width: 78ch; }
+
+/* The page sat at 920px inside a 1440px shell, leaving a wide empty margin on
+   both sides. Headings now occupy a left rail so the full width is used, and
+   prose keeps a readable measure instead of stretching. */
+.methodology { max-width: 1280px; }
+.method-block { border-top: 1px solid var(--line); padding-top: 26px; margin-top: 34px; }
+.method-block > h2 { border-top: 0; margin-top: 0; padding-top: 0; }
+.method-body > *:first-child { margin-top: 0; }
+.method-body p, .method-body li { max-width: 74ch; }
+@media (min-width: 1040px) {
+  .method-block { display: grid; grid-template-columns: 300px 1fr; gap: 44px; align-items: start; }
+  .method-block > h2 { position: sticky; top: 84px; font-size: 26px; }
+}
+.diagram { margin: 0 0 22px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.diagram figcaption { color: var(--muted); font-size: 13px; margin-top: 8px; max-width: 74ch; }

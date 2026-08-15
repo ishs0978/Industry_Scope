@@ -11,17 +11,23 @@ export default function MethodologyPage() {
     shown, and is calculated with a formula written below. Nothing is estimated, forecast, or filled
     in. When a source fails, the panel says so instead of showing a plausible number.</p>
 
-    <h2>How the data moves</h2>
-    <p>Collection and presentation are separate. A scheduled Python job calls each source on its own
+        <section className="method-block">
+      <h2>How the data moves</h2>
+      <div className="method-body">
+<p>Collection and presentation are separate. A scheduled Python job calls each source on its own
     cadence, writes what it gets to PostgreSQL, and records whether the attempt succeeded. The website
     reads only PostgreSQL. It never calls a market, government, or news API while you are looking at a
     page, so a source going down changes what is labeled stale, not what loads.</p>
     <p>A failed download never overwrites good data. The previous value stays, and the panel is marked
     with the date it was collected. Each chart shows two dates: the latest observation in the series,
     and when the job last ran. Those answer different questions and are never merged.</p>
+      </div>
+    </section>
 
-    <h2>Where each number comes from</h2>
-    <p>Sources publish on their own schedules. The job runs daily, but that does not make every
+    <section className="method-block">
+      <h2>Where each number comes from</h2>
+      <div className="method-body">
+<p>Sources publish on their own schedules. The job runs daily, but that does not make every
     number daily. This table is the honest version.</p>
 
     <div className="data-table-wrap">
@@ -43,9 +49,13 @@ export default function MethodologyPage() {
 
     <p>BLS figures shown are the most recent published values, including revisions. A number you saw
     last month may have changed because BLS revised it, not because this site changed.</p>
+      </div>
+    </section>
 
-    <h2>How returns are calculated</h2>
-    <p><strong>All returns on this site are total returns.</strong> They assume dividends were
+    <section className="method-block">
+      <h2>How returns are calculated</h2>
+      <div className="method-body">
+<p><strong>All returns on this site are total returns.</strong> They assume dividends were
     reinvested on the day they were paid. A utilities fund yielding 3% will therefore show a higher
     return here than a price chart on a broker site, and both are correct for what they measure.</p>
 
@@ -59,6 +69,28 @@ export default function MethodologyPage() {
     <p>Total return can differ from another site&rsquo;s figure for the same fund by a few hundredths
     of a point, because providers do not all reinvest a dividend on the same day or at the same price.
     The arithmetic behind every number here is written above.</p>
+
+    <figure className="diagram">
+      <svg viewBox="0 0 900 170" role="img" aria-labelledby="ytd-title ytd-desc">
+        <title id="ytd-title">Where year to date is measured from</title>
+        <desc id="ytd-desc">Year to date is measured from the final close of the prior year, so the first trading day of January is inside the return rather than being used as the baseline.</desc>
+        <g fontSize="13" fontFamily="Inter, system-ui, sans-serif">
+          <path d="M60 96 H840" stroke="#d8ddd5" strokeWidth="2"/>
+          <circle cx="150" cy="96" r="6" fill="#1d6b4d"/>
+          <text x="150" y="76" textAnchor="middle" fontWeight="600" fill="#1d6b4d">31 Dec</text>
+          <text x="150" y="128" textAnchor="middle" fontSize="12" fill="#647269">baseline used here</text>
+          <circle cx="300" cy="96" r="6" fill="#a4463f"/>
+          <text x="300" y="76" textAnchor="middle" fill="#a4463f">2 Jan</text>
+          <text x="300" y="128" textAnchor="middle" fontSize="12" fill="#a4463f">the common mistake</text>
+          <circle cx="800" cy="96" r="6" fill="#17221d"/>
+          <text x="800" y="76" textAnchor="middle" fill="#17221d">today</text>
+          <path d="M150 148 H800" stroke="#1d6b4d" strokeWidth="1.5" markerEnd="url(#mk3)"/>
+          <text x="470" y="166" textAnchor="middle" fontSize="12" fill="#1d6b4d">the whole year&rsquo;s move, including 2 January</text>
+          <defs><marker id="mk3" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#1d6b4d"/></marker></defs>
+        </g>
+      </svg>
+      <figcaption>Starting on 1 January silently discards the first trading day from every fund.</figcaption>
+    </figure>
 
     <ul>
       <li><strong>Return over a period</strong> is the ending adjusted close divided by the beginning
@@ -101,9 +133,13 @@ export default function MethodologyPage() {
       to 10,000 scale. A fund holding one stock scores 10,000. A fund holding 100 equal stocks scores
       100. Higher means more concentrated.</li>
     </ul>
+      </div>
+    </section>
 
-    <h2>Company fundamentals</h2>
-    <p>Company figures come from the SEC&rsquo;s XBRL Company Facts and Frames endpoints, requested
+    <section className="method-block">
+      <h2>Company fundamentals</h2>
+      <div className="method-body">
+<p>Company figures come from the SEC&rsquo;s XBRL Company Facts and Frames endpoints, requested
     with the descriptive user agent the SEC requires and below their rate limit.</p>
     <p>Filers do not all use the same tags for the same idea. Where a company reports revenue under
     more than one tag, the same tag is used on both sides of any growth comparison. If the earlier
@@ -111,9 +147,13 @@ export default function MethodologyPage() {
     read as zero.</p>
     <p>Market capitalization is the current value. It is not aligned to the date range you selected,
     and the column says so.</p>
+      </div>
+    </section>
 
-    <h2>Private fundraising</h2>
-    <p>Form D filings come from EDGAR full indexes and the primary XML submission. Dollar amounts are
+    <section className="method-block">
+      <h2>Private fundraising</h2>
+      <div className="method-body">
+<p>Form D filings come from EDGAR full indexes and the primary XML submission. Dollar amounts are
     shown only where the company reported one; many do not.</p>
     <p>Companies amend Form D filings, and an amendment restates the cumulative amount raised rather
     than a new increment. Dollar totals therefore count only the most recent filing for each offering.
@@ -127,9 +167,13 @@ export default function MethodologyPage() {
     fund raising capital is not an operating industry, and counting one would overstate whichever
     sector it landed in. Those filings are the majority of all Form D submissions, so the counts and
     dollar figures on a sector page describe a minority of filings by design, not a collection gap.</p>
+      </div>
+    </section>
 
-    <h2>News and events</h2>
-    <p>The NYT Archive API supplies headline, abstract, publication date, section, and a link. Full
+    <section className="method-block">
+      <h2>News and events</h2>
+      <div className="method-body">
+<p>The NYT Archive API supplies headline, abstract, publication date, section, and a link. Full
     article text is neither requested nor stored. GDELT supplies daily article counts and average tone
     as numbers, not text.</p>
     <p>Event annotations are written by hand into a reviewable file in the repository, are checked
@@ -140,13 +184,21 @@ export default function MethodologyPage() {
     difference over that window. Those are arithmetic over dates you can see. Returns over an event
     window are coincident, not causal, and the panel says so. IndustryScope does not generate
     market commentary and does not explain why a price moved.</p>
+      </div>
+    </section>
 
-    <h2>What the summaries are</h2>
-    <p>The plain-language lines on each dashboard are built from the rows on that dashboard and the
+    <section className="method-block">
+      <h2>What the summaries are</h2>
+      <div className="method-body">
+<p>The plain-language lines on each dashboard are built from the rows on that dashboard and the
     formulas above. They contain no analyst opinion, no forecast, and no third-party narrative.</p>
+      </div>
+    </section>
 
-    <h2>Known limits</h2>
-    <ul>
+    <section className="method-block">
+      <h2>Known limits</h2>
+      <div className="method-body">
+<ul>
       <li>An ETF is not an industry. Funds are built by their issuers to different definitions, so two
       funds covering the same theme will hold different companies.</li>
       <li>Some funds appear inside others. Semiconductor, software, cybersecurity and AI funds all hold
@@ -176,15 +228,23 @@ export default function MethodologyPage() {
       A fund that fails validation has its derived numbers suppressed rather than estimated, on the
       site and in the exported workbook alike.</li>
     </ul>
+      </div>
+    </section>
 
-    <h2>Verification</h2>
-    <p>Fund identity, current quote, assets, expense ratio, and holdings are spot-checked against
+    <section className="method-block">
+      <h2>Verification</h2>
+      <div className="method-body">
+<p>Fund identity, current quote, assets, expense ratio, and holdings are spot-checked against
     StockAnalysis. Assets and expense ratio are keyed to the composition tab shown. Yahoo does not
     publish a usable expense ratio for every fund; a figure outside 0.01% to 2.00% is rejected as a
     unit error and reads Unavailable rather than showing a confident 0.00%.</p>
+      </div>
+    </section>
 
-    <h2>Changelog</h2>
-    <ul>
+    <section className="method-block">
+      <h2>Changelog</h2>
+      <div className="method-body">
+<ul>
       <li><strong>August 14, 2026</strong> Year-to-date on the home page was measured from January 1,
       which meant the first trading day of the year was excluded from every sector. Corrected to
       measure from the prior year&rsquo;s final close. All headline figures changed.</li>
@@ -227,5 +287,8 @@ export default function MethodologyPage() {
       prices. Collection now re-fetches a trailing window each run so gaps are repaired. Missing
       values are never interpolated.</li>
     </ul>
+      </div>
+    </section>
+
   </main>;
 }

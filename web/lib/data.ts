@@ -31,6 +31,33 @@ export function macroIdsForSector(slug: string): string[] {
   return macroConfigForSector(slug).map((item) => item.series_id);
 }
 
+/**
+ * Display rank. The sector's own indicators come first, then its EIA and BLS
+ * series, then the market-wide ones.
+ *
+ * Ranking by position in fred_map put `common` and `risk_free` at the front, so
+ * an energy page led with VIX, the dollar index and the 3-month Treasury while
+ * crude, gas, gasoline, inventories and refinery utilization sat behind the
+ * "show all" disclosure. The generic series are context; the sector's own are
+ * the reason the panel exists.
+ */
+export function macroRelevance(slug: string): (seriesId: string, source: string) => number {
+  const mapPath = path.resolve(process.cwd(), "config", "fred_map.yaml");
+  const config = YAML.parse(fs.readFileSync(mapPath, "utf8")) as {
+    common?: MacroConfigEntry[]; risk_free?: MacroConfigEntry[];
+    sectors?: Record<string, MacroConfigEntry[]>;
+  };
+  const sector = new Map((config.sectors?.[slug] ?? []).map((e, i) => [e.series_id, i]));
+  const generic = new Map([...(config.common ?? []), ...(config.risk_free ?? [])].map((e, i) => [e.series_id, i]));
+  return (seriesId, source) => {
+    const own = sector.get(seriesId);
+    if (own !== undefined) return own;                       // this sector's FRED series
+    if (/^(EIA|BLS)$/i.test(source)) return 1_000;           // this sector's agency series
+    const g = generic.get(seriesId);
+    return g === undefined ? 3_000 : 2_000 + g;              // market-wide context last
+  };
+}
+
 export function macroSourceAllowed(slug: string, source: string): boolean {
   return source.toUpperCase() !== "EIA" || slug === "energy";
 }
@@ -111,7 +138,7 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
              GROUP BY as_of HAVING count(*) >= 5 AND sum(weight) BETWEEN 0.98 AND 1.02
              ORDER BY as_of DESC LIMIT 1
            ))`,
-      sql`SELECT accession_no,filed_date::text AS filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount::float,amount_sold::float,state,submission_type,previous_accession_no FROM form_d WHERE sector_slug=${slug} ORDER BY filed_date`,
+      sql`SELECT accession_no,filed_date::text AS filed_date,cik,issuer_name,sic_code,sector_slug,total_offering_amount::float,amount_sold::float,state,submission_type,previous_accession_no,industry_group FROM form_d WHERE sector_slug=${slug} ORDER BY filed_date`,
       sql`SELECT id,sector_slug,published_date,source,headline,abstract,section,url FROM headlines WHERE sector_slug=${slug} ORDER BY published_date`,
       sql`SELECT sector_slug,date::text AS date,article_volume::float,avg_tone::float FROM news_volume WHERE sector_slug=${slug} ORDER BY date`,
       sql`SELECT id,start_date::text AS start_date,end_date::text AS end_date,sectors,title,blurb,source_url,impact FROM events WHERE sectors && ARRAY[${slug},'all']::text[] ORDER BY start_date`,
@@ -125,7 +152,7 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
     // first few shown are the ones chosen as most relevant to the sector. BLS
     // and EIA series are matched by pattern, not listed in fred_map, so they
     // sort after the configured ones.
-    const relevance = new Map(macroIds.map((id, index) => [id, index]));
+    const rank = macroRelevance(slug);
     // Definitions and blurbs live in fred_map.yaml beside the series they
     // describe; the database stores only what FRED publishes.
     const copy = new Map(macroConfigForSector(slug).map((item) => [item.series_id, item]));
@@ -135,7 +162,7 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
       blurb: copy.get(row.series_id)?.blurb ?? null,
     }));
     const ordered = [...described].sort((a, b) =>
-      (relevance.get(a.series_id) ?? Number.MAX_SAFE_INTEGER) - (relevance.get(b.series_id) ?? Number.MAX_SAFE_INTEGER)
+      rank(a.series_id, String(a.source)) - rank(b.series_id, String(b.source))
       || String(a.source).localeCompare(String(b.source))
       || String(a.label).localeCompare(String(b.label)));
     const macro = gateMacroByFreshness(

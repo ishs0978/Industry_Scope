@@ -551,7 +551,11 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
 
     <section className="panel" id="fundamentals">
       <SectionHead index="03" title="How the companies are doing" term="SEC XBRL reported facts" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
-      {comps.length ? <CompsTable rows={comps} /> : <div className="source-error">SEC XBRL: no company facts are available for the latest primary-fund constituents.</div>}
+      {comps.length ? <>
+        <ChartHeading title="Every company in the fund, side by side" term="One row per constituent" definition={COMPS_DEFINITION} />
+        <p className="provenance">Each figure below is a number the company itself filed with the SEC in XBRL, for the period named in its row. Revenue, gross profit, operating income and net income are reported values, taken as filed. The three margins are the only calculated cells: each divides a reported profit line by that same company&rsquo;s reported revenue for the same period. Nothing here is estimated, and a company that did not report a figure leaves the cell blank rather than showing a zero.</p>
+        <CompsTable rows={comps} />
+      </> : <div className="source-error">SEC XBRL: no company facts are available for the latest primary-fund constituents.</div>}
       {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" definition={CHART_COPY.margins.definition} /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} itemSorter={byValueDescending} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer><ChartCaption lines={CHART_COPY.margins.lines} more={CHART_COPY.margins.more} /><ChartFreshness payload={payload} source="sec_xbrl" dataThrough={latestFactFiled} /></div>}
     </section>
 
@@ -559,6 +563,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       <SectionHead index="04" title="Private fundraising" term="SEC Form D filings" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once. Issuers that classify themselves as pooled investment funds are excluded, because a fund raising capital is not an operating industry; they are most Form D filings, so these counts are a minority of all filings." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
       <div className="stat-grid"><Stat label="Form D filings" term="Including amendments" value={privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"} /><Stat label="Typical raise" term="Median" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Distinct issuers" term="Unique filers in range" value={new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()} /></div>
       <div className="chart-shell"><ChartHeading title="Private fundraising against the fund's price" term="Form D amount sold by quarter" definition={CHART_COPY.formd.definition} />{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}<ChartCaption lines={CHART_COPY.formd.lines} more={CHART_COPY.formd.more} /><ChartFreshness payload={payload} source="form_d" dataThrough={formDInRange.at(-1)?.filed_date} /></div>
+      <FormDIssuers filings={formDLatestPerOffering} all={formDInRange} />
     </section>
 
     <section className="panel" id="macro">
@@ -601,6 +606,37 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       {!timelineEvents.length && !coverage.length && <div className="source-error">No events or headlines in this window. Try a longer range.</div>}
     </section>
   </main>;
+}
+
+const COMPS_DEFINITION = "Every company held by this sector's fund that files with the SEC, with the figures it reported for its most recent period. The sector rows at the top are percentiles across those companies, so you can see where any one of them sits against its peers.";
+
+/**
+ * Who actually raised the money. The panel above answers "how much"; without
+ * this a reader cannot see which companies the total is made of, or that most
+ * Form D filers are funds rather than operating businesses.
+ */
+function FormDIssuers({ filings, all }: { filings: IndustryPayload["formD"]; all: IndustryPayload["formD"] }) {
+  const [open, setOpen] = useState(false);
+  if (!filings.length) return null;
+  const ranked = [...filings].sort((a, b) => (b.amount_sold ?? -1) - (a.amount_sold ?? -1));
+  const shown = open ? ranked : ranked.slice(0, 10);
+  const amendments = all.filter((row) => (row.submission_type ?? "").toUpperCase().startsWith("D/A")).length;
+  return <div style={{ marginTop: 24 }}>
+    <ChartHeading title="Who raised it" term="One row per offering" definition="Every offering behind the totals above, largest first. An offering appears once: where a company amended its filing, the row shows the most recent figure it reported, not the sum of its filings." />
+    <p className="provenance">{filings.length.toLocaleString()} offering{filings.length === 1 ? "" : "s"} from {new Set(filings.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()} issuer{new Set(filings.map((row) => row.cik ?? row.issuer_name)).size === 1 ? "" : "s"} in this window{amendments ? `, including ${amendments} amendment${amendments === 1 ? "" : "s"} folded into the offering it restates` : ""}. Industry is the issuer&rsquo;s own selection on the form.</p>
+    <div className="data-table-wrap"><table>
+      <thead><tr><th>Issuer</th><th>Filed</th><th>Industry (self-selected)</th><th>Reported raised</th><th>Offering size</th><th>State</th></tr></thead>
+      <tbody>{shown.map((row) => <tr key={row.accession_no}>
+        <td>{row.issuer_name}</td>
+        <td>{row.filed_date}</td>
+        <td>{row.industry_group ?? "Not stated"}</td>
+        <td>{row.amount_sold === null ? "Not reported" : money(row.amount_sold)}</td>
+        <td>{row.total_offering_amount === null ? "Not reported" : money(row.total_offering_amount)}</td>
+        <td>{row.state ?? "—"}</td>
+      </tr>)}</tbody>
+    </table></div>
+    {ranked.length > 10 && <button className="chip show-more" onClick={() => setOpen(!open)}>{open ? "Show fewer" : `Show all ${ranked.length} offerings`}</button>}
+  </div>;
 }
 
 function CalendarTable({ payload, tickers, start, end }: { payload: IndustryPayload; tickers: string[]; start: string; end: string }) {
