@@ -27,6 +27,35 @@ function macroConfigForSector(slug: string): MacroConfigEntry[] {
   return [...(config.common ?? []), ...(config.risk_free ?? []), ...(config.sectors?.[slug] ?? [])];
 }
 
+/**
+ * EIA and BLS series are matched by pattern rather than listed in fred_map, so
+ * they arrived with no definition while every FRED chart had one. These are
+ * derived from the series shape: BLS CES codes end 01 for employment and 03 for
+ * average hourly earnings.
+ */
+function agencyCopy(seriesId: string): { definition: string; blurb: string } | null {
+  if (seriesId.startsWith("BLS:")) {
+    if (seriesId.endsWith("01")) return {
+      definition: "The number of people on payrolls in this industry, from the Bureau of Labor Statistics Current Employment Statistics survey.",
+      blurb: "A headcount, not a revenue measure. Hiring follows demand rather than leading it, and the first print is revised in each of the next two months.",
+    };
+    if (seriesId.endsWith("03")) return {
+      definition: "Average hourly earnings for production and non-supervisory workers in this industry, from the same BLS survey.",
+      blurb: "The labour cost of an hour of work here. In a labour-intensive industry this reaches margins before it reaches prices.",
+    };
+    return null;
+  }
+  if (seriesId === "EIA:WCESTUS1") return {
+    definition: "Commercial crude oil held in US storage, excluding the Strategic Petroleum Reserve, reported weekly by the EIA.",
+    blurb: "Inventory is the running balance between what arrives and what refineries process. A build means supply outran throughput that week.",
+  };
+  if (seriesId === "EIA:WPULEUS3") return {
+    definition: "The share of US refinery capacity actually in use, reported weekly by the EIA.",
+    blurb: "Refiners run hard when margins are good and cut runs for maintenance or weak demand, so this is the throughput side of the crude balance.",
+  };
+  return null;
+}
+
 export function macroIdsForSector(slug: string): string[] {
   return macroConfigForSector(slug).map((item) => item.series_id);
 }
@@ -156,11 +185,14 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
     // Definitions and blurbs live in fred_map.yaml beside the series they
     // describe; the database stores only what FRED publishes.
     const copy = new Map(macroConfigForSector(slug).map((item) => [item.series_id, item]));
-    const described = (macroMeta as unknown as IndustryPayload["macro"]["meta"]).map((row) => ({
-      ...row,
-      definition: copy.get(row.series_id)?.definition ?? null,
-      blurb: copy.get(row.series_id)?.blurb ?? null,
-    }));
+    const described = (macroMeta as unknown as IndustryPayload["macro"]["meta"]).map((row) => {
+      const agency = agencyCopy(row.series_id);
+      return {
+        ...row,
+        definition: copy.get(row.series_id)?.definition ?? agency?.definition ?? null,
+        blurb: copy.get(row.series_id)?.blurb ?? agency?.blurb ?? null,
+      };
+    });
     const ordered = [...described].sort((a, b) =>
       rank(a.series_id, String(a.source)) - rank(b.series_id, String(b.source))
       || String(a.source).localeCompare(String(b.source))

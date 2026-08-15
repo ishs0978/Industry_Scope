@@ -14,6 +14,40 @@ export default function MethodologyPage() {
         <section className="method-block">
       <h2>How the data moves</h2>
       <div className="method-body">
+<figure className="diagram">
+  <svg viewBox="0 0 900 250" role="img" aria-labelledby="flow-title flow-desc">
+    <title id="flow-title">How data reaches a page</title>
+    <desc id="flow-desc">Public sources are read by a scheduled job, which writes to PostgreSQL. The website reads only PostgreSQL, so a source outage never reaches your browser.</desc>
+    <g fontSize="13" fontFamily="Inter, system-ui, sans-serif">
+      <rect x="6" y="14" width="196" height="212" rx="4" fill="#f8f7f0" stroke="#d8ddd5"/>
+      <text x="104" y="38" textAnchor="middle" fontWeight="700" fontSize="10" letterSpacing="1.2" fill="#647269">PUBLIC SOURCES</text>
+      <text x="22" y="62" fill="#17221d">Yahoo Finance</text>
+      <text x="22" y="84" fill="#17221d">State Street</text>
+      <text x="22" y="106" fill="#17221d">SEC XBRL</text>
+      <text x="22" y="128" fill="#17221d">SEC Form D</text>
+      <text x="22" y="150" fill="#17221d">FRED / EIA / BLS</text>
+      <text x="22" y="172" fill="#17221d">GDELT</text>
+      <text x="22" y="194" fill="#17221d">NYT Archive</text>
+      <path d="M210 120 H286" stroke="#647269" strokeWidth="1.5" markerEnd="url(#mkflow)"/>
+      <rect x="292" y="76" width="180" height="88" rx="4" fill="#fff" stroke="#17221d"/>
+      <text x="382" y="106" textAnchor="middle" fontWeight="600" fill="#17221d">Scheduled job</text>
+      <text x="382" y="126" textAnchor="middle" fontSize="12" fill="#647269">once a day, 06:00 ET</text>
+      <text x="382" y="144" textAnchor="middle" fontSize="12" fill="#647269">logs every attempt</text>
+      <path d="M480 120 H556" stroke="#647269" strokeWidth="1.5" markerEnd="url(#mkflow)"/>
+      <rect x="562" y="76" width="150" height="88" rx="4" fill="#fff" stroke="#17221d"/>
+      <text x="637" y="114" textAnchor="middle" fontWeight="600" fill="#17221d">PostgreSQL</text>
+      <text x="637" y="136" textAnchor="middle" fontSize="12" fill="#647269">stored, not cached</text>
+      <path d="M720 120 H788" stroke="#647269" strokeWidth="1.5" markerEnd="url(#mkflow)"/>
+      <rect x="794" y="76" width="100" height="88" rx="4" fill="#1d6b4d"/>
+      <text x="844" y="114" textAnchor="middle" fontWeight="600" fill="#ffffff">This page</text>
+      <text x="844" y="136" textAnchor="middle" fontSize="12" fill="#cfe6da">reads only ←</text>
+      <text x="382" y="196" textAnchor="middle" fontSize="12" fill="#a4463f">A source failing stops here.</text>
+      <text x="382" y="214" textAnchor="middle" fontSize="12" fill="#a4463f">The panel is labelled stale; nothing is invented.</text>
+      <defs><marker id="mkflow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#647269"/></marker></defs>
+    </g>
+  </svg>
+  <figcaption>The website never calls a market, government or news API while you are looking at a page.</figcaption>
+</figure>
 <p>Collection and presentation are separate. A scheduled Python job calls each source on its own
     cadence, writes what it gets to PostgreSQL, and records whether the attempt succeeded. The website
     reads only PostgreSQL. It never calls a market, government, or news API while you are looking at a
@@ -155,6 +189,30 @@ export default function MethodologyPage() {
       <div className="method-body">
 <p>Form D filings come from EDGAR full indexes and the primary XML submission. Dollar amounts are
     shown only where the company reported one; many do not.</p>
+<figure className="diagram">
+  <svg viewBox="0 0 900 180" role="img" aria-labelledby="amend-title amend-desc">
+    <title id="amend-title">How an amended offering is counted</title>
+    <desc id="amend-desc">An original Form D and its amendment describe one offering. The amendment restates the cumulative amount raised, so only the most recent filing counts toward dollar totals.</desc>
+    <g fontSize="13" fontFamily="Inter, system-ui, sans-serif">
+      <rect x="20" y="34" width="180" height="64" rx="4" fill="#fff" stroke="#d8ddd5"/>
+      <text x="110" y="58" textAnchor="middle" fontWeight="600" fill="#17221d">Form D</text>
+      <text x="110" y="80" textAnchor="middle" fill="#647269">raised $4M</text>
+      <path d="M208 66 H268" stroke="#647269" strokeWidth="1.5" markerEnd="url(#mkam)"/>
+      <rect x="274" y="34" width="190" height="64" rx="4" fill="#fff" stroke="#d8ddd5"/>
+      <text x="369" y="58" textAnchor="middle" fontWeight="600" fill="#17221d">Form D/A</text>
+      <text x="369" y="80" textAnchor="middle" fill="#647269">raised $9M to date</text>
+      <path d="M472 66 H532" stroke="#647269" strokeWidth="1.5" markerEnd="url(#mkam)"/>
+      <rect x="538" y="34" width="200" height="64" rx="4" fill="#f0f5ee" stroke="#1d6b4d"/>
+      <text x="638" y="58" textAnchor="middle" fontWeight="600" fill="#1d6b4d">Counted once</text>
+      <text x="638" y="80" textAnchor="middle" fill="#17221d">$9M</text>
+      <text x="369" y="132" textAnchor="middle" fontSize="12" fill="#647269">An amendment restates the total.</text>
+      <text x="369" y="150" textAnchor="middle" fontSize="12" fill="#647269">It does not add to it.</text>
+      <text x="638" y="132" textAnchor="middle" fill="#a4463f">Not $13M.</text>
+      <defs><marker id="mkam" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#647269"/></marker></defs>
+    </g>
+  </svg>
+  <figcaption>Filing counts still include every filing, and the stat above says so.</figcaption>
+</figure>
     <p>Companies amend Form D filings, and an amendment restates the cumulative amount raised rather
     than a new increment. Dollar totals therefore count only the most recent filing for each offering.
     Filing counts include amendments and are labeled that way.</p>

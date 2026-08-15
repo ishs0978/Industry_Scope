@@ -333,6 +333,7 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
   const [customEnd, setCustomEnd] = useState(maxEnd);
   const [fund, setFund] = useState(compositionFunds[0] ?? payload.sector.primary_etf);
   const [activePeers, setActivePeers] = useState<string[]>([]);
+  const [allHoldingsShown, setAllHoldingsShown] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const selectedEvent = payload.events.find((event) => event.id === selectedEventId) ?? null;
 
@@ -544,7 +545,12 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
         <Stat label="Expense ratio" term="Annual fee" value={payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio === null ? "Unavailable from Yahoo Finance" : percent(payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio ?? null, 2)} />
         <Stat label="Assets" term="Total invested in the fund" value={payload.etfMeta.find((item) => item.ticker === fund)?.aum ? money(payload.etfMeta.find((item) => item.ticker === fund)!.aum!) : "—"} />
       </div>
-      {selectedHoldings.length ? <div className="data-table-wrap"><table><thead><tr><th>Holding</th><th>Ticker</th><th>Weight</th></tr></thead><tbody>{selectedHoldings.slice(0, 25).map((holding) => <tr key={holding.constituent_ticker}><td>{holding.constituent_name ?? holding.constituent_ticker}</td><td>{holding.constituent_ticker}</td><td>{percent(holding.weight, 2)}</td></tr>)}</tbody></table></div> : <div className="source-error">Holdings · {payload.etfMeta.find((item) => item.ticker === fund)?.holdings_error ?? "No issuer snapshot is available."}</div>}
+      {selectedHoldings.length ? <>
+        <p className="provenance">Every row is published by the fund&rsquo;s issuer in its own daily holdings file and stored as given. Weights are the issuer&rsquo;s, not recomputed here, which is why a complete snapshot sums to about 100%. A snapshot that fails validation is suppressed rather than shown in part.</p>
+        <div className="data-table-wrap"><table><thead><tr><th>Holding</th><th>Ticker</th><th>Weight</th></tr></thead><tbody>{(allHoldingsShown ? selectedHoldings : selectedHoldings.slice(0, 25)).map((holding) => <tr key={holding.constituent_ticker}><td>{holding.constituent_name ?? holding.constituent_ticker}</td><td>{holding.constituent_ticker}</td><td>{percent(holding.weight, 2)}</td></tr>)}</tbody></table></div>
+        {selectedHoldings.length > 25 && <button className="chip show-more" onClick={() => setAllHoldingsShown(!allHoldingsShown)}>{allHoldingsShown ? `Show the largest 25 of ${selectedHoldings.length}` : `Show all ${selectedHoldings.length} holdings`}</button>}
+        {!allHoldingsShown && selectedHoldings.length > 25 && <p className="provenance">Showing the largest 25 of {selectedHoldings.length.toLocaleString()}. The stats above are computed across all {selectedHoldings.length.toLocaleString()}, not just the rows displayed.</p>}
+      </> : <div className="source-error">Holdings · {payload.etfMeta.find((item) => item.ticker === fund)?.holdings_error ?? "No issuer snapshot is available."}</div>}
       <OverlapMatrix matrix={overlap} funds={Object.keys(holdingsByFund)} />
       </>}
     </section>
