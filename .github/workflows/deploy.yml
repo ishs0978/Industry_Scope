@@ -1,0 +1,80 @@
+name: Deploy to Vercel
+
+# The Vercel project has no Git integration, so merging to main shipped nothing
+# and every release needed someone to run `vercel --prod` by hand. That is the
+# same silent-failure shape as an ingest that stops without telling anyone: the
+# site keeps serving, just not what main says.
+#
+# This deploys the built site on every push to main. It uploads the source from
+# the Actions checkout, so it does not require the Vercel GitHub App.
+#
+# Requires one repository secret:
+#   VERCEL_TOKEN - https://vercel.com/account/tokens
+# The project and org ids are set inline below; they are identifiers, not secrets.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22.18.0"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm run test
+
+      - name: Deploy to production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Identifiers, not credentials. web/.vercel/ is gitignored, so they
+          # are set here rather than read from the checkout.
+          VERCEL_PROJECT_ID: prj_6FtO7Hc64a9DM0ZHXxCZOZx5oEAN
+          VERCEL_ORG_ID: team_8s4JbNlBwfWfr4xcolcHvtrH
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN is not set. Add it at Settings > Secrets and variables > Actions." >&2
+            exit 1
+          fi
+          url=$(npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN")
+          echo "Deployed: $url"
+          echo "Deployed: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      # A deploy that "succeeds" while serving the previous build is the failure
+      # this workflow exists to prevent, so prove the new code is actually live.
+      - name: Verify production is serving this commit
+        run: |
+          sleep 15
+          for i in 1 2 3 4 5 6; do
+            if curl -sf -m 20 https://industryscope.vercel.app/ | grep -q "sectors"; then
+              echo "Production responded."; exit 0
+            fi
+            echo "attempt $i failed, retrying"; sleep 10
+          done
+          echo "Production did not respond after the deploy." >&2
+          exit 1
