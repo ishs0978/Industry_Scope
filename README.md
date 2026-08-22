@@ -97,6 +97,8 @@ workflow exits successfully and opens or updates one `ingest-failure` issue.
 Cadence:
 
 - daily: prices, ETF metadata, holdings, FRED, EIA, Form D, GDELT, events
+- daily until the history is loaded: Form D quarterly data sets, four quarters
+  per run, then nothing until the SEC publishes a new quarter
 - daily: current NYT month plus incomplete historical backfill
 - weekly on Monday: SEC XBRL and BLS
 
@@ -166,8 +168,58 @@ only owner-side artifact assembly required.
   NAICS are not always one-to-one, so some sectors use the nearest published
   broader industry group.
 - **SEC XBRL:** Company Facts/Frames tags vary. Missing tags remain blank.
-- **Form D:** sector assignment uses the most specific configured SIC prefix.
-  Missing or indefinite offering amounts remain blank.
+- **Form D:** published quarters come from the SEC's quarterly data sets, which
+  cover every filing since 2008Q3; the quarter in progress is assembled from the
+  EDGAR full index and is replaced when its data set publishes. Both write to the
+  same staging tables, and `form_d` is derived from them at one row per
+  accession. A filing naming co-issuers reports one amount once, so issuers are
+  carried as an attribute and a count, never as extra rows. Sector assignment
+  prefers the industry the issuer selected on the form and falls back to the most
+  specific configured SIC prefix, which the data sets leave blank for most
+  private issuers. Missing or indefinite offering amounts remain blank, which is
+  not the same as a reported zero.
+
+  Filings are grouped into offerings on the 021-XXXXXX file number EDGAR keeps
+  constant across an original and its amendments, falling back to the
+  previousAccessionNumber chain where a filing carries no file number. An
+  offering's dollars are the cumulative figure from its latest filing, never a
+  sum across the group, and its date is the original's filing date, so amending
+  does not move money into a later quarter. An offering whose original predates
+  the loaded history has no known start date: it stays in the table and is left
+  out of the quarterly chart, and the panel says how much money that removes.
+  Four counts are reported together and reconcile exactly as
+  `filings = offerings + amendments - orphan offerings`. The subtraction is over
+  orphan offerings rather than orphan filings, because an offering with three
+  amendments and no original is one unit of over-count, not three.
+
+  Pooled vehicles are excluded on two of the filer's own answers: selecting
+  Pooled Investment Fund as the industry, and reporting that the security sold
+  is an interest in a pooled investment fund. The second catches vehicles that
+  pick an operating industry, such as insurance separate accounts filing under
+  Insurance. Selecting the pooled industry now ends attribution rather than
+  falling through to EDGAR's SIC code, which is how funds carrying a bank's SIC
+  used to come back as banks. A third signal, an issuer name matching patterns
+  common among vehicles, excludes nothing: it is stored in `pooled_name_match`
+  and shown as a column, because plenty of operating businesses are limited
+  partnerships. Some vehicles satisfy none of the source tests and remain
+  visible in the table rather than being removed on a guess.
+
+  The security-type boxes travel through to the derived table, so the panel can
+  report how much of a sector's private money involves debt. They are not
+  exclusive: an offering selling equity and debt together counts in full as
+  debt, because the form never asks how the money splits. Offerings ticking no
+  box are excluded from that share rather than assumed to be equity; they are a
+  large share of reported dollars in some sectors, and the panel states how much
+  the figure is not measured over.
+
+  The quarterly chart plots bars only. It carried an ETF price line on a second
+  axis, which invited a causal reading the data cannot support and labelled an
+  incomplete quarter as a quarter-end price. Hovering a bar gives the number of
+  offerings behind it. Below four quarters the panel states its coverage instead
+  of drawing a chart, because three bars invite one of them to be read as a
+  trend. A coverage line above the panel states the Form D date range actually
+  held, separately from the range the reader selected, and names each end that
+  falls short.
 - **NYT:** headline, abstract, date, section, and URL only. Full text is never
   requested or stored.
 - **GDELT:** article volume and tone are quantitative context, not a claim about

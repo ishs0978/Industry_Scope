@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import {
-  Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, Line,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line,
   LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
@@ -12,7 +12,7 @@ import {
 } from "@/lib/metrics";
 import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
 import { validatedFundHoldings } from "@/lib/holdings";
-import { latestFilingPerOffering } from "@/lib/formd";
+import { coIssuerLabel, coverageNote, debtSplit, formDCounts, groupOfferings, totalRaised, type Coverage, type DebtSplit, type FormDCounts, type Offering } from "@/lib/formd";
 import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatSignedPercent as signedPercent, formatUnitValue as unitValue, isStale, readableError, relativeTime, stamp, stampDate } from "@/lib/format";
 import type { IndustryPayload, MacroMeta } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
@@ -202,8 +202,8 @@ const CHART_COPY = {
   },
   formd: {
     definition: "Form D is the filing a private company sends the SEC when it raises money without going public. It is the only public record of most private rounds.",
-    lines: "What private companies in this sector told the SEC they raised each quarter, against this sector's ETF price.",
-    more: "Watch whether private funding turns before or after the public market does. Each offering is counted once; a company that amends a filing restates its cumulative total rather than adding to it. Many filings report no amount at all and count toward the filing tally only.",
+    lines: "What private companies in this sector told the SEC they raised, placed in the quarter the offering began.",
+    more: "Watch whether private funding turns before or after the public market does. Each offering is counted once, at the cumulative figure from its most recent filing; a company that amends restates its total rather than adding to it. An offering is plotted in the quarter its original filing was made, which is a simplification: raising can run for years after that date, and the money shown in one quarter was not necessarily all raised in it. Offerings whose original predates this data have no known start date and are left out of these bars, though they remain in the table below. Many filings report no amount at all and count toward the filing tally only. Hovering a bar gives the number of offerings behind it, because a tall bar built from one offering means something different from the same total spread across fifty.",
   },
   news: {
     definition: "Tone is GDELT's sentiment score for the language in an article, averaged across all coverage that day. Above zero is net positive.",
@@ -221,10 +221,12 @@ const STAT_DEFINITIONS: Record<string, string> = {
   "Concentration": "HHI squares every holding's weight and adds them up, on a 0 to 10,000 scale. One stock scores 10,000; a hundred equal stocks score 100.",
   "Expense ratio": "The annual fee the fund charges, taken out of returns automatically.",
   "Assets": "Total money invested in the fund.",
-  "Form D filings": "How many private fundraising filings this sector produced in the window, including amendments.",
-  "Total raised": "Money private companies reported raising, counting each offering once.",
-  "Typical raise": "The median reported round size, which is more representative than the average when one huge round distorts it.",
-  "Distinct issuers": "How many separate companies filed in this window, however many filings each of them made.",
+  "Form D filings": "How many documents the SEC received: originals and amendments alike, counted one per accession number.",
+  "Offerings": "How many distinct fundraises those filings describe. EDGAR gives each offering an 021 file number and keeps it constant when the filer amends, so amendments fold into the offering they restate.",
+  "Total raised": "Money private companies reported raising, counting each offering once at the cumulative figure from its most recent filing.",
+  "Typical raise": "The median reported offering size, which is more representative than the average when one huge round distorts it.",
+  "Raised as debt": "Of the money whose filers said what kind of security they were selling, the share in offerings that include debt. The boxes on the form are not exclusive, so an offering selling equity and debt together counts here in full; the form never asks how the money splits between them. Offerings that ticked no box are left out of this share entirely rather than assumed to be equity.",
+  "Offerings per quarter": "The median number of offerings starting in a quarter, so a quarter's bar can be read against how much activity produced it. Only offerings with a known start quarter are counted.",
 };
 
 /**
@@ -397,9 +399,11 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     () => payload.formD.filter((row) => row.filed_date >= start && row.filed_date <= end),
     [payload.formD, start, end],
   );
-  // Dollar aggregates read one filing per offering. Filing counts keep every
-  // row, including amendments, and the stat label says so.
-  const formDLatestPerOffering = useMemo(() => latestFilingPerOffering(formDInRange), [formDInRange]);
+  // Filings collapse into the offerings they describe, keyed on EDGAR's file
+  // number. Dollars come from the latest filing in each group; the quarter
+  // comes from the original's date.
+  const offerings = useMemo(() => groupOfferings(formDInRange), [formDInRange]);
+  const counts = useMemo(() => formDCounts(formDInRange), [formDInRange]);
 
   const privateCapital = useMemo(() => {
     const quarterOf = (value: string) => {
@@ -412,24 +416,50 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
       groups.set(quarter, existing);
       return existing;
     };
-    for (const filing of formDInRange) group(quarterOf(filing.filed_date)).count += 1;
-    for (const filing of formDLatestPerOffering) {
-      if (filing.amount_sold === null) continue;
-      const bucket = group(quarterOf(filing.filed_date));
-      bucket.values.push(filing.amount_sold);
-      bucket.raised = (bucket.raised ?? 0) + filing.amount_sold;
+    // An offering whose original is missing has only an amendment's date, which
+    // would put its money in the quarter it was amended rather than the quarter
+    // it was raised in. It stays in the table below and out of these bars.
+    const datable = offerings.filter((offering) => !offering.originUnknown);
+    for (const offering of datable) group(quarterOf(offering.startDate)).count += 1;
+    // Each offering contributes its cumulative total once. `raised` stays null
+    // for a quarter where nothing was reported, which is not zero raised.
+    for (const [quarter, quarterOfferings] of Map.groupBy(
+      datable.filter((offering) => offering.amountSold !== null),
+      (offering) => quarterOf(offering.startDate),
+    )) {
+      const bucket = group(quarter);
+      bucket.values.push(...quarterOfferings.map((offering) => offering.amountSold!));
+      bucket.raised = totalRaised(quarterOfferings.map((offering) => offering.latest));
     }
     const pricesByQuarter = new Map<string, number>();
     for (const point of primary) {
       const parsed = new Date(`${point.date}T00:00:00Z`);
       pricesByQuarter.set(`${parsed.getUTCFullYear()} Q${Math.floor(parsed.getUTCMonth() / 3) + 1}`, point.value);
     }
-    return [...groups.values()].map((row) => ({ ...row, median: quantile(row.values, .5), etfPrice: pricesByQuarter.get(row.quarter) ?? null })).sort((a, b) => a.quarter.localeCompare(b.quarter));
-  }, [formDInRange, formDLatestPerOffering, primary]);
+    return [...groups.values()]
+      .map((row) => ({ ...row, median: quantile(row.values, .5), etfPrice: pricesByQuarter.get(row.quarter) ?? null }))
+      .sort((a, b) => a.quarter.localeCompare(b.quarter));
+  }, [offerings, primary]);
 
   const medianReportedRaise = quantile(
-    formDLatestPerOffering.filter((row) => row.amount_sold !== null).map((row) => row.amount_sold), .5,
+    offerings.filter((row) => row.amountSold !== null).map((row) => row.amountSold), .5,
   );
+  // The total counts every offering; the bars can only carry the ones with a
+  // known start quarter. Naming the difference keeps the two from contradicting
+  // each other on the same panel.
+  const undatedRaised = useMemo(
+    () => totalRaised(offerings.filter((row) => row.originUnknown).map((row) => row.latest)),
+    [offerings],
+  );
+  const debt = useMemo(() => debtSplit(offerings), [offerings]);
+  const offeringsPerQuarter = quantile(privateCapital.map((row) => row.count), .5);
+  // What Form D actually covers, which is not the window the reader picked.
+  // The collector holds published quarters plus whatever of the quarter in
+  // progress has been crawled, and that range is usually the narrower of the two.
+  const formDCoverage = useMemo(() => {
+    const dates = payload.formD.map((row) => row.filed_date).sort();
+    return { earliest: dates[0] ?? null, latest: dates.at(-1) ?? null };
+  }, [payload.formD]);
 
   // The chart is fed the range-filtered rows, so the empty check has to test
   // those. Testing the unfiltered array drew an empty canvas with axes and no
@@ -566,10 +596,23 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
     </section>
 
     <section className="panel" id="private-capital">
-      <SectionHead index="04" title="Private fundraising" term="SEC Form D filings" description="Reported Form D amounts by filing quarter. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once. Issuers that classify themselves as pooled investment funds are excluded, because a fund raising capital is not an operating industry; they are most Form D filings, so these counts are a minority of all filings." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
-      <div className="stat-grid"><Stat label="Form D filings" term="Including amendments" value={privateCapital.reduce((sum, row) => sum + row.count, 0).toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={privateCapital.some((row) => row.raised !== null) ? money(privateCapital.reduce((sum, row) => sum + (row.raised ?? 0), 0)) : "—"} /><Stat label="Typical raise" term="Median" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Distinct issuers" term="Unique filers in range" value={new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()} /></div>
-      <div className="chart-shell"><ChartHeading title="Private fundraising against the fund's price" term="Form D amount sold by quarter" definition={CHART_COPY.formd.definition} />{privateCapital.length ? <ResponsiveContainer width="100%" height={320}><ComposedChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis yAxisId="capital" tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="price" orientation="right" tickFormatter={(value) => `$${number(Number(value))}`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [String(name).includes("amount sold") ? money(Number(value)) : `$${number(Number(value))}`, String(name)]} /><Legend /><Bar yAxisId="capital" dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /><Line yAxisId="price" dataKey="etfPrice" name={`${payload.sector.primary_etf} quarter-end price`} dot={false} stroke="#b97816" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="SEC Form D" />}<ChartCaption lines={CHART_COPY.formd.lines} more={CHART_COPY.formd.more} /><ChartFreshness payload={payload} source="form_d" dataThrough={formDInRange.at(-1)?.filed_date} /></div>
-      <FormDIssuers filings={formDLatestPerOffering} all={formDInRange} />
+      <SectionHead index="04" title="Private fundraising" term="SEC Form D filings" description="Reported Form D amounts, grouped into offerings by the file number EDGAR keeps constant across a filing and its amendments, and placed in the quarter each offering began rather than the quarter it was last amended. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once at its latest reported figure. A fund raising capital is not an operating industry, so two kinds of pooled vehicle are excluded on the filer's own answers: those selecting Pooled Investment Fund as their industry, and those saying the security sold is an interest in a pooled investment fund, which is how insurance separate accounts filing under Insurance are caught. Vehicles are most Form D filings, so these counts are a minority of all filings. Amounts are unverified self-reports and the SEC does not check them." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
+      <div className="stat-grid stat-grid-three"><Stat label="Form D filings" term="Distinct accessions" value={counts.filings.toLocaleString()} /><Stat label="Offerings" term="Distinct file numbers" value={counts.offerings.toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={offerings.some((row) => row.amountSold !== null) ? money(totalRaised(offerings.map((row) => row.latest))) : "—"} /><Stat label="Typical raise" term="Median offering" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Raised as debt" term="Share of classified dollars" value={debt.share === null ? "—" : percent(debt.share)} /><Stat label="Offerings per quarter" term="Median quarter" value={offeringsPerQuarter === null ? "—" : Math.round(offeringsPerQuarter).toLocaleString()} /></div>
+      <FormDCoverage coverage={formDCoverage} start={start} end={end} />
+      <FormDReconciliation counts={counts} issuers={new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size} undated={undatedRaised} debt={debt} />
+      <div className="chart-shell">
+        <ChartHeading title="Private fundraising by quarter" term="Form D amount sold by quarter" definition={CHART_COPY.formd.definition} />
+        {/* Fewer than four quarters cannot show a trend, and drawing three bars
+            invites one to be read as one. Say what the coverage is instead. */}
+        {privateCapital.length < MINIMUM_QUARTERS
+          ? <div className="source-error">{privateCapital.length === 0
+              ? "SEC Form D: no offering in this sector has a known start quarter inside the selected window."
+              : `SEC Form D: ${privateCapital.length} quarter${privateCapital.length === 1 ? "" : "s"} of data here, which is too few to plot a trend. The offerings themselves are in the table below. Widen the date range to see the chart.`}</div>
+          : <ResponsiveContainer width="100%" height={320}><BarChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, _name, item) => [`${money(Number(value))} across ${(item?.payload?.count ?? 0).toLocaleString()} offering${item?.payload?.count === 1 ? "" : "s"}`, "Amount sold"]} /><Bar dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /></BarChart></ResponsiveContainer>}
+        <ChartCaption lines={CHART_COPY.formd.lines} more={CHART_COPY.formd.more} />
+        <ChartFreshness payload={payload} source="form_d" dataThrough={formDCoverage.latest ?? undefined} />
+      </div>
+      <FormDIssuers offerings={offerings} />
     </section>
 
     <section className="panel" id="macro">
@@ -616,29 +659,93 @@ export default function IndustryDashboard({ initialPayload: payload }: { initial
 
 const COMPS_DEFINITION = "Every company held by this sector's fund that files with the SEC, with the figures it reported for its most recent period. The sector rows at the top are percentiles across those companies, so you can see where any one of them sits against its peers.";
 
+// Three bars cannot show a trend, and drawing them invites one to be read as
+// one. Below this the panel states its coverage instead.
+const MINIMUM_QUARTERS = 4;
+
+/**
+ * What Form D actually covers, which is rarely the window the reader picked.
+ *
+ * The panel used to describe its contents as "this window", which claimed the
+ * selected range. The collector holds published quarters plus however much of
+ * the quarter in progress has been crawled, so the real range is usually
+ * narrower at both ends, and saying so is the difference between a gap and a
+ * finding.
+ */
+function FormDCoverage(
+  { coverage, start, end }: { coverage: Coverage; start: string; end: string },
+) {
+  const note = coverageNote(coverage, start, end);
+  return note ? <p className="provenance">{note}</p> : null;
+}
+
+/**
+ * The four counts that have to agree, stated as one sentence a reader can check.
+ *
+ * Before this, the panel showed a filing count and an offering count with no
+ * relationship between them, so both could not be true at once. The identity is
+ * printed only when it actually holds for this window.
+ */
+function FormDReconciliation(
+  { counts, issuers, undated, debt }:
+  { counts: FormDCounts; issuers: number; undated: number; debt: DebtSplit },
+) {
+  if (!counts.filings) return null;
+  const plural = (value: number, word: string) => `${value.toLocaleString()} ${word}${value === 1 ? "" : "s"}`;
+  const { filings, offerings, amendments, orphanOfferings } = counts;
+  // Composed as one string rather than as sibling JSX expressions, because JSX
+  // puts whitespace between lines and it lands in front of the punctuation.
+  const sentence = [
+    `${plural(filings, "filing")} from ${plural(issuers, "issuer")} resolve to ${plural(offerings, "offering")}`,
+    amendments ? `, because ${plural(amendments, "filing")} restate an offering already counted` : "",
+    ".",
+    orphanOfferings
+      ? ` ${plural(orphanOfferings, "offering")} appear here only as amendments, their originals having been filed before the data begins, so ${orphanOfferings === 1 ? "its start date is not known and it is" : "their start dates are not known and they are"} left out of the quarterly chart below while staying in the table.${undated > 0 ? ` That is why the bars total less than the figure above: ${money(undated)} of the money shown sits in offerings with no quarter to put it in.` : ""}`
+      : "",
+    counts.reconciles
+      ? ` Filings equal offerings plus restatements, less the ${plural(orphanOfferings, "offering")} with no original here: ${offerings.toLocaleString()} + ${amendments.toLocaleString()} \u2212 ${orphanOfferings.toLocaleString()} = ${filings.toLocaleString()}.`
+      : " These counts do not reconcile, which means an offering here carries more than one original filing.",
+    debt.unclassified > 0
+      ? ` The debt share is measured over the ${money(debt.classified)} whose filers said what kind of security they were selling; a further ${money(debt.unclassified)} ticked no box and is counted in the total but not in that share.`
+      : "",
+    debt.mixed > 0
+      ? ` ${debt.mixed.toLocaleString()} offering${debt.mixed === 1 ? " sells" : "s sell"} equity and debt together and ${debt.mixed === 1 ? "is" : "are"} counted in full as debt, because the form does not ask how the money splits.`
+      : "",
+  ].join("");
+  return <p className="provenance">{sentence}</p>;
+}
+
 /**
  * Who actually raised the money. The panel above answers "how much"; without
  * this a reader cannot see which companies the total is made of, or that most
  * Form D filers are funds rather than operating businesses.
  */
-function FormDIssuers({ filings, all }: { filings: IndustryPayload["formD"]; all: IndustryPayload["formD"] }) {
+function FormDIssuers({ offerings }: { offerings: Offering<IndustryPayload["formD"][number]>[] }) {
   const [open, setOpen] = useState(false);
-  if (!filings.length) return null;
-  const ranked = [...filings].sort((a, b) => (b.amount_sold ?? -1) - (a.amount_sold ?? -1));
+  if (!offerings.length) return null;
+  const ranked = [...offerings].sort((a, b) => (b.amountSold ?? -1) - (a.amountSold ?? -1));
   const shown = open ? ranked : ranked.slice(0, 10);
-  const amendments = all.filter((row) => (row.submission_type ?? "").toUpperCase().startsWith("D/A")).length;
+  const coIssued = offerings.filter((row) => (row.latest.issuer_count ?? 1) > 1).length;
+  const amended = offerings.filter((row) => row.amendments > 0).length;
+  const flagged = offerings.filter((row) => row.latest.pooled_name_match).length;
   return <div style={{ marginTop: 24 }}>
-    <ChartHeading title="Who raised it" term="One row per offering" definition="Every offering behind the totals above, largest first. An offering appears once: where a company amended its filing, the row shows the most recent figure it reported, not the sum of its filings." />
-    <p className="provenance">{filings.length.toLocaleString()} offering{filings.length === 1 ? "" : "s"} from {new Set(filings.map((row) => row.cik ?? row.issuer_name)).size.toLocaleString()} issuer{new Set(filings.map((row) => row.cik ?? row.issuer_name)).size === 1 ? "" : "s"} in this window{amendments ? `, including ${amendments} amendment${amendments === 1 ? "" : "s"} folded into the offering it restates` : ""}. Industry is the issuer&rsquo;s own selection on the form.</p>
+    <ChartHeading title="Who raised it" term="One row per offering" definition="Every offering behind the totals above, largest first. An offering appears once: where a company amended its filing, the row shows the most recent figure it reported, not the sum of its filings. Started is the date of the original filing, so amending does not move an offering to a later date." />
+    <p className="provenance">Grouped by the 021 file number EDGAR keeps constant across an offering and its amendments{amended ? `; ${amended.toLocaleString()} of these have been amended at least once` : ""}{coIssued ? `, and ${coIssued.toLocaleString()} name co-issuers, shown once under the primary issuer` : ""}. Industry is the issuer&rsquo;s own selection on the form. Name pattern marks {flagged.toLocaleString()} offering{flagged === 1 ? "" : "s"} whose issuer is named like a pooled vehicle; unlike the two exclusions above, a name drops nothing, because plenty of operating businesses are limited partnerships.</p>
     <div className="data-table-wrap"><table>
-      <thead><tr><th>Issuer</th><th>Filed</th><th>Industry (self-selected)</th><th>Reported raised</th><th>Offering size</th><th>State</th></tr></thead>
-      <tbody>{shown.map((row) => <tr key={row.accession_no}>
-        <td>{row.issuer_name}</td>
-        <td>{row.filed_date}</td>
-        <td>{row.industry_group ?? "Not stated"}</td>
-        <td>{row.amount_sold === null ? "Not reported" : money(row.amount_sold)}</td>
-        <td>{row.total_offering_amount === null ? "Not reported" : money(row.total_offering_amount)}</td>
-        <td>{row.state ?? "—"}</td>
+      <thead><tr><th>Issuer</th><th>Started</th><th>Latest filing</th><th>Industry (self-selected)</th><th>Name pattern</th><th>Reported raised</th><th>Offering size</th><th>State</th></tr></thead>
+      <tbody>{shown.map((row) => <tr key={row.key}>
+        <td>{row.latest.issuer_name}{coIssuerLabel(row.latest) && <span className="chip-inline"> {coIssuerLabel(row.latest)}</span>}</td>
+        <td>{row.originUnknown
+          ? <span title="The original filing predates this data, so this is the date of the earliest amendment held here.">Before {row.startDate}<span className="chip-inline"> start unknown</span></span>
+          : row.startDate}</td>
+        <td>{row.latest.filed_date}{row.amendments ? <span className="chip-inline"> +{row.amendments} amendment{row.amendments === 1 ? "" : "s"}</span> : null}</td>
+        <td>{row.latest.industry_group ?? "Not stated"}</td>
+        <td>{row.latest.pooled_name_match
+          ? <span title="The name matches a pattern common among pooled vehicles. It is a hint only: nothing is excluded on the strength of a name, because plenty of operating businesses are limited partnerships.">{row.latest.pooled_name_match}</span>
+          : "—"}</td>
+        <td>{row.amountSold === null ? "Not reported" : money(row.amountSold)}</td>
+        <td>{row.latest.total_offering_amount === null ? "Not reported" : money(row.latest.total_offering_amount)}</td>
+        <td>{row.latest.state ?? "—"}</td>
       </tr>)}</tbody>
     </table></div>
     {ranked.length > 10 && <button className="chip show-more" onClick={() => setOpen(!open)}>{open ? "Show fewer" : `Show all ${ranked.length} offerings`}</button>}

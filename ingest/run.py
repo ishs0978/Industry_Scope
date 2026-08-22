@@ -14,7 +14,9 @@ from uuid import uuid4
 import psycopg
 
 from ingest.db import apply_migrations, sync_sector_registry
-from ingest.sources import bls, eia, events, form_d, fred, gdelt, holdings, nyt, prices, sec_xbrl
+from ingest.sources import (
+    bls, eia, events, form_d, form_d_dera, fred, gdelt, holdings, nyt, prices, sec_xbrl,
+)
 from ingest.sources.common import redact_secrets, reset_batch_id, set_batch_id
 
 
@@ -39,7 +41,10 @@ SOURCES: tuple[ScheduledSource, ...] = (
     ScheduledSource("nyt", nyt.run, "daily"),
     ScheduledSource("bls", bls.run, "weekly"),
     ScheduledSource("sec_xbrl", sec_xbrl.run, "weekly"),
-    # Keep the bounded per-filing SEC crawl last so it cannot starve other sources.
+    # Keep the two Form D crawls last so neither can starve another source.
+    # The data sets cover published quarters and back off to nothing once the
+    # history is loaded; the per-filing crawl covers only the current quarter.
+    ScheduledSource("form_d_dera", form_d_dera.run, "daily"),
     ScheduledSource("form_d", form_d.run, "daily"),
 )
 

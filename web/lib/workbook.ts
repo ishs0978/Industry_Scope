@@ -109,7 +109,7 @@ export async function buildIndustryWorkbook(payload: IndustryPayload, start: str
     ["Overlap", "Share of any two funds' portfolios held in common, by weight."],
     ["Comps", "One row per company: revenue, growth, margins and market cap."],
     ["Comps (raw)", "The underlying XBRL facts, one row per tag per period."],
-    ["Private Capital", "Form D filings. Submission Type marks amendments, which restate a cumulative total."],
+    ["Private Capital", "Form D filings, one row each. Group on File Number to get offerings: EDGAR keeps it constant across an original and its amendments, and an amendment restates a cumulative total rather than adding to it. Vehicles that told the SEC they are pooled investment funds are already excluded; the last column marks names that merely look like a vehicle and drops nothing."],
     ["Macro", "FRED, EIA and BLS observations for this sector."],
     ["Events", "Curated events with sources."],
     ["Headlines", "NYT headline, abstract and link. No article text is stored."],
@@ -229,10 +229,12 @@ export async function buildIndustryWorkbook(payload: IndustryPayload, start: str
   facts.getColumn(6).numFmt = "yyyy-mm-dd";
 
   const capital = workbook.addWorksheet("Private Capital");
-  // "Supersedes" marks an amendment, which restates an offering's cumulative
-  // total. Without these two columns a reader summing Amount Sold in Excel
-  // would double-count every amended offering.
-  addRows(capital, ["Filed Date", "Issuer", "SIC", "Offering Amount", "Amount Sold", "State", "Accession", "Submission Type", "Supersedes"], payload.formD.map((row) => [new Date(`${row.filed_date}T00:00:00Z`), row.issuer_name, row.sic_code, row.total_offering_amount, row.amount_sold, row.state, row.accession_no, row.submission_type, row.previous_accession_no]));
+  // File Number is the offering's identity: EDGAR keeps the same 021-XXXXXX
+  // across an original and every amendment. A reader summing Amount Sold
+  // straight down this sheet double-counts every amended offering, so the
+  // columns needed to reproduce the site's grouping travel with the rows:
+  // group on File Number, take the latest Filed Date in each group.
+  addRows(capital, ["Filed Date", "Issuer", "SIC", "Offering Amount", "Amount Sold", "State", "Accession", "File Number", "Submission Type", "Is Amendment", "Supersedes", "Issuers Named", "Name Looks Like A Vehicle", "Equity", "Debt", "Option To Acquire"], payload.formD.map((row) => [new Date(`${row.filed_date}T00:00:00Z`), row.issuer_name, row.sic_code, row.total_offering_amount, row.amount_sold, row.state, row.accession_no, row.file_num, row.submission_type, row.is_amendment === null ? null : row.is_amendment ? "Yes" : "No", row.previous_accession_no, row.issuer_count, row.pooled_name_match, row.is_equity_type ? "Yes" : "No", row.is_debt_type ? "Yes" : "No", row.is_option_to_acquire_type ? "Yes" : "No"]));
   capital.getColumn(1).numFmt = "yyyy-mm-dd";
   capital.getColumn(4).numFmt = "$#,##0.00";
   capital.getColumn(5).numFmt = "$#,##0.00";
