@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   coIssuerLabel, coverageNote, debtSplit, formDCounts, groupOfferings, isAmendment,
-  totalRaised, type OfferingFiling,
+  packFormD, totalRaised, unpackFormD, FORM_D_COLUMNS, type OfferingFiling,
 } from "./formd";
 
 const filing = (
@@ -305,5 +305,40 @@ describe("coverage against the selected range", () => {
 
   it("says nothing when there is no Form D data at all", () => {
     expect(coverageNote(c(null, null), "2019-01-01", "2026-01-01")).toBeNull();
+  });
+});
+
+describe("wire packing", () => {
+  const row = filing("0001", "2024-01-15", 4_000_000, {
+    file_num: "021-111111", is_debt_type: true,
+  }) as unknown as Parameters<typeof packFormD>[0][number];
+
+  it("round-trips every column", () => {
+    const restored = unpackFormD(packFormD([row]));
+    expect(restored).toHaveLength(1);
+    for (const column of FORM_D_COLUMNS) {
+      expect(restored[0][column]).toEqual((row as never)[column]);
+    }
+  });
+
+  it("sends each column name once instead of once per row", () => {
+    const many = Array.from({ length: 500 }, () => row);
+    const packed = JSON.stringify(packFormD(many)).length;
+    const objects = JSON.stringify(many).length;
+    // The whole point: repeating nineteen key names per row is what pushed the
+    // banks page past the size limit for a prerendered response.
+    expect(packed).toBeLessThan(objects / 2);
+  });
+
+  it("decodes using the columns on the payload, not the current constant", () => {
+    // A response cached before a column was added still has to decode.
+    const legacy = { columns: ["accession_no", "amount_sold"], rows: [["0009", 42]] } as const;
+    const restored = unpackFormD(legacy as unknown as Parameters<typeof unpackFormD>[0]);
+    expect(restored[0].accession_no).toBe("0009");
+    expect(restored[0].amount_sold).toBe(42);
+  });
+
+  it("handles an empty payload", () => {
+    expect(unpackFormD(packFormD([]))).toEqual([]);
   });
 });

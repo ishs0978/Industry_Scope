@@ -12,9 +12,10 @@ import {
 } from "@/lib/metrics";
 import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
 import { validatedFundHoldings } from "@/lib/holdings";
-import { coIssuerLabel, coverageNote, debtSplit, formDCounts, groupOfferings, totalRaised, type Coverage, type DebtSplit, type FormDCounts, type Offering } from "@/lib/formd";
+import { coIssuerLabel, coverageNote, debtSplit, formDCounts, groupOfferings, totalRaised, unpackFormD, type Coverage, type DebtSplit, type FormDCounts, type Offering } from "@/lib/formd";
 import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatSignedPercent as signedPercent, formatUnitValue as unitValue, isStale, readableError, relativeTime, stamp, stampDate } from "@/lib/format";
-import type { IndustryPayload, MacroMeta } from "@/lib/types";
+import { unpackRows } from "@/lib/wire";
+import type { IndustryPayload, MacroMeta, WireIndustryPayload } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
 
 const COLORS = ["#1d6b4d", "#143142", "#b97816", "#7d5a91", "#a4463f"];
@@ -324,7 +325,15 @@ function quantile(values: (number | null)[], q: number): number | null {
   return sorted[lower] + (sorted[Math.ceil(index)] - sorted[lower]) * (index - lower);
 }
 
-export default function IndustryDashboard({ initialPayload: payload }: { initialPayload: IndustryPayload }) {
+export default function IndustryDashboard({ initialPayload }: { initialPayload: WireIndustryPayload }) {
+  // Form D arrives packed so the prerendered page stays inside Vercel's size
+  // limit. Everything below this line sees ordinary rows.
+  const payload: IndustryPayload = useMemo(() => ({
+    ...initialPayload,
+    prices: unpackRows(initialPayload.prices),
+    macro: { ...initialPayload.macro, series: unpackRows(initialPayload.macro.series) },
+    formD: unpackFormD(initialPayload.formD),
+  }), [initialPayload]);
   const tickers = [payload.sector.primary_etf, ...payload.sector.comparison_etfs, "SPY"];
   const compositionFunds = tickers.filter((ticker) => ticker !== "SPY" && payload.etfMeta.find((meta) => meta.ticker === ticker)?.holdings_status !== "unsupported");
   const allDates = payload.prices.map((row) => row.date).sort();

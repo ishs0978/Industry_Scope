@@ -1,3 +1,5 @@
+import type { PackedFormD } from "./formd";
+import type { Packed } from "./wire";
 export type Sector = {
   slug: string;
   name: string;
@@ -69,6 +71,21 @@ export type Freshness = {
   rows_written: number; error_message: string | null; details: Record<string, unknown>;
 };
 export type SourceError = { source: string; reason: string };
+
+/**
+ * The payload as it crosses the wire. Identical to IndustryPayload except that
+ * Form D rows travel packed; see packFormD for why.
+ */
+export type WireIndustryPayload =
+  Omit<IndustryPayload, "formD" | "prices" | "macro">
+  & {
+    formD: PackedFormD;
+    prices: Packed<Price>;
+    macro: { meta: MacroMeta[]; series: Packed<MacroPoint> };
+  };
+
+export const PRICE_COLUMNS = ["ticker", "date", "adj_close", "close", "volume"] as const;
+export const MACRO_POINT_COLUMNS = ["series_id", "date", "value"] as const;
 
 export type IndustryPayload = {
   sector: Sector;
