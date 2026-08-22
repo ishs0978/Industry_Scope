@@ -1,3 +1,4 @@
+import { packRows, unpackRows, type Packed } from "./wire";
 import type { FormD } from "./types";
 
 export type OfferingFiling = Pick<
@@ -280,3 +281,16 @@ export function coverageNote(coverage: Coverage, start: string, end: string): st
   ].filter(Boolean);
   return `${head} The selected range is ${start} to ${end}, so the panel below covers less than the range you picked: ${gaps.join(", and ")}.`;
 }
+
+
+export const FORM_D_COLUMNS = [
+  "accession_no", "filed_date", "cik", "issuer_name", "sic_code", "sector_slug",
+  "total_offering_amount", "amount_sold", "state", "submission_type",
+  "previous_accession_no", "industry_group", "file_num", "is_amendment",
+  "issuer_count", "pooled_name_match", "is_equity_type", "is_debt_type",
+  "is_option_to_acquire_type",
+] as const satisfies readonly (keyof FormD)[];
+
+export type PackedFormD = Packed<FormD>;
+export const packFormD = (rows: FormD[]): PackedFormD => packRows(FORM_D_COLUMNS, rows);
+export const unpackFormD = (packed: PackedFormD): FormD[] => unpackRows(packed);

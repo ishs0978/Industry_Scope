@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getIndustryPayload } from "@/lib/data";
+import { unpackFormD } from "@/lib/formd";
+import { unpackRows } from "@/lib/wire";
 
 // The live Excel template refreshes against this endpoint, so a 24-hour window
 // meant pressing Refresh in Excel could return day-old data with no indication.
@@ -21,7 +23,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   if (!payload) return NextResponse.json({ error: { source: "sector registry", reason: `Unknown sector: ${slug}` } }, { status: 404, headers: cors });
   const status = payload.errors.some((error) => error.source === "Neon Postgres") ? 503 : 200;
   // generated_at lets the workbook show when this response was built.
-  return NextResponse.json({ ...payload, generated_at: new Date().toISOString() }, {
+  // Form D travels packed to keep the prerendered pages under Vercel's size
+  // limit; this endpoint is a documented contract, so it is unpacked again here.
+  return NextResponse.json({
+    ...payload,
+    prices: unpackRows(payload.prices),
+    macro: { ...payload.macro, series: unpackRows(payload.macro.series) },
+    formD: unpackFormD(payload.formD),
+    generated_at: new Date().toISOString(),
+  }, {
     status,
     headers: { ...cors, "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=3600" },
   });

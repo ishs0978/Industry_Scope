@@ -3,14 +3,18 @@ import path from "node:path";
 import postgres from "postgres";
 import YAML from "yaml";
 import { sectorBySlug } from "./registry";
-import type { IndustryPayload, Sector, SourceError } from "./types";
+import { packFormD } from "./formd";
+import { packRows } from "./wire";
+import { MACRO_POINT_COLUMNS, PRICE_COLUMNS } from "./types";
+import type { IndustryPayload, MacroPoint, Price, WireIndustryPayload, Sector, SourceError } from "./types";
 
 export const EMPTY_SOURCE_REASON = "DATABASE_URL is not configured; no live data was queried.";
 
-function emptyPayload(sector: Sector, reason = EMPTY_SOURCE_REASON): IndustryPayload {
+function emptyPayload(sector: Sector, reason = EMPTY_SOURCE_REASON): WireIndustryPayload {
   return {
-    sector, prices: [], etfMeta: [], holdings: [], macro: { meta: [], series: [] },
-    companyFacts: [], companyMeta: [], formD: [], headlines: [], newsVolume: [], events: [],
+    sector, prices: packRows<Price>(PRICE_COLUMNS, []), etfMeta: [], holdings: [],
+    macro: { meta: [], series: packRows<MacroPoint>(MACRO_POINT_COLUMNS, []) },
+    companyFacts: [], companyMeta: [], formD: packFormD([]), headlines: [], newsVolume: [], events: [],
     freshness: [], errors: [{ source: "Neon Postgres", reason }],
   };
 }
@@ -112,7 +116,7 @@ export const serializable = <T>(value: T): T => JSON.parse(
   ),
 ) as T;
 
-export async function getIndustryPayload(slug: string): Promise<IndustryPayload | null> {
+export async function getIndustryPayload(slug: string): Promise<WireIndustryPayload | null> {
   const sector = sectorBySlug(slug);
   if (!sector) return null;
   if (!process.env.DATABASE_URL) return emptyPayload(sector);
@@ -185,7 +189,7 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
     // Definitions and blurbs live in fred_map.yaml beside the series they
     // describe; the database stores only what FRED publishes.
     const copy = new Map(macroConfigForSector(slug).map((item) => [item.series_id, item]));
-    const described = (macroMeta as unknown as IndustryPayload["macro"]["meta"]).map((row) => {
+    const described = (macroMeta as unknown as WireIndustryPayload["macro"]["meta"]).map((row) => {
       const agency = agencyCopy(row.series_id);
       return {
         ...row,
@@ -203,9 +207,14 @@ export async function getIndustryPayload(slug: string): Promise<IndustryPayload 
       freshness as unknown as IndustryPayload["freshness"],
     );
     return serializable({
-      sector, prices, etfMeta, holdings, macro,
-      companyFacts, companyMeta, formD, headlines, newsVolume, events, freshness, errors,
-    } as unknown as IndustryPayload);
+      sector,
+      // prices and macro observations are the two largest arrays on a page and
+      // spend most of their bytes restating key names; see wire.ts.
+      prices: packRows(PRICE_COLUMNS, prices as unknown as IndustryPayload["prices"]),
+      etfMeta, holdings,
+      macro: { ...macro, series: packRows(MACRO_POINT_COLUMNS, macro.series) },
+      companyFacts, companyMeta, formD: packFormD(formD as unknown as IndustryPayload["formD"]), headlines, newsVolume, events, freshness, errors,
+    } as unknown as WireIndustryPayload);
   } catch (error) {
     return emptyPayload(sector, error instanceof Error ? error.message : String(error));
   } finally {
