@@ -39,6 +39,21 @@ export type FormD = {
   submission_type: string | null; previous_accession_no: string | null;
   /** The industry the issuer selected on the form itself. */
   industry_group: string | null;
+  /** EDGAR's 021-XXXXXX offering file number, constant across amendments. */
+  file_num: string | null;
+  is_amendment: boolean | null;
+  /** How many issuers the filing names. Above one, the rest are co-issuers. */
+  issuer_count: number | null;
+  /**
+   * Which pooled-vehicle name pattern the issuer's name matched, if any.
+   * A hint only: nothing is excluded on a name.
+   */
+  pooled_name_match: string | null;
+  /**
+   * What the offering sells. Not exclusive: an offering can be both. A blank
+   * box on the form is resolved to false when the derived table is built.
+   */
+  is_equity_type: boolean; is_debt_type: boolean; is_option_to_acquire_type: boolean;
 };
 export type Headline = {
   id: string; sector_slug: string; published_date: string; source: string;

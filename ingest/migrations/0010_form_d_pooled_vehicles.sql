@@ -1,0 +1,14 @@
+-- Pooled investment vehicles are excluded from the derived table on two
+-- source-based tests, and a third, weaker signal is recorded rather than acted
+-- on.
+--
+-- The two hard tests are the filer's own answers: the industry it selected, and
+-- the securities-type box for a pooled investment fund interest. Neither is a
+-- guess about the issuer's name.
+--
+-- The name test is different in kind. "Separate Account" and "Collective Trust"
+-- are strong hints, but "LP" appears in the name of plenty of operating
+-- companies, so a name match drops nothing. It is stored here so the table can
+-- show which rows look like vehicles and let the reader judge, which is not
+-- something a silent exclusion could do.
+ALTER TABLE form_d ADD COLUMN pooled_name_match text;

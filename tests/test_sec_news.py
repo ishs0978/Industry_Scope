@@ -1,7 +1,7 @@
 from datetime import date
 
 import ingest.sources.nyt as nyt_source
-from ingest.sources.form_d import full_index_rows, parse_form_d_xml, sector_for_sic
+from ingest.sources.form_d import full_index_rows, parse_filing, sector_for_sic
 from ingest.sources.nyt import DEFAULT_MAX_MONTHS_PER_RUN, completed_archive_months, matching_headlines
 from ingest.sources.sec_xbrl import normalize_company_facts
 from ingest.sources.sec_xbrl import sec_session
@@ -49,12 +49,15 @@ def test_form_d_xml_captures_submission_type_and_amendment_chain():
         </offeringSalesAmounts>
       </offeringData>
     </edgarSubmission>"""
-    row = parse_form_d_xml(xml, "0000000000-26-000002", date(2026, 8, 2), "0000000002", "7372")
-    assert row[0] == "0000000000-26-000002"
-    assert row[6] == 10_000_000
-    assert row[7] == 9_000_000
-    assert row[9] == "D/A"
-    assert row[10] == "0000000000-26-000001"
+    submission, issuers, offering = parse_filing(
+        xml, "0000000000-26-000002", date(2026, 8, 2), "021-000001", "7372",
+    )
+    assert submission[0] == "0000000000-26-000002"
+    assert submission[4] == "D/A"
+    assert issuers[0][4] == "Beta Corp"
+    assert offering[10] == 10_000_000
+    assert offering[11] == 9_000_000
+    assert offering[4] == "0000000000-26-000001"
 
 
 def test_form_d_xml_marks_an_original_filing_with_no_chain():
@@ -63,9 +66,11 @@ def test_form_d_xml_marks_an_original_filing_with_no_chain():
       <primaryIssuer><entityName>Alpha Corp</entityName></primaryIssuer>
       <offeringData><offeringSalesAmounts><totalAmountSold>4000000</totalAmountSold></offeringSalesAmounts></offeringData>
     </edgarSubmission>"""
-    row = parse_form_d_xml(xml, "0000000000-26-000001", date(2026, 8, 1), "0000000001", "1311")
-    assert row[9] == "D"
-    assert row[10] is None
+    submission, _, offering = parse_filing(
+        xml, "0000000000-26-000001", date(2026, 8, 1), None, "1311",
+    )
+    assert submission[4] == "D"
+    assert offering[4] is None
 
 
 def test_nyt_matching_stores_only_allowed_metadata():

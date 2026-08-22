@@ -187,8 +187,14 @@ export default function MethodologyPage() {
     <section className="method-block">
       <h2>Private fundraising</h2>
       <div className="method-body">
-<p>Form D filings come from EDGAR full indexes and the primary XML submission. Dollar amounts are
-    shown only where the company reported one; many do not.</p>
+<p>Form D filings come from the SEC&rsquo;s quarterly Form D data sets, which flatten every filing
+    since 2008 into tables. Quarters from 2019 onward are loaded from those files. They publish only
+    after a quarter closes, so the quarter in progress is assembled from EDGAR full indexes and each
+    filing&rsquo;s primary XML submission, and those interim rows are replaced wholesale when the data
+    set for their quarter publishes rather than merged with it. Every sector panel states the date
+    range actually held, separately from the range selected, because the two are rarely the same.
+    Dollar amounts are shown only where the company reported one; many do not, and a reported zero is
+    kept distinct from an amount never given.</p>
 <figure className="diagram">
   <svg viewBox="0 0 900 180" role="img" aria-labelledby="amend-title amend-desc">
     <title id="amend-title">How an amended offering is counted</title>
@@ -216,15 +222,92 @@ export default function MethodologyPage() {
     <p>Companies amend Form D filings, and an amendment restates the cumulative amount raised rather
     than a new increment. Dollar totals therefore count only the most recent filing for each offering.
     Filing counts include amendments and are labeled that way.</p>
+    <p>An offering is identified by the file number EDGAR assigns it, the 021-XXXXXX that stays
+    constant across an original and every amendment to it. Where a filing carries no file number the
+    chain of superseded accession numbers is used instead. Both rules are applied together, so a group
+    still joins when some of its filings carry a file number and others only a chain link. This
+    replaced a guess that matched filings on the issuer and the offering size, which merged offerings
+    that were merely the same size and missed offerings whose reported size changed.</p>
+    <p>An offering is placed in the quarter its original filing was made, not the quarter it was last
+    amended, so amending does not move money forward in time. Where the original was filed before the
+    data begins, the offering has no known start quarter: it stays in the table, marked, and is left
+    out of the quarterly chart, and the panel says how much money that removes. One date is in any
+    case a simplification, because raising can run for years after it.</p>
+    <p>Four counts are published together and reconcile exactly: filings equals offerings, plus
+    filings that restate an offering already counted, less the offerings whose original is missing.
+    The subtraction is over offerings rather than filings, because an offering with three amendments
+    and no original is one unit of over-count, not three. The panel prints the arithmetic so a reader
+    can check it, and says so plainly if it ever fails to hold.</p>
+    <p>A Form D can name co-issuers, and the SEC publishes them as separate rows against one filing.
+    That filing still reports one amount, once. Issuers are therefore carried as an attribute and a
+    count of the filing rather than as rows of their own, and the table shows the primary issuer with
+    a marker for the rest. Affiliated companies that each file their own Form D for the same deal are
+    a different thing: the SEC gives each its own file number, so they remain separate offerings and
+    the reported amounts are not netted against one another.</p>
+<figure className="diagram">
+  <svg viewBox="0 0 900 250" role="img" aria-labelledby="coiss-title coiss-desc">
+    <title id="coiss-title">Co-issuers on one filing against affiliates filing separately</title>
+    <desc id="coiss-desc">A single Form D naming three co-issuers reports one amount and is counted once. Three affiliated companies that each file their own Form D receive three file numbers from EDGAR and are counted as three offerings, even when the deal behind them is the same.</desc>
+    <g fontSize="13" fontFamily="Inter, system-ui, sans-serif">
+      <text x="20" y="22" fontWeight="600" fill="#17221d">One filing naming three issuers</text>
+      <rect x="20" y="36" width="200" height="96" rx="4" fill="#fff" stroke="#d8ddd5"/>
+      <text x="120" y="58" textAnchor="middle" fontSize="12" fill="#647269">one file number</text>
+      <text x="120" y="80" textAnchor="middle" fill="#17221d">Issuer A</text>
+      <text x="120" y="98" textAnchor="middle" fill="#17221d">Issuer B</text>
+      <text x="120" y="116" textAnchor="middle" fill="#17221d">Issuer C</text>
+      <path d="M228 84 H288" stroke="#647269" strokeWidth="1.5" markerEnd="url(#mkco)"/>
+      <rect x="294" y="52" width="150" height="64" rx="4" fill="#f0f5ee" stroke="#1d6b4d"/>
+      <text x="369" y="76" textAnchor="middle" fontWeight="600" fill="#1d6b4d">One offering</text>
+      <text x="369" y="98" textAnchor="middle" fill="#17221d">$295M</text>
+      <text x="20" y="160" fontSize="12" fill="#647269">One amount, reported once. Issuer B and C are shown as a marker, not as rows.</text>
+      <text x="20" y="182" fontSize="12" fill="#a4463f">Counting one row per issuer would report $885M.</text>
+
+      <line x1="470" y1="10" x2="470" y2="240" stroke="#d8ddd5"/>
+
+      <text x="500" y="22" fontWeight="600" fill="#17221d">Three affiliates each filing their own</text>
+      <rect x="500" y="36" width="150" height="30" rx="4" fill="#fff" stroke="#d8ddd5"/>
+      <text x="575" y="56" textAnchor="middle" fontSize="12" fill="#17221d">021-594432 · $295M</text>
+      <rect x="500" y="72" width="150" height="30" rx="4" fill="#fff" stroke="#d8ddd5"/>
+      <text x="575" y="92" textAnchor="middle" fontSize="12" fill="#17221d">021-594436 · $295M</text>
+      <rect x="500" y="108" width="150" height="30" rx="4" fill="#fff" stroke="#d8ddd5"/>
+      <text x="575" y="128" textAnchor="middle" fontSize="12" fill="#17221d">021-594427 · $295M</text>
+      <path d="M658 87 H718" stroke="#647269" strokeWidth="1.5" markerEnd="url(#mkco)"/>
+      <rect x="724" y="55" width="150" height="64" rx="4" fill="#f0f5ee" stroke="#1d6b4d"/>
+      <text x="799" y="79" textAnchor="middle" fontWeight="600" fill="#1d6b4d">Three offerings</text>
+      <text x="799" y="101" textAnchor="middle" fill="#17221d">$295M each</text>
+      <text x="500" y="160" fontSize="12" fill="#647269">Three file numbers, so three offerings, even where the deal behind them is one.</text>
+      <text x="500" y="182" fontSize="12" fill="#647269">Netting them would need a judgement the filings do not support.</text>
+      <defs><marker id="mkco" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#647269"/></marker></defs>
+    </g>
+  </svg>
+  <figcaption>Both shapes appear in the data. The file number decides which is which.</figcaption>
+</figure>
+    <p>Every offering also records what kind of security it sells. The boxes are not exclusive, so an
+    offering selling equity and debt together is counted in full as debt; the form never asks how the
+    money divides. Offerings that tick no box are left out of the debt share rather than assumed to be
+    equity, and the panel states how much money that leaves unmeasured.</p>
     <p>Sector assignment uses the industry the issuer selects on the form itself. EDGAR leaves its own
     SIC field blank for most private issuers, so that field alone left the great majority of filings
     attributed to nothing; the filer&rsquo;s own answer is both better populated and closer to the
     truth. Where a filing carries no industry, the SIC code is used as a fallback, resolved to the
     sector claiming the longest matching prefix, and no two sectors may claim the same prefix.</p>
-    <p>Issuers that describe themselves as pooled investment funds are deliberately left unassigned. A
-    fund raising capital is not an operating industry, and counting one would overstate whichever
-    sector it landed in. Those filings are the majority of all Form D submissions, so the counts and
-    dollar figures on a sector page describe a minority of filings by design, not a collection gap.</p>
+    <p>Pooled investment vehicles are excluded on two of the filer&rsquo;s own answers. The first is
+    the industry it selected: a fund raising capital is not an operating industry, and choosing that
+    category now ends the question rather than falling through to the SIC code, which is how funds
+    carrying a bank&rsquo;s SIC used to be counted as banks. The second is the securities-type box, an
+    interest in a pooled investment fund, which catches vehicles that pick an operating industry
+    instead, such as insurance separate accounts filing under Insurance. Those filings are the
+    majority of all Form D submissions, so the counts and dollar figures on a sector page describe a
+    minority of filings by design, not a collection gap.</p>
+    <p>A third signal excludes nothing. Some issuer names match patterns common among vehicles, such
+    as Separate Account, Collective Trust, Income Fund and the limited-partnership suffixes. A name is
+    not a statement a filer made about itself, and plenty of operating businesses are limited
+    partnerships, so a match is shown as a column in the table and drops no row. Vehicles that satisfy
+    none of these tests stay visible rather than being removed on a guess; some large trusts do, and
+    they can be seen in the table with the column blank.</p>
+    <p>Reported amounts are what the filer typed. The SEC does not verify them, and the data contains
+    filings claiming raises far larger than the companies behind them plausibly support. Nothing here
+    screens for plausibility, so a single implausible filing can carry a sector total.</p>
       </div>
     </section>
 
@@ -271,11 +354,19 @@ export default function MethodologyPage() {
       <li>XBRL tags vary between filers, so some fundamental cells will be blank for some companies.
       Growth is left blank rather than computed across two different tags or against a guessed prior
       period.</li>
-      <li>Form D sector mapping depends on SIC metadata and is approximate. SIC 7372 covers prepackaged
+      <li>Form D sector mapping follows the industry the issuer picks from a fixed list, which is
+      coarse: one Other Technology covers everything from a chip designer to a web agency. Where no
+      industry is given the SIC code is used, and that is approximate too. SIC 7372 covers prepackaged
       software generally and resolves to Software &amp; Cloud, so genuinely cybersecurity-focused
       issuers filing under it are counted there.</li>
-      <li>Form D amendments are collected from the current quarter&rsquo;s index onward, so an offering
-      amended in an earlier quarter may still show its original reported amount.</li>
+      <li>Form D coverage starts in 2019. An offering whose original was filed before then appears
+      only through its later amendments, so its start quarter is unknown and it is kept out of the
+      quarterly chart while remaining in the table.</li>
+      <li>Form D amounts are unverified self-reports. The SEC does not check them and no plausibility
+      screen is applied here, so an implausible filing can dominate a sector total on its own.</li>
+      <li>A pooled vehicle that neither picks the pooled industry nor ticks the pooled securities box
+      is not excluded. Its name may match the vehicle-name column, which is shown rather than acted
+      on, so some funds remain in the sector totals.</li>
       <li>News keyword matching produces false positives and misses relevant coverage. The stories that
       move a whole sector are often the ones least likely to contain a sector keyword.</li>
       <li>The NYT Archive API publishes only completed months, so there is a gap of up to a month at
@@ -303,6 +394,55 @@ export default function MethodologyPage() {
       <h2>Changelog</h2>
       <div className="method-body">
 <ul>
+      <li><strong>August 22, 2026</strong> The private fundraising panel described its contents as
+      the selected date range while holding only the current quarter. Form D had been collected from
+      the current quarter&rsquo;s EDGAR index alone, so a five-year window was drawn from about three
+      weeks of filings and read as a five-year picture. Every quarter from 2019 is now loaded from the
+      SEC&rsquo;s quarterly data sets, and the panel states the range actually held separately from
+      the range selected.</li>
+      <li><strong>August 22, 2026</strong> The filing count and the offering count on the panel could
+      not both be true, because nothing tied them together. All four counts are now derived from one
+      grouping and reconcile exactly, with the arithmetic printed so a reader can check it. The
+      offerings whose original predates the data are subtracted as offerings rather than as filings:
+      subtracting the filings understated the total by around one and a half thousand on the banks
+      page alone.</li>
+      <li><strong>August 22, 2026</strong> Offerings were grouped by matching an issuer against an
+      offering size, which merged offerings that were merely the same size and split ones whose
+      reported size had changed. Grouping now uses the file number EDGAR assigns and keeps constant
+      across amendments. The old guess erred in both directions: it overstated the banks total by
+      about $80B and, in energy, merged twenty-two offerings that were genuinely separate.</li>
+      <li><strong>August 22, 2026</strong> An offering was dated by its most recent filing, so
+      amending moved money into the quarter of the amendment rather than the quarter it was raised in.
+      Offerings are now placed in the quarter of their original filing. Where the original predates
+      the data the offering has no known quarter and is kept out of the chart, and the panel says how
+      much money that removes.</li>
+      <li><strong>August 22, 2026</strong> Pooled vehicles were reaching sector totals two ways. A
+      filer selecting Pooled Investment Fund had that answer discarded as unmapped and fell through to
+      its EDGAR SIC code, so a fund carrying a bank&rsquo;s SIC was counted as a bank. Vehicles that
+      instead selected an operating industry, such as insurance separate accounts filing under
+      Insurance, were never tested at all. Selecting the pooled industry now ends attribution, and the
+      securities-type box for a pooled fund interest excludes on its own. Name patterns were
+      considered and deliberately not used to exclude: plenty of operating businesses are limited
+      partnerships, so a name match is shown as a column instead. Some large trusts satisfy no
+      source-based test and remain in the totals, visible in the table.</li>
+      <li><strong>August 22, 2026</strong> Co-issuers named on one filing were silently discarded, so
+      a filing naming seven companies showed one and the others appeared nowhere. They are now carried
+      as a count against the filing, which still reports one amount once, and the table marks them.
+      Dollar totals were checked against this: summing at the issuer level rather than the filing
+      level would have overstated the reported total across all filings by about $4 trillion.</li>
+      <li><strong>August 22, 2026</strong> The fundraising chart carried the sector ETF&rsquo;s price
+      on a second axis, which invited a causal reading the data cannot support and labelled the
+      current, incomplete quarter as a quarter-end price. The price series and the right axis are
+      gone. Hovering a bar now gives the number of offerings behind it, and below four quarters the
+      panel states its coverage rather than drawing a chart that invites a trend to be read from three
+      bars.</li>
+      <li><strong>August 22, 2026</strong> Form D filings under Tourism &amp; Travel Services were
+      attributed to no sector at all. The lookup rewrites an ampersand to &ldquo;and&rdquo; before
+      matching, but that one entry had kept its ampersand and could never be hit.</li>
+      <li><strong>August 22, 2026</strong> The security-type checkboxes were stored two ways: the
+      quarterly data sets leave an unticked box blank, while the EDGAR path wrote an explicit false.
+      Filtering for false returned only the EDGAR rows. Both are stored as the source gives them and
+      resolved in one place when the derived table is built.</li>
       <li><strong>August 14, 2026</strong> Year-to-date on the home page was measured from January 1,
       which meant the first trading day of the year was excluded from every sector. Corrected to
       measure from the prior year&rsquo;s final close. All headline figures changed.</li>
