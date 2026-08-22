@@ -33,6 +33,18 @@ class GdeltUnavailable(SourceUnavailable):
     """The shared endpoint is refusing work, rather than one sector failing."""
 
 
+# GDELT rejects a search phrase shorter than this, answering HTTP 200 with
+# "The specified phrase is too short." and no results. One such keyword fails
+# the whole query, so "SaaS" cost software-cloud every article it ever had, and
+# "REIT" did the same to real-estate. The keyword stays in the registry, where
+# the NYT matcher still uses it; it is only unusable here.
+GDELT_MIN_PHRASE_LENGTH = 5
+
+
+def gdelt_keywords(sector: Sector) -> list[str]:
+    return [keyword for keyword in sector.news_keywords if len(keyword) >= GDELT_MIN_PHRASE_LENGTH]
+
+
 def query_for_sector(sector: Sector) -> str:
     """Build a DOC 2.0 query.
 
@@ -43,8 +55,14 @@ def query_for_sector(sector: Sector) -> str:
     sector query has always contained OR, so this failed for every sector on
     every run.
     """
-    joined = " OR ".join(f'"{keyword}"' for keyword in sector.news_keywords)
-    return f"({joined})" if len(sector.news_keywords) > 1 else joined
+    keywords = gdelt_keywords(sector)
+    if not keywords:
+        raise SourceUnavailable(
+            f"{sector.slug} has no keyword long enough for GDELT "
+            f"(minimum {GDELT_MIN_PHRASE_LENGTH} characters)"
+        )
+    joined = " OR ".join(f'"{keyword}"' for keyword in keywords)
+    return f"({joined})" if len(keywords) > 1 else joined
 
 
 def rotated_sectors(sectors: list[Sector], day_of_year: int) -> list[Sector]:

@@ -394,6 +394,34 @@ export default function MethodologyPage() {
       <h2>Changelog</h2>
       <div className="method-body">
 <ul>
+      <li><strong>August 22, 2026</strong> Headlines came from the NYT Archive alone, which
+      publishes a month at a time and only once that month has completed, so coverage was
+      structurally weeks behind and, mid-month, closer to seven. GDELT indexes publishers
+      continuously and now fills the front of the timeline. It matches whole articles rather than
+      headlines, so a query for the energy sector returned a restaurant opening and an index
+      round-up; only articles whose headline carries the subject are kept, and each publisher is
+      capped so an algorithmic content farm cannot fill a sector on its own.</li>
+      <li><strong>August 22, 2026</strong> Two sectors could never receive any news at all. GDELT
+      rejects a search phrase shorter than five characters, answering with &ldquo;The specified
+      phrase is too short&rdquo; and no results, and one such term fails the entire query. The
+      keyword &ldquo;SaaS&rdquo; cost Software &amp; Cloud every article it ever had, and
+      &ldquo;REIT&rdquo; did the same to Real Estate. Both keywords remain in the registry, where
+      the NYT matcher still uses them; they are now left out of the GDELT query.</li>
+      <li><strong>August 22, 2026</strong> Every fund and every company now has its own page. The
+      site held daily prices for the fifty funds and nothing at all for the roughly eight hundred
+      companies inside them, so a company had no chart and no return history. Weekly closes are now
+      collected for all of them, together with valuation multiples and analyst targets. Weekly
+      rather than daily is a storage decision: daily bars for that many companies would be about
+      330 MB against a 512 MB ceiling, and every question these pages ask is measured in years.</li>
+      <li><strong>August 22, 2026</strong> Sector pages now carry curated company groups: the
+      Magnificent 7 under Technology, and semiconductors, chip equipment, data centre and power,
+      and cloud platforms under AI &amp; Robotics. These could not be derived, because the issuer
+      holdings files carry a sub-sector column whose every value is literally a dash. Membership is
+      therefore a judgement rather than a fact from a filing, and the panel says so.</li>
+      <li><strong>August 22, 2026</strong> Added bond and municipal bond sectors. Neither carries a
+      SIC prefix, because a bond fund owns debt rather than issuers and any prefix would have pulled
+      unrelated Form D filings and company fundamentals into its totals. The registry previously
+      required every sector to declare one.</li>
       <li><strong>August 22, 2026</strong> The private fundraising panel described its contents as
       the selected date range while holding only the current quarter. Form D had been collected from
       the current quarter&rsquo;s EDGAR index alone, so a five-year window was drawn from about three

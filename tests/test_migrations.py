@@ -34,6 +34,7 @@ def test_migrations_are_ordered_and_versioned():
         "0009_form_d_dera.sql",
         "0010_form_d_pooled_vehicles.sql",
         "0011_form_d_security_types.sql",
+        "0012_company_prices_and_analysts.sql",
     ]
 
 
@@ -85,11 +86,14 @@ class RecordingConnection:
         self.commits += 1
 
 
-def test_sector_registry_sync_upserts_all_21_rows():
+def test_sector_registry_sync_upserts_every_sector():
     connection = RecordingConnection()
     count = sync_sector_registry(connection)
 
-    assert count == 21
-    assert len(connection.recording_cursor.rows) == 21
+    from ingest.registry import load_sectors
+
+    expected = len(load_sectors())
+    assert count == expected
+    assert len(connection.recording_cursor.rows) == expected
     assert "ON CONFLICT (slug) DO UPDATE" in connection.recording_cursor.query
     assert connection.commits == 1

@@ -26,9 +26,12 @@ recomputes date-window metrics without another request.
 
 ```text
 ingest/                       Python ingest and versioned SQL migrations
-  config/                     Sector, FRED, and human-reviewed event registries
+  config/                     Sector, FRED, company-group, and event registries
   sources/                    One adapter per upstream source
 web/                          Next.js application and client workbook generator
+  app/industry/[slug]         One sector: performance, groups, companies, capital
+  app/etf/[ticker]            One fund: risk, fees, composition
+  app/company/[ticker]        One company: valuation, analyst view, returns
 excel/                        Power Query-ready model, M, and VBA source
 .github/workflows/ingest.yml  Daily fault-isolated ingest
 ```
@@ -220,6 +223,30 @@ only owner-side artifact assembly required.
   trend. A coverage line above the panel states the Form D date range actually
   held, separately from the range the reader selected, and names each end that
   falls short.
+- **News:** two feeds with different lags, and the page says which is which.
+  GDELT indexes publishers continuously and supplies current coverage; the NYT
+  Archive publishes a month at a time once that month has completed, so it is
+  structurally weeks behind and supplies depth rather than currency. GDELT
+  matches whole articles, so a sector query returns pieces that mention the
+  subject once in passing; only articles whose headline carries the subject are
+  kept, and each publisher is capped so an algorithmic content farm cannot fill
+  a sector. GDELT enforces a window quota, so one run covers a handful of
+  sectors and successive runs serve whichever are emptiest.
+- **Curated events:** written by hand against a source. They record things with
+  a lasting effect on a sector, not what happened today, so the list is only as
+  current as its last review and the page says when that was.
+- **Companies:** weekly closes, not daily. Daily bars for the ~800 companies
+  inside the funds would be about 330 MB against a 512 MB ceiling, and every
+  question a company page asks is measured in years. Valuation multiples and
+  analyst targets come from Yahoo and are opinions with a date on them rather
+  than anything the company reported; the page labels them so.
+- **Company groups:** the Magnificent 7 and the AI sub-groups are curated, so
+  their membership is a judgement rather than a fact from a filing. The issuer
+  holdings files carry a sub-sector column whose every value is literally "-",
+  which is why they cannot be derived. A ticker named in the group file appears
+  only if prices are actually held for it.
+- **Bond and municipal funds** carry no SIC prefix, because they own debt rather
+  than issuers. Their Form D and fundamentals panels are empty by construction.
 - **NYT:** headline, abstract, date, section, and URL only. Full text is never
   requested or stored.
 - **GDELT:** article volume and tone are quantitative context, not a claim about

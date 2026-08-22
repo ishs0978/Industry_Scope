@@ -34,8 +34,10 @@ function payload(overrides: Partial<IndustryPayload> = {}): IndustryPayload {
       { cik: "1", ticker: "XOM", fiscal_period: "CY2024Q4", metric: "Revenues", value: 1000, filed_date: "2025-01-05" },
       { cik: "1", ticker: "XOM", fiscal_period: "CY2025Q4", metric: "GrossProfit", value: 480, filed_date: "2026-01-05" },
     ],
-    companyMeta: [{ ticker: "XOM", market_cap: 5e11, as_of: "2026-01-07" }],
-    formD: [], headlines: [
+    companyMeta: [{ ticker: "XOM", market_cap: 5e11, as_of: "2026-01-07", name: "Exxon Mobil",
+      trailing_pe: null, forward_pe: null, price_to_book: null, dividend_yield: null,
+      target_mean_price: null, analyst_count: null, recommendation: null }],
+    formD: [], groups: [], headlines: [
       { id: "h1", sector_slug: "energy", published_date: "2026-01-06T14:31:00Z", source: "NYT", headline: "Pipeline news", abstract: null, section: "Business", url: "https://example.test" },
     ],
     newsVolume: [],

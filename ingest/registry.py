@@ -12,7 +12,7 @@ import yaml
 
 
 REGISTRY_PATH = Path(__file__).parent / "config" / "sectors.yaml"
-EXPECTED_SECTOR_COUNT = 21
+EXPECTED_SECTOR_COUNT = 23
 REQUIRED_FIELDS = {
     "slug",
     "name",
@@ -67,10 +67,15 @@ def _validate_entry(raw: dict[str, Any], index: int) -> None:
         if not isinstance(raw[field], list):
             raise ValueError(f"{raw['slug']}.{field} must be a list")
 
-    nonempty_fields = ("aliases", "news_keywords", "sic_prefixes")
-    for field in nonempty_fields:
+    # sic_prefixes may be empty, and only for a sector that holds no operating
+    # companies. A bond fund owns debt, not issuers, so any prefix given to it
+    # would pull unrelated Form D filings and SEC fundamentals into its totals.
+    # Every entry present still has to be a real value.
+    for field in ("aliases", "news_keywords"):
         if not raw[field] or any(not str(item).strip() for item in raw[field]):
             raise ValueError(f"{raw['slug']}.{field} cannot be empty")
+    if any(not str(item).strip() for item in raw["sic_prefixes"]):
+        raise ValueError(f"{raw['slug']}.sic_prefixes cannot contain a blank entry")
 
     if not str(raw["naics_code"]).strip():
         raise ValueError(f"{raw['slug']}.naics_code cannot be empty")

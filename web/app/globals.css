@@ -183,6 +183,8 @@ th:first-child, td:first-child, .left { text-align: left; }
 .chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 /* Inline marker for a filing that names co-issuers, so one offering stays one row. */
 .chip-inline { border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 11px; margin-left: 6px; padding: 1px 7px; white-space: nowrap; }
+/* Sits under a timeline heading to say what that feed is and how current. */
+.feed-note { margin: -4px 0 12px; }
 
 .close-line { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 6px; }
 .close-day { font-variant-numeric: normal; }

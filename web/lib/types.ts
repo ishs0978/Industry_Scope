@@ -33,7 +33,49 @@ export type CompanyFact = {
   cik: string; ticker: string | null; fiscal_period: string; metric: string;
   value: number | null; filed_date: string;
 };
-export type CompanyMeta = { ticker: string; market_cap: number | null; as_of: string };
+export type GroupMember = {
+  ticker: string; name: string | null; market_cap: number | null;
+  /** Weekly closes, so a group chart can be drawn without daily company bars. */
+  weekly: { date: string; value: number }[];
+};
+export type SectorGroup = {
+  slug: string; name: string; blurb: string; members: GroupMember[];
+};
+
+export type CompanyWeek = { ticker: string; week_ending: string; adj_close: number };
+export type FundHolder = { fund_ticker: string; weight: number; as_of: string };
+
+/** One fund, on its own page. */
+export type EtfPayload = {
+  ticker: string; sectorSlug: string; sectorName: string; isPrimary: boolean;
+  meta: EtfMeta | null;
+  prices: Price[];
+  benchmark: Price[];
+  riskFree: MacroPoint[];
+  holdings: Holding[];
+  peers: string[];
+  errors: SourceError[];
+};
+
+/** One company, on its own page. */
+export type CompanyPayload = {
+  ticker: string;
+  meta: CompanyMeta | null;
+  facts: CompanyFact[];
+  weekly: CompanyWeek[];
+  heldBy: FundHolder[];
+  sectorSlug: string | null;
+  sectorName: string | null;
+  errors: SourceError[];
+};
+
+export type CompanyMeta = {
+  ticker: string; market_cap: number | null; as_of: string; name: string | null;
+  /** Multiples and analyst opinion from Yahoo. Opinions, not reported facts. */
+  trailing_pe: number | null; forward_pe: number | null; price_to_book: number | null;
+  dividend_yield: number | null; target_mean_price: number | null;
+  analyst_count: number | null; recommendation: string | null;
+};
 export type FormD = {
   accession_no: string; filed_date: string; cik: string | null; issuer_name: string;
   sic_code: string | null; sector_slug: string | null; total_offering_amount: number | null;
@@ -96,6 +138,7 @@ export type IndustryPayload = {
   companyFacts: CompanyFact[];
   companyMeta: CompanyMeta[];
   formD: FormD[];
+  groups: SectorGroup[];
   headlines: Headline[];
   newsVolume: NewsPoint[];
   events: CuratedEvent[];
