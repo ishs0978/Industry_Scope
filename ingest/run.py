@@ -15,7 +15,8 @@ import psycopg
 
 from ingest.db import apply_migrations, sync_sector_registry
 from ingest.sources import (
-    bls, eia, events, form_d, form_d_dera, fred, gdelt, holdings, nyt, prices, sec_xbrl,
+    bls, company_prices, eia, events, form_d, form_d_dera, fred, gdelt, gdelt_news,
+    holdings, nyt, prices, sec_xbrl,
 )
 from ingest.sources.common import redact_secrets, reset_batch_id, set_batch_id
 
@@ -35,9 +36,15 @@ SOURCES: tuple[ScheduledSource, ...] = (
     ScheduledSource("events", events.run, "daily"),
     ScheduledSource("prices", prices.run, "daily", ("prices", "etf_meta")),
     ScheduledSource("holdings", holdings.run, "daily"),
+    # Weekly closes and analyst opinion for what the funds hold. Runs after
+    # holdings because it takes its ticker list from them.
+    ScheduledSource("company_prices", company_prices.run, "weekly"),
     ScheduledSource("fred", fred.run, "daily"),
     ScheduledSource("eia", eia.run, "daily"),
     ScheduledSource("gdelt", gdelt.run, "daily"),
+    # NYT publishes a month at a time once it has completed, so headlines were
+    # structurally weeks behind. GDELT indexes continuously and fills the front.
+    ScheduledSource("gdelt_news", gdelt_news.run, "daily"),
     ScheduledSource("nyt", nyt.run, "daily"),
     ScheduledSource("bls", bls.run, "weekly"),
     ScheduledSource("sec_xbrl", sec_xbrl.run, "weekly"),

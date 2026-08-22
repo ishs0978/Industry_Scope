@@ -2,11 +2,63 @@ import fs from "node:fs";
 import path from "node:path";
 import postgres from "postgres";
 import YAML from "yaml";
-import { sectorBySlug } from "./registry";
+import { fundByTicker, groupsForSector, sectorBySlug, type CompanyGroup } from "./registry";
 import { packFormD } from "./formd";
 import { packRows } from "./wire";
 import { MACRO_POINT_COLUMNS, PRICE_COLUMNS } from "./types";
-import type { IndustryPayload, MacroPoint, Price, WireIndustryPayload, Sector, SourceError } from "./types";
+import type {
+  CompanyPayload, GroupMember, SectorGroup, EtfPayload, FundHolder, IndustryPayload, MacroPoint, Price,
+  WireIndustryPayload, Sector, SourceError,
+} from "./types";
+
+/**
+ * One connection pool for the whole process.
+ *
+ * Every loader used to open its own pool and close it in a finally block. That
+ * was fine when a build rendered 26 pages; at 84 it meant 84 connect and
+ * disconnect cycles against Neon, which timed a page out after 60 seconds and
+ * later killed a connection mid-build. Neon is also happier with a few
+ * long-lived connections than with a churn of short ones.
+ *
+ * Nothing calls end() any more: the pool lives as long as the process, and Node
+ * exiting closes the sockets.
+ */
+let pool: ReturnType<typeof postgres> | null = null;
+
+function db() {
+  if (!pool) {
+    pool = postgres(process.env.DATABASE_URL!, {
+      ssl: "require", max: 10, idle_timeout: 30, connect_timeout: 30,
+    });
+  }
+  return pool;
+}
+
+/**
+ * The benchmark and risk-free series, fetched once per process.
+ *
+ * Every fund page measures beta against SPY and Sharpe against the 3-month
+ * Treasury, so building 57 of them re-ran the same two queries 57 times and
+ * pulled SPY's whole history each round. That was most of the work in the build
+ * and it timed pages out. Both series are identical for every page.
+ */
+let sharedSeries: Promise<{ benchmark: Price[]; riskFree: MacroPoint[] }> | null = null;
+
+function benchmarkAndRiskFree() {
+  if (!sharedSeries) {
+    const sql = db();
+    sharedSeries = Promise.all([
+      sql`SELECT ticker,date::text AS date,adj_close::float,close::float,volume FROM prices
+          WHERE ticker='SPY' ORDER BY date`,
+      sql`SELECT series_id,date::text AS date,value::float FROM macro_series
+          WHERE series_id='DGS3MO' ORDER BY date`,
+    ]).then(([benchmark, riskFree]) => ({
+      benchmark: benchmark as unknown as Price[],
+      riskFree: riskFree as unknown as MacroPoint[],
+    }));
+  }
+  return sharedSeries;
+}
 
 export const EMPTY_SOURCE_REASON = "DATABASE_URL is not configured; no live data was queried.";
 
@@ -14,7 +66,7 @@ function emptyPayload(sector: Sector, reason = EMPTY_SOURCE_REASON): WireIndustr
   return {
     sector, prices: packRows<Price>(PRICE_COLUMNS, []), etfMeta: [], holdings: [],
     macro: { meta: [], series: packRows<MacroPoint>(MACRO_POINT_COLUMNS, []) },
-    companyFacts: [], companyMeta: [], formD: packFormD([]), headlines: [], newsVolume: [], events: [],
+    companyFacts: [], companyMeta: [], formD: packFormD([]), groups: [], headlines: [], newsVolume: [], events: [],
     freshness: [], errors: [{ source: "Neon Postgres", reason }],
   };
 }
@@ -126,15 +178,17 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
   // a full ISO timestamp; that broke `row.date <= end` for the final day of any
   // range, because "2026-08-14T00:00:00.000Z" sorts after "2026-08-14".
   // timestamptz columns are left alone: M20 renders those with a clock time.
-  const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 4, idle_timeout: 20 });
+  const sql = db();
   const tickers = [sector.primary_etf, ...sector.comparison_etfs, "SPY"];
   const macroIds = macroIdsForSector(slug);
   const includeEia = macroSourceAllowed(slug, "EIA");
   const errors: SourceError[] = [];
+  const sectorGroups = groupsForSector(slug);
+  const groupTickers = [...new Set(sectorGroups.flatMap((group) => group.tickers))];
   try {
     const [
       prices, etfMeta, holdings, macroMeta, macroSeries, companyFacts, companyMeta,
-      formD, headlines, newsVolume, events, freshness,
+      formD, headlines, newsVolume, events, freshness, groupWeekly, groupMeta,
     ] = await Promise.all([
       sql`SELECT ticker,date::text AS date,adj_close::float,close::float,volume FROM prices WHERE ticker = ANY(${tickers}) ORDER BY date`,
       sql`SELECT ticker,name,expense_ratio::float,aum::float,issuer,as_of,holdings_status,holdings_error FROM etf_meta WHERE ticker = ANY(${tickers})`,
@@ -177,6 +231,13 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
       sql`SELECT id,start_date::text AS start_date,end_date::text AS end_date,sectors,title,blurb,source_url,impact FROM events WHERE sectors && ARRAY[${slug},'all']::text[] ORDER BY start_date`,
       sql`SELECT DISTINCT ON (source) source,started_at,finished_at,status,rows_written,error_message,details
           FROM ingest_runs WHERE source NOT LIKE 'holdings:%' ORDER BY source,started_at DESC`,
+      groupTickers.length
+        ? sql`SELECT ticker,week_ending::text AS week_ending,adj_close::float FROM company_prices
+              WHERE ticker = ANY(${groupTickers}) ORDER BY ticker,week_ending`
+        : Promise.resolve([]),
+      groupTickers.length
+        ? sql`SELECT ticker,name,market_cap::float FROM company_meta WHERE ticker = ANY(${groupTickers})`
+        : Promise.resolve([]),
     ]);
     for (const run of freshness) {
       if (run.status === "failed") errors.push({ source: run.source, reason: run.error_message ?? "Last ingest failed" });
@@ -213,12 +274,13 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
       prices: packRows(PRICE_COLUMNS, prices as unknown as IndustryPayload["prices"]),
       etfMeta, holdings,
       macro: { ...macro, series: packRows(MACRO_POINT_COLUMNS, macro.series) },
-      companyFacts, companyMeta, formD: packFormD(formD as unknown as IndustryPayload["formD"]), headlines, newsVolume, events, freshness, errors,
+      companyFacts, companyMeta,
+      formD: packFormD(formD as unknown as IndustryPayload["formD"]),
+      groups: assembleGroups(sectorGroups, groupWeekly as never, groupMeta as never),
+      headlines, newsVolume, events, freshness, errors,
     } as unknown as WireIndustryPayload);
   } catch (error) {
     return emptyPayload(sector, error instanceof Error ? error.message : String(error));
-  } finally {
-    await sql.end({ timeout: 5 });
   }
 }
 
@@ -237,7 +299,7 @@ export async function getHomePerformance(): Promise<HomeData> {
   let pricesThrough: string | null = null;
   let lastChecked: string | null = null;
   if (!process.env.DATABASE_URL) return { performance: result, pricesThrough, lastChecked };
-  const sql = postgres(process.env.DATABASE_URL, { ssl: "require", max: 1 });
+  const sql = db();
   try {
     // YTD is measured from the prior year-end close, so the first trading day's
     // move is inside the window rather than discarded as the baseline.
@@ -267,8 +329,137 @@ export async function getHomePerformance(): Promise<HomeData> {
     lastChecked = (run?.finished_at ?? run?.started_at ?? null) as string | null;
   } catch (error) {
     result.__error = { prices: [], error: error instanceof Error ? error.message : String(error) };
-  } finally {
-    await sql.end({ timeout: 5 });
   }
   return { performance: result, pricesThrough, lastChecked };
+}
+
+const COMPANY_META_COLUMNS = `ticker,market_cap::float,as_of,name,trailing_pe::float,
+  forward_pe::float,price_to_book::float,dividend_yield::float,
+  target_mean_price::float,analyst_count,recommendation`;
+
+/**
+ * One fund, for its own page.
+ *
+ * The sector page carries every fund it compares; this carries one fund in
+ * enough depth to judge it on its own: its own daily history, the benchmark and
+ * risk-free series its risk figures are measured against, and what it holds.
+ */
+export async function getEtfPayload(ticker: string): Promise<EtfPayload | null> {
+  const fund = fundByTicker(ticker);
+  if (!fund) return null;
+  const symbol = fund.ticker;
+  const base = {
+    ticker: symbol, sectorSlug: fund.sector.slug, sectorName: fund.sector.name,
+    isPrimary: fund.primary,
+    peers: [fund.sector.primary_etf, ...fund.sector.comparison_etfs].filter((peer) => peer !== symbol),
+  };
+  if (!process.env.DATABASE_URL) {
+    return { ...base, meta: null, prices: [], benchmark: [], riskFree: [], holdings: [],
+      errors: [{ source: "Neon Postgres", reason: EMPTY_SOURCE_REASON }] };
+  }
+  const sql = db();
+  try {
+    const [meta, prices, shared, holdings] = await Promise.all([
+      sql`SELECT ticker,name,expense_ratio::float,aum::float,issuer,as_of,holdings_status,holdings_error
+          FROM etf_meta WHERE ticker=${symbol}`,
+      sql`SELECT ticker,date::text AS date,adj_close::float,close::float,volume FROM prices
+          WHERE ticker=${symbol} ORDER BY date`,
+      benchmarkAndRiskFree(),
+      // Only the newest snapshot that passed validation, matching the rule the
+      // sector page uses, so a fund never shows a half-parsed composition.
+      sql`SELECT fund_ticker,as_of,constituent_ticker,constituent_name,weight::float,sub_sector
+          FROM holdings WHERE fund_ticker=${symbol} AND as_of=(
+            SELECT as_of FROM holdings WHERE fund_ticker=${symbol}
+            GROUP BY as_of HAVING count(*) >= 5 AND sum(weight) BETWEEN 0.98 AND 1.02
+            ORDER BY as_of DESC LIMIT 1)
+          ORDER BY weight DESC`,
+    ]);
+    return serializable({
+      ...base, meta: (meta[0] ?? null), prices,
+      benchmark: shared.benchmark, riskFree: shared.riskFree, holdings, errors: [],
+    } as unknown as EtfPayload);
+  } catch (error) {
+    return { ...base, meta: null, prices: [], benchmark: [], riskFree: [], holdings: [],
+      errors: [{ source: "Neon Postgres", reason: error instanceof Error ? error.message : String(error) }] };
+  }
+}
+
+/**
+ * One company, for its own page.
+ *
+ * Prices here are weekly, not daily: storing daily bars for every company the
+ * funds hold does not fit the database, and every question this page answers is
+ * measured in years. The page says so rather than implying a daily series.
+ */
+export async function getCompanyPayload(ticker: string): Promise<CompanyPayload | null> {
+  const symbol = ticker.toUpperCase();
+  if (!/^[A-Z0-9.\-]{1,12}$/.test(symbol)) return null;
+  const base = { ticker: symbol, sectorSlug: null, sectorName: null };
+  if (!process.env.DATABASE_URL) {
+    return { ...base, meta: null, facts: [], weekly: [], heldBy: [],
+      errors: [{ source: "Neon Postgres", reason: EMPTY_SOURCE_REASON }] };
+  }
+  const sql = db();
+  try {
+    const [meta, facts, weekly, heldBy] = await Promise.all([
+      sql`SELECT ${sql.unsafe(COMPANY_META_COLUMNS)} FROM company_meta WHERE ticker=${symbol}`,
+      sql`SELECT cik,ticker,fiscal_period,metric,value::float,filed_date::text AS filed_date
+          FROM company_facts WHERE ticker=${symbol} ORDER BY fiscal_period`,
+      sql`SELECT ticker,week_ending::text AS week_ending,adj_close::float FROM company_prices
+          WHERE ticker=${symbol} ORDER BY week_ending`,
+      sql`SELECT h.fund_ticker,h.weight::float,h.as_of::text AS as_of FROM holdings h
+          WHERE h.constituent_ticker=${symbol} AND h.as_of=(
+            SELECT max(as_of) FROM holdings WHERE fund_ticker=h.fund_ticker)
+          ORDER BY h.weight DESC`,
+    ]);
+    // A company belongs to whichever sector's fund holds the most of it, which
+    // is the only attribution the holdings data supports.
+    const owner = (heldBy as unknown as FundHolder[])
+      .map((row) => fundByTicker(row.fund_ticker))
+      .find((fund) => fund !== undefined);
+    if (!(facts.length || weekly.length || meta.length)) return null;
+    return serializable({
+      ...base, meta: (meta[0] ?? null), facts, weekly, heldBy,
+      sectorSlug: owner?.sector.slug ?? null, sectorName: owner?.sector.name ?? null,
+      errors: [],
+    } as unknown as CompanyPayload);
+  } catch (error) {
+    return { ...base, meta: null, facts: [], weekly: [], heldBy: [],
+      errors: [{ source: "Neon Postgres", reason: error instanceof Error ? error.message : String(error) }] };
+  }
+}
+
+
+/**
+ * Attach prices and names to a curated group, dropping members with no data.
+ *
+ * A ticker named in the group file only appears if the site actually holds
+ * prices for it, so curating a list can never invent coverage that is not there.
+ */
+function assembleGroups(
+  groups: CompanyGroup[],
+  weekly: { ticker: string; week_ending: string; adj_close: number }[],
+  meta: { ticker: string; name: string | null; market_cap: number | null }[],
+): SectorGroup[] {
+  if (!groups.length) return [];
+  const byTicker = new Map<string, { date: string; value: number }[]>();
+  for (const row of weekly) {
+    const points = byTicker.get(row.ticker) ?? [];
+    points.push({ date: row.week_ending, value: row.adj_close });
+    byTicker.set(row.ticker, points);
+  }
+  const metaByTicker = new Map(meta.map((row) => [row.ticker, row]));
+  return groups
+    .map((group) => ({
+      slug: group.slug, name: group.name, blurb: group.blurb,
+      members: group.tickers
+        .map((ticker): GroupMember | null => {
+          const points = byTicker.get(ticker);
+          if (!points || points.length < 2) return null;
+          const info = metaByTicker.get(ticker);
+          return { ticker, name: info?.name ?? null, market_cap: info?.market_cap ?? null, weekly: points };
+        })
+        .filter((member): member is GroupMember => member !== null),
+    }))
+    .filter((group) => group.members.length > 0);
 }

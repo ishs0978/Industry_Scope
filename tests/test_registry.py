@@ -23,10 +23,12 @@ EXPECTED_PRIMARY_ETFS = {
     "uranium-nuclear": ("URA", ("NLR",)),
     "communication-services": ("XLC", ()),
     "transport-shipping": ("IYT", ()),
+    "bonds": ("AGG", ("BND", "TLT", "LQD")),
+    "municipal-bonds": ("MUB", ("VTEB", "TFI")),
 }
 
 
-def test_registry_contains_the_required_21_sectors_and_etfs():
+def test_registry_contains_every_sector_and_its_etfs():
     sectors = load_sectors()
     actual = {
         sector.slug: (sector.primary_etf, sector.comparison_etfs)
@@ -35,12 +37,20 @@ def test_registry_contains_the_required_21_sectors_and_etfs():
     assert actual == EXPECTED_PRIMARY_ETFS
 
 
+# Bond funds own debt, not issuers, so they carry no SIC prefix: any prefix
+# would pull unrelated Form D filings and company fundamentals into their totals.
+SECTORS_WITHOUT_OPERATING_COMPANIES = {"bonds", "municipal-bonds"}
+
+
 def test_every_sector_has_search_and_source_mappings():
     for sector in load_sectors():
         assert sector.aliases
         assert sector.news_keywords
-        assert sector.sic_prefixes
         assert sector.naics_code
+        if sector.slug in SECTORS_WITHOUT_OPERATING_COMPANIES:
+            assert sector.sic_prefixes == ()
+        else:
+            assert sector.sic_prefixes
 
 
 def test_search_matches_names_and_aliases_fuzzily():

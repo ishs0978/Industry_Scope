@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line,
@@ -15,7 +17,7 @@ import { validatedFundHoldings } from "@/lib/holdings";
 import { coIssuerLabel, coverageNote, debtSplit, formDCounts, groupOfferings, totalRaised, unpackFormD, type Coverage, type DebtSplit, type FormDCounts, type Offering } from "@/lib/formd";
 import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatSignedPercent as signedPercent, formatUnitValue as unitValue, isStale, readableError, relativeTime, stamp, stampDate } from "@/lib/format";
 import { unpackRows } from "@/lib/wire";
-import type { IndustryPayload, MacroMeta, WireIndustryPayload } from "@/lib/types";
+import type { IndustryPayload, MacroMeta, SectorGroup, WireIndustryPayload } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
 
 const COLORS = ["#1d6b4d", "#143142", "#b97816", "#7d5a91", "#a4463f"];
@@ -499,6 +501,28 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
   );
   // The list had no cap, so a 3-year window rendered hundreds of items and the
   // page became unscrollable.
+  // The two feeds behind this list run at different speeds, and a reader
+  // seeing month-old headlines needs to know which one they are looking at.
+  const curatedThrough = useMemo(() => {
+    const dates = payload.events.map((event) => event.start_date).sort();
+    return dates.at(-1) ?? null;
+  }, [payload.events]);
+  const coverageFeeds = useMemo(() => {
+    const newest = new Map<string, string>();
+    for (const item of payload.headlines) {
+      const feed = item.id.startsWith("gdelt:") ? "GDELT" : item.source;
+      const date = item.published_date.slice(0, 10);
+      if (!newest.has(feed) || date > newest.get(feed)!) newest.set(feed, date);
+    }
+    const parts = [...newest.entries()]
+      .sort((a, b) => b[1].localeCompare(a[1]))
+      .slice(0, 4)
+      .map(([feed, date]) => `${feed} through ${date}`);
+    return parts.length
+      ? `Latest in each feed: ${parts.join("; ")}. Publisher names are shown per item.`
+      : "";
+  }, [payload.headlines]);
+
   const [coverageShown, setCoverageShown] = useState(COVERAGE_PAGE);
   const visibleCoverage = coverage.slice(0, coverageShown);
   const selectEvent = (id: string) => {
@@ -560,7 +584,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       </div>
       <div className="chart-shell"><ChartHeading title="What $100 would be worth today" term="Growth of $100, dividends reinvested" definition={CHART_COPY.growth.definition} />
         {peerTickers.length > 0 && <div className="peer-chips">{peerTickers.map((ticker) => <button aria-pressed={activePeers.includes(ticker)} className={`chip${activePeers.includes(ticker) ? " active" : ""}`} key={ticker} onClick={() => setActivePeers(activePeers.includes(ticker) ? activePeers.filter((item) => item !== ticker) : [...activePeers, ticker])}>{ticker}</button>)}</div>}
-        {performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} /><Legend /><ReferenceLine y={100} stroke="#c9cdc2" strokeDasharray="3 3" /><EventBands events={payload.events} start={start} end={end} />{shownTickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}<Line key="SPY" dataKey="SPY" dot={false} connectNulls stroke={BENCHMARK_STROKE} strokeWidth={1.2} strokeDasharray="4 3" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.growth.lines} more={CHART_COPY.growth.more} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
+        {performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} /><Legend /><ReferenceLine y={100} stroke="#c9cdc2" strokeDasharray="3 3" /><EventBands events={payload.events} start={start} end={end} />{shownTickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}<Line key="SPY" dataKey="SPY" dot={false} connectNulls stroke={BENCHMARK_STROKE} strokeWidth={1.2} strokeDasharray="4 3" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.growth.lines} more={CHART_COPY.growth.more} /><FundLinks tickers={[payload.sector.primary_etf, ...peerTickers]} primary={payload.sector.primary_etf} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
       <div className="chart-grid">
         <div className="chart-shell"><ChartHeading title="How far below its last peak" term="Drawdown" definition={CHART_COPY.drawdown.definition} />{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} labelFormatter={(value) => fullDate(String(value))} /><ReferenceLine y={0} stroke="#c9cdc2" strokeDasharray="3 3" /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.drawdown.lines} more={CHART_COPY.drawdown.more} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
       </div>
@@ -593,6 +617,13 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       <OverlapMatrix matrix={overlap} funds={Object.keys(holdingsByFund)} />
       </>}
     </section>
+
+    {payload.groups.length > 0 && <section className="panel" id="groups">
+      <SectionHead index="02b" title="Groups worth watching" term="Curated company groups"
+        description="Companies grouped by what they actually do, cutting across the fund that happens to hold them. These groupings are curated rather than taken from a filing, because the issuer holdings files carry no usable sub-sector of their own."
+        asOf={asOfLabel(payload.groups.flatMap((group) => group.members.flatMap((member) => member.weekly.map((point) => point.date))))} />
+      {payload.groups.map((group) => <CompanyGroupPanel key={group.slug} group={group} start={start} end={end} />)}
+    </section>}
 
     <section className="panel" id="fundamentals">
       <SectionHead index="03" title="How the companies are doing" term="SEC XBRL reported facts" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
@@ -635,11 +666,12 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
     </section>
 
     <section className="panel" id="timeline">
-      <SectionHead index="06" title="News and events" term="GDELT volume and NYT headlines" description="Quantitative GDELT activity above; human-curated events and verbatim NYT headlines below." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
+      <SectionHead index="06" title="News and events" term="GDELT volume, live coverage and NYT headlines" description="Quantitative GDELT activity above. Below it, human-curated events, then coverage from two feeds with different lags: GDELT indexes publishers continuously, while the NYT Archive publishes a month at a time once that month has completed." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
       {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {readableError(gdeltRun.error_message)} · coverage below may be incomplete.</div>}
       <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" definition={CHART_COPY.news.definition} />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} labelFormatter={(value) => fullDate(String(value))} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><EventBands events={payload.events} start={start} end={end} /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}<EventRail events={timelineEvents} start={start} end={end} onSelect={selectEvent} /><ChartCaption lines={CHART_COPY.news.lines} more={CHART_COPY.news.more} /><ChartFreshness payload={payload} source="gdelt" dataThrough={newsInRange.at(-1)?.date} /></div>
       {timelineEvents.length > 0 && <>
         <h3 className="timeline-group">Events</h3>
+        <FeedNote>Events are written by hand against a source, not collected, so this list is only as current as its last review{curatedThrough ? `, which was ${curatedThrough}` : ""}. It is a record of things with a lasting effect on a sector, not a feed of what happened today; that is below.</FeedNote>
         <div className="timeline-list">{timelineEvents.map((event) => <article className={`timeline-item event ${event.impact}`} id={`event-${event.id}`} key={`e:${event.id}`}>
           <div className="timeline-date">{event.start_date}{event.end_date && event.end_date !== event.start_date ? ` – ${event.end_date}` : ""} · CURATED EVENT</div>
           <h3>{event.title}</h3>
@@ -650,6 +682,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       </>}
       {coverage.length > 0 && <>
         <h3 className="timeline-group">Coverage</h3>
+        <FeedNote>{coverageFeeds}</FeedNote>
         <div className="timeline-list">{visibleCoverage.map((item, index) => <div key={`h:${item.id}`}>
           {(index === 0 || item.published_date.slice(0, 7) !== visibleCoverage[index - 1].published_date.slice(0, 7))
             && <div className="month-divider">{monthLabel(item.published_date)}</div>}
@@ -664,6 +697,94 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       {!timelineEvents.length && !coverage.length && <div className="source-error">No events or headlines in this window. Try a longer range.</div>}
     </section>
   </main>;
+}
+
+/**
+ * A named group of companies, charted together and listed with their weights.
+ *
+ * The sector registry answers which fund tracks an industry. It cannot answer
+ * which companies people are actually talking about, because the issuer
+ * holdings files carry a sub-sector column whose every value is literally "-".
+ * These groups are curated instead, which makes their membership an opinion
+ * rather than a fact from a filing, and the panel says so.
+ *
+ * The lines are weekly, because daily bars for every company inside the funds
+ * do not fit the database. Over the multi-year spans these groups are read at,
+ * a weekly close answers the same question.
+ */
+function CompanyGroupPanel({ group, start, end }: { group: SectorGroup; start: string; end: string }) {
+  const [open, setOpen] = useState(false);
+  const members = useMemo(
+    () => [...group.members].sort((a, b) => (b.market_cap ?? -1) - (a.market_cap ?? -1)),
+    [group.members],
+  );
+  const chart = useMemo(() => {
+    const byDate = new Map<string, Record<string, number | string>>();
+    for (const member of members) {
+      const windowed = member.weekly.filter((point) => point.date >= start && point.date <= end);
+      for (const point of investmentValue(windowed, 10_000)) {
+        const row = byDate.get(point.date) ?? { date: point.date };
+        row[member.ticker] = point.value;
+        byDate.set(point.date, row);
+      }
+    }
+    return [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  }, [members, start, end]);
+
+  const shown = open ? members : members.slice(0, 6);
+  return <div className="chart-shell" style={{ marginTop: 20 }}>
+    <ChartHeading title={group.name} term={`${members.length} companies, weekly closes`} />
+    <p className="panel-description">{group.blurb}</p>
+    {chart.length > 1
+      ? <ResponsiveContainer width="100%" height={300}><LineChart data={chart}>
+          <CartesianGrid stroke="#e4e6df" vertical={false} />
+          <XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} tickFormatter={axisDate} />
+          <YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} />
+          <Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} />
+          <Legend />
+          {shown.map((member, index) => <Line key={member.ticker} dataKey={member.ticker} dot={false}
+            connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={1.4} />)}
+        </LineChart></ResponsiveContainer>
+      : <ChartEmpty source="Weekly company prices" />}
+    <div className="data-table-wrap"><table>
+      <thead><tr><th>Company</th><th>Name</th><th>Market cap</th><th>Return in range</th></tr></thead>
+      <tbody>{shown.map((member) => {
+        const windowed = member.weekly.filter((point) => point.date >= start && point.date <= end);
+        return <tr key={member.ticker}>
+          <td><Link href={`/company/${member.ticker}`}>{member.ticker}</Link></td>
+          <td>{member.name ?? "—"}</td>
+          <td>{member.market_cap === null ? "—" : money(member.market_cap)}</td>
+          <td>{percent(cumulativeReturn(windowed))}</td>
+        </tr>;
+      })}</tbody>
+    </table></div>
+    {members.length > 6 && <button className="chip show-more" onClick={() => setOpen(!open)}>
+      {open ? "Show fewer" : `Show all ${members.length}`}
+    </button>}
+    <p className="provenance">Membership of this group is a curated judgement, not something any filing states. Each line starts at $10,000 on the first week of the range. Companies with no price history held are left out rather than shown flat.</p>
+  </div>;
+}
+
+/**
+ * The funds on the chart above, each linking to its own page.
+ *
+ * The chart names them in a legend that cannot be clicked, so a reader who
+ * wanted the fees, risk figures or composition of one of them had nowhere to go.
+ */
+function FundLinks({ tickers, primary }: { tickers: string[]; primary: string }) {
+  if (!tickers.length) return null;
+  return <p className="provenance">
+    Open a fund for its fees, risk figures and holdings:{" "}
+    {tickers.map((ticker, index) => <span key={ticker}>
+      {index > 0 ? " · " : ""}
+      <Link href={`/etf/${ticker}`}>{ticker}</Link>{ticker === primary ? " (primary)" : ""}
+    </span>)}
+  </p>;
+}
+
+/** A short line saying what a feed is and how current it can be. */
+function FeedNote({ children }: { children: React.ReactNode }) {
+  return children ? <p className="provenance feed-note">{children}</p> : null;
 }
 
 const COMPS_DEFINITION = "Every company held by this sector's fund that files with the SEC, with the figures it reported for its most recent period. The sector rows at the top are percentiles across those companies, so you can see where any one of them sits against its peers.";
@@ -805,7 +926,7 @@ function CompsTable({ rows }: { rows: CompRow[] }) {
   const summaries = [
     { ticker: "Sector 25th percentile", q: .25 }, { ticker: "Sector median", q: .5 }, { ticker: "Sector 75th percentile", q: .75 },
   ];
-  return <div className="data-table-wrap"><table><thead><tr><th onClick={() => setSortKey("ticker")}>Company</th><th>Period</th>{metrics.map((metric) => <th key={metric} onClick={() => setSortKey(metric)}>{METRIC_LABELS[metric] ?? metric}</th>)}</tr></thead><tbody>{summaries.map((summary) => <tr key={summary.ticker}><td><strong>{summary.ticker}</strong></td><td>—</td>{metrics.map((metric) => { const value = quantile(rows.map((row) => typeof row[metric] === "number" ? row[metric] as number : null), summary.q); return <td key={metric}>{metric === "marketCap" ? value === null ? "—" : money(value) : percent(value)}</td>; })}</tr>)}{ordered.map((row) => <tr key={row.ticker}><td>{row.ticker}</td><td>{row.period}</td><td>{row.marketCap === null ? "—" : money(row.marketCap)}</td><td>{percent(row.revenueGrowth)}</td><td>{percent(row.grossMargin)}</td><td>{percent(row.operatingMargin)}</td><td>{percent(row.netMargin)}</td></tr>)}</tbody></table></div>;
+  return <div className="data-table-wrap"><table><thead><tr><th onClick={() => setSortKey("ticker")}>Company</th><th>Period</th>{metrics.map((metric) => <th key={metric} onClick={() => setSortKey(metric)}>{METRIC_LABELS[metric] ?? metric}</th>)}</tr></thead><tbody>{summaries.map((summary) => <tr key={summary.ticker}><td><strong>{summary.ticker}</strong></td><td>—</td>{metrics.map((metric) => { const value = quantile(rows.map((row) => typeof row[metric] === "number" ? row[metric] as number : null), summary.q); return <td key={metric}>{metric === "marketCap" ? value === null ? "—" : money(value) : percent(value)}</td>; })}</tr>)}{ordered.map((row) => <tr key={row.ticker}><td><Link href={`/company/${row.ticker}`}>{row.ticker}</Link></td><td>{row.period}</td><td>{row.marketCap === null ? "—" : money(row.marketCap)}</td><td>{percent(row.revenueGrowth)}</td><td>{percent(row.grossMargin)}</td><td>{percent(row.operatingMargin)}</td><td>{percent(row.netMargin)}</td></tr>)}</tbody></table></div>;
 }
 
 function MacroChart({ meta, points }: { meta: MacroMeta; points: SeriesPoint[] }) {

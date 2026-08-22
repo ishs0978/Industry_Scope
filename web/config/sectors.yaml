@@ -197,3 +197,21 @@ sectors:
     news_keywords: [freight transport, shipping industry, logistics, cargo airline]
     sic_prefixes: ['40', '42', '44', '45']
     naics_code: '483'
+
+  - slug: bonds
+    name: Bonds
+    aliases: [fixed income, treasuries, investment grade credit, corporate bonds]
+    primary_etf: AGG
+    comparison_etfs: [BND, TLT, LQD]
+    news_keywords: [bond market, treasury yields, corporate bonds, fixed income]
+    sic_prefixes: []
+    naics_code: '523'
+
+  - slug: municipal-bonds
+    name: Municipal Bonds
+    aliases: [munis, tax-exempt bonds, state and local debt]
+    primary_etf: MUB
+    comparison_etfs: [VTEB, TFI]
+    news_keywords: [municipal bonds, municipal debt, tax-exempt bonds, state budget]
+    sic_prefixes: []
+    naics_code: '921'

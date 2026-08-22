@@ -134,3 +134,28 @@ def test_single_keyword_needs_no_parentheses():
         FakeSector("single", ("semiconductor",))
     )
     assert query == '"semiconductor"'
+
+
+def test_a_keyword_too_short_for_gdelt_does_not_fail_the_whole_query():
+    from ingest.registry import load_sectors
+    from ingest.sources.gdelt import query_for_sector
+
+    by_slug = {sector.slug: sector for sector in load_sectors()}
+    # GDELT answers "The specified phrase is too short." for a phrase under five
+    # characters and returns nothing at all, so one short keyword cost these two
+    # sectors every article they ever had.
+    software = query_for_sector(by_slug["software-cloud"])
+    assert "SaaS" not in software
+    assert '"cloud computing"' in software
+    real_estate = query_for_sector(by_slug["real-estate"])
+    assert "REIT" not in real_estate
+    assert real_estate.startswith("(") and real_estate.endswith(")")
+
+
+def test_every_sector_can_build_a_gdelt_query():
+    from ingest.registry import load_sectors
+    from ingest.sources.gdelt import query_for_sector
+
+    for sector in load_sectors():
+        query = query_for_sector(sector)
+        assert query and "OR" not in query or query.startswith("(")

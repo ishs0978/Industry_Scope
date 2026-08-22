@@ -1,0 +1,50 @@
+# Named groups of companies that cut across the sector registry.
+#
+# The sector registry answers "which fund tracks this industry". These answer
+# "which companies are people actually talking about", which is a different
+# question and one the holdings data cannot answer on its own: the issuer files
+# carry a sub_sector column but every value in it is literally "-".
+#
+# So these are curated, and being curated they are opinions about membership,
+# not facts from a filing. The site labels them that way. A ticker listed here
+# still only appears if a fund the site tracks holds it, so nothing here invents
+# coverage that does not exist.
+groups:
+  - slug: mag7
+    name: Magnificent 7
+    sector: technology
+    blurb: >-
+      The seven companies that drive most of the S&P 500's movement by weight.
+      The grouping is a market convention rather than an index with rules, and
+      membership is a matter of common usage.
+    tickers: [AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA]
+
+  - slug: ai-semiconductors
+    name: AI semiconductors
+    sector: ai-robotics
+    blurb: >-
+      Companies designing the processors that training and inference run on.
+    tickers: [NVDA, AMD, AVGO, INTC, QCOM, MU, TXN, ADI, MRVL, ARM]
+
+  - slug: ai-equipment
+    name: Chip equipment and fabrication
+    sector: ai-robotics
+    blurb: >-
+      The tools and foundries without which none of the above gets built. This
+      is the most concentrated link in the chain.
+    tickers: [ASML, AMAT, LRCX, KLAC, TSM, TER, ENTG]
+
+  - slug: ai-datacentre
+    name: Data centre and power
+    sector: ai-robotics
+    blurb: >-
+      The buildings, networking and electricity that AI compute consumes.
+      Several of these are utilities and REITs rather than technology companies.
+    tickers: [EQIX, DLR, VRT, ANET, SMCI, CEG, VST, NRG, ETN, PWR]
+
+  - slug: ai-platforms
+    name: Cloud and model platforms
+    sector: ai-robotics
+    blurb: >-
+      The companies renting the compute out and selling what runs on it.
+    tickers: [MSFT, GOOGL, AMZN, META, ORCL, CRM, NOW, PLTR, SNOW]
