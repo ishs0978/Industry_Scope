@@ -493,11 +493,17 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
     () => [...describedEvents(payload.events, start, end)].sort((a, b) => b.start_date.localeCompare(a.start_date)),
     [payload.events, start, end],
   );
+  // The window ends on the last trading day, because that is the last day the
+  // price series has. News does not stop on a market holiday: articles filed
+  // after the close were being dropped, which hid the whole live feed behind
+  // month-old headlines. When the reader has not deliberately picked an earlier
+  // end, coverage runs to the present instead.
+  const coverageEnd = end >= maxEnd ? "9999-12-31" : end;
   const coverage = useMemo(
     () => payload.headlines
-      .filter((item) => item.published_date.slice(0, 10) >= start && item.published_date.slice(0, 10) <= end)
+      .filter((item) => item.published_date.slice(0, 10) >= start && item.published_date.slice(0, 10) <= coverageEnd)
       .sort((a, b) => b.published_date.localeCompare(a.published_date)),
-    [payload.headlines, start, end],
+    [payload.headlines, start, coverageEnd],
   );
   // The list had no cap, so a 3-year window rendered hundreds of items and the
   // page became unscrollable.
