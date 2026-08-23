@@ -70,11 +70,15 @@ function Explore(
       <div className="explore-col">
         <h3>Largest companies</h3>
         <p>Valuation, analyst targets, reported margins and yearly returns. Every company in a fund has a page; these are the biggest.</p>
-        <div className="explore-links">
-          {companies.map((company) => <Link href={`/company/${company.ticker}`} key={company.ticker} title={company.name ?? company.ticker}>
-            {company.ticker}
-          </Link>)}
-        </div>
+        {companies.length
+          ? <div className="explore-links">
+              {companies.map((company) => <Link href={`/company/${company.ticker}`} key={company.ticker} title={company.name ?? company.ticker}>
+                {company.ticker}
+              </Link>)}
+            </div>
+          // An empty row reads as a broken column rather than a missing list.
+          // Say which source is absent, the same way every other panel does.
+          : <p className="grid-note">Company rankings need market caps from the database, which is unavailable. Open any sector and its companies are still listed there.</p>}
       </div>
     </div>
   </section>;
