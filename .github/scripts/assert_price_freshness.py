@@ -19,7 +19,9 @@ MAX_AGE_DAYS = 4
 
 
 def main() -> int:
-    database_url = os.environ.get("DATABASE_URL")
+    # Trimmed: a connection string pasted into a secrets field picks up a
+    # trailing newline, which Postgres reads as part of sslmode.
+    database_url = (os.environ.get("DATABASE_URL") or "").strip()
     if not database_url:
         print("DATABASE_URL is required", file=sys.stderr)
         return 1

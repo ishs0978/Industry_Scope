@@ -42,7 +42,9 @@ def emit(should_run: bool, reason: str) -> int:
 def main() -> int:
     if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
         return emit(True, "manual dispatch")
-    database_url = os.environ.get("DATABASE_URL")
+    # Trimmed: a connection string pasted into a secrets field picks up a
+    # trailing newline, which Postgres reads as part of sslmode.
+    database_url = (os.environ.get("DATABASE_URL") or "").strip()
     if not database_url:
         print("DATABASE_URL is required", file=sys.stderr)
         return 1
