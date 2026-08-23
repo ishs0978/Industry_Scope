@@ -30,6 +30,13 @@ MAX_SECONDS = float(os.environ.get("COMPANY_PRICES_MAX_SECONDS", "1500"))
 # A ticker Yahoo does not know returns an empty frame every run. Tracking them
 # is what keeps a delisted constituent from being retried forever.
 MAX_META_PER_RUN = int(os.environ.get("COMPANY_META_PER_RUN", "120"))
+# Yahoo reports dividendYield as a percentage, so 3.47 means 3.47%. Stored raw
+# and rendered as a percentage it came out as 347%, which is the same unit error
+# the ETF expense ratio already had. Store the fraction, and reject anything
+# outside a band a real yield can occupy rather than showing a confident wrong
+# number: above 25% is not a yield, it is a broken field or a company about to
+# cut it.
+MAX_DIVIDEND_YIELD = 0.25
 META_FLUSH_EVERY = int(os.environ.get("COMPANY_META_FLUSH_EVERY", "50"))
 
 
@@ -129,11 +136,20 @@ def meta_row(ticker: str, info: dict[str, Any], today: date) -> tuple[Any, ...] 
         ticker, number(info.get("marketCap")), today,
         (info.get("shortName") or info.get("longName") or None),
         number(info.get("trailingPE")), number(info.get("forwardPE")),
-        number(info.get("priceToBook")), number(info.get("dividendYield")),
+        number(info.get("priceToBook")), dividend_yield(info.get("dividendYield")),
         number(info.get("targetMeanPrice")),
         int(count) if isinstance(count, (int, float)) and count else None,
         (info.get("recommendationKey") or None),
     )
+
+
+def dividend_yield(value: Any) -> float | None:
+    """Yahoo's percentage as a fraction, or nothing if it is not a plausible yield."""
+    percent = number(value)
+    if percent is None or percent < 0:
+        return None
+    fraction = percent / 100
+    return fraction if fraction <= MAX_DIVIDEND_YIELD else None
 
 
 def stale_meta_tickers(connection: Any, tickers: Iterable[str], limit: int) -> list[str]:

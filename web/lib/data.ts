@@ -2,12 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import postgres from "postgres";
 import YAML from "yaml";
-import { fundByTicker, groupsForSector, sectorBySlug, type CompanyGroup } from "./registry";
+import {
+  fundByTicker, fundGroupsForSector, groupsForSector, sectorBySlug,
+  type CompanyGroup, type FundGroup,
+} from "./registry";
 import { packFormD } from "./formd";
 import { packRows } from "./wire";
 import { MACRO_POINT_COLUMNS, PRICE_COLUMNS } from "./types";
 import type {
-  CompanyPayload, GroupMember, SectorGroup, EtfPayload, FundHolder, IndustryPayload, MacroPoint, Price,
+  CompanyPayload, FundComparison, GroupFundExposure, GroupMember, SectorGroup, EtfPayload, FundHolder, IndustryPayload, MacroPoint, Price,
   WireIndustryPayload, Sector, SourceError,
 } from "./types";
 
@@ -66,7 +69,7 @@ function emptyPayload(sector: Sector, reason = EMPTY_SOURCE_REASON): WireIndustr
   return {
     sector, prices: packRows<Price>(PRICE_COLUMNS, []), etfMeta: [], holdings: [],
     macro: { meta: [], series: packRows<MacroPoint>(MACRO_POINT_COLUMNS, []) },
-    companyFacts: [], companyMeta: [], formD: packFormD([]), groups: [], headlines: [], newsVolume: [], events: [],
+    companyFacts: [], companyMeta: [], formD: packFormD([]), groups: [], fundComparisons: [], headlines: [], newsVolume: [], events: [],
     freshness: [], errors: [{ source: "Neon Postgres", reason }],
   };
 }
@@ -185,10 +188,12 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
   const errors: SourceError[] = [];
   const sectorGroups = groupsForSector(slug);
   const groupTickers = [...new Set(sectorGroups.flatMap((group) => group.tickers))];
+  const comparisons = fundGroupsForSector(slug);
+  const comparisonTickers = [...new Set(comparisons.flatMap((group) => group.tickers))];
   try {
     const [
       prices, etfMeta, holdings, macroMeta, macroSeries, companyFacts, companyMeta,
-      formD, headlines, newsVolume, events, freshness, groupWeekly, groupMeta,
+      formD, headlines, newsVolume, events, freshness, groupWeekly, groupMeta, groupHoldings, comparisonPrices,
     ] = await Promise.all([
       sql`SELECT ticker,date::text AS date,adj_close::float,close::float,volume FROM prices WHERE ticker = ANY(${tickers}) ORDER BY date`,
       sql`SELECT ticker,name,expense_ratio::float,aum::float,issuer,as_of,holdings_status,holdings_error FROM etf_meta WHERE ticker = ANY(${tickers})`,
@@ -238,6 +243,21 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
       groupTickers.length
         ? sql`SELECT ticker,name,market_cap::float FROM company_meta WHERE ticker = ANY(${groupTickers})`
         : Promise.resolve([]),
+      // How much of each tracked fund these companies actually are. Only the
+      // newest snapshot that passed validation counts, so a fund never reports
+      // an exposure built from a half-parsed holdings file.
+      groupTickers.length
+        ? sql`SELECT h.fund_ticker, h.constituent_ticker, h.weight::float, h.as_of::text AS as_of
+              FROM holdings h
+              WHERE h.constituent_ticker = ANY(${groupTickers}) AND h.as_of = (
+                SELECT as_of FROM holdings WHERE fund_ticker = h.fund_ticker
+                GROUP BY as_of HAVING count(*) >= 5 AND sum(weight) BETWEEN 0.98 AND 1.02
+                ORDER BY as_of DESC LIMIT 1)`
+        : Promise.resolve([]),
+      comparisonTickers.length
+        ? sql`SELECT ticker,date::text AS date,adj_close::float FROM prices
+              WHERE ticker = ANY(${comparisonTickers}) ORDER BY ticker,date`
+        : Promise.resolve([]),
     ]);
     for (const run of freshness) {
       if (run.status === "failed") errors.push({ source: run.source, reason: run.error_message ?? "Last ingest failed" });
@@ -276,7 +296,8 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
       macro: { ...macro, series: packRows(MACRO_POINT_COLUMNS, macro.series) },
       companyFacts, companyMeta,
       formD: packFormD(formD as unknown as IndustryPayload["formD"]),
-      groups: assembleGroups(sectorGroups, groupWeekly as never, groupMeta as never),
+      groups: assembleGroups(sectorGroups, groupWeekly as never, groupMeta as never, groupHoldings as never),
+      fundComparisons: assembleComparisons(comparisons, comparisonPrices as never),
       headlines, newsVolume, events, freshness, errors,
     } as unknown as WireIndustryPayload);
   } catch (error) {
@@ -440,6 +461,7 @@ function assembleGroups(
   groups: CompanyGroup[],
   weekly: { ticker: string; week_ending: string; adj_close: number }[],
   meta: { ticker: string; name: string | null; market_cap: number | null }[],
+  holdings: { fund_ticker: string; constituent_ticker: string; weight: number; as_of: string }[],
 ): SectorGroup[] {
   if (!groups.length) return [];
   const byTicker = new Map<string, { date: string; value: number }[]>();
@@ -452,6 +474,7 @@ function assembleGroups(
   return groups
     .map((group) => ({
       slug: group.slug, name: group.name, blurb: group.blurb,
+      funds: fundExposure(group.tickers, holdings),
       members: group.tickers
         .map((ticker): GroupMember | null => {
           const points = byTicker.get(ticker);
@@ -462,4 +485,54 @@ function assembleGroups(
         .filter((member): member is GroupMember => member !== null),
     }))
     .filter((group) => group.members.length > 0);
+}
+
+
+/**
+ * How much of each fund a group of companies makes up.
+ *
+ * Asking which funds give exposure to a group is a different question from
+ * which companies are in it, and it is the one a reader wanting to own the
+ * group actually has. Only funds whose composition parsed are here, so a fund
+ * with no published holdings is absent rather than shown at zero.
+ */
+function fundExposure(
+  tickers: string[],
+  holdings: { fund_ticker: string; constituent_ticker: string; weight: number; as_of: string }[],
+): GroupFundExposure[] {
+  const wanted = new Set(tickers);
+  const byFund = new Map<string, { weight: number; members: number; as_of: string }>();
+  for (const row of holdings) {
+    if (!wanted.has(row.constituent_ticker)) continue;
+    const current = byFund.get(row.fund_ticker) ?? { weight: 0, members: 0, as_of: row.as_of };
+    current.weight += row.weight;
+    current.members += 1;
+    byFund.set(row.fund_ticker, current);
+  }
+  return [...byFund.entries()]
+    .map(([fund_ticker, value]) => ({ fund_ticker, ...value }))
+    .sort((a, b) => b.weight - a.weight);
+}
+
+
+/** Funds charted together, keeping only those with a price history held. */
+function assembleComparisons(
+  groups: FundGroup[],
+  prices: { ticker: string; date: string; adj_close: number }[],
+): FundComparison[] {
+  if (!groups.length) return [];
+  const byTicker = new Map<string, { date: string; value: number }[]>();
+  for (const row of prices) {
+    const points = byTicker.get(row.ticker) ?? [];
+    points.push({ date: row.date, value: row.adj_close });
+    byTicker.set(row.ticker, points);
+  }
+  return groups
+    .map((group) => ({
+      slug: group.slug, name: group.name, blurb: group.blurb,
+      series: group.tickers
+        .map((ticker) => ({ ticker, points: byTicker.get(ticker) ?? [] }))
+        .filter((entry) => entry.points.length > 1),
+    }))
+    .filter((group) => group.series.length > 1);
 }

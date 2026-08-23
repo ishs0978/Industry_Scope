@@ -17,7 +17,7 @@ import { validatedFundHoldings } from "@/lib/holdings";
 import { coIssuerLabel, coverageNote, debtSplit, formDCounts, groupOfferings, totalRaised, unpackFormD, type Coverage, type DebtSplit, type FormDCounts, type Offering } from "@/lib/formd";
 import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatSignedPercent as signedPercent, formatUnitValue as unitValue, isStale, readableError, relativeTime, stamp, stampDate } from "@/lib/format";
 import { unpackRows } from "@/lib/wire";
-import type { IndustryPayload, MacroMeta, SectorGroup, WireIndustryPayload } from "@/lib/types";
+import type { FundComparison, IndustryPayload, MacroMeta, SectorGroup, WireIndustryPayload } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
 
 const COLORS = ["#1d6b4d", "#143142", "#b97816", "#7d5a91", "#a4463f"];
@@ -624,6 +624,13 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       </>}
     </section>
 
+    {payload.fundComparisons.length > 0 && <section className="panel" id="comparison">
+      <SectionHead index="01b" title="Against the alternatives" term="Funds from other sectors"
+        description="The same money could sit in a different asset entirely. These funds live on their own pages; this puts them on one axis so the choice between them can be seen."
+        asOf={asOfLabel(payload.fundComparisons.flatMap((c) => c.series.flatMap((s) => s.points.map((p) => p.date))))} />
+      {payload.fundComparisons.map((comparison) => <FundComparisonPanel key={comparison.slug} comparison={comparison} start={start} end={end} />)}
+    </section>}
+
     {payload.groups.length > 0 && <section className="panel" id="groups">
       <SectionHead index="02b" title="Groups worth watching" term="Curated company groups"
         description="Companies grouped by what they actually do, cutting across the fund that happens to hold them. These groupings are curated rather than taken from a filing, because the issuer holdings files carry no usable sub-sector of their own."
@@ -706,6 +713,53 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
 }
 
 /**
+ * Funds from different sectors on one axis.
+ *
+ * Bonds, municipals and property each live on their own page, but a reader
+ * deciding where income should sit is comparing them against each other, and
+ * that comparison had nowhere to happen.
+ */
+function FundComparisonPanel(
+  { comparison, start, end }: { comparison: FundComparison; start: string; end: string },
+) {
+  const chart = useMemo(() => {
+    const byDate = new Map<string, Record<string, number | string>>();
+    for (const entry of comparison.series) {
+      const windowed = entry.points.filter((point) => point.date >= start && point.date <= end);
+      for (const point of investmentValue(windowed, 10_000)) {
+        const row = byDate.get(point.date) ?? { date: point.date };
+        row[entry.ticker] = point.value;
+        byDate.set(point.date, row);
+      }
+    }
+    return [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  }, [comparison.series, start, end]);
+
+  return <div className="chart-shell" style={{ marginTop: 20 }}>
+    <ChartHeading title={comparison.name} term="Growth of $10,000, dividends reinvested" />
+    <p className="panel-description">{comparison.blurb}</p>
+    {chart.length > 1
+      ? <ResponsiveContainer width="100%" height={300}><LineChart data={chart}>
+          <CartesianGrid stroke="#e4e6df" vertical={false} />
+          <XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} tickFormatter={axisDate} />
+          <YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} />
+          <Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} />
+          <Legend />
+          {comparison.series.map((entry, index) => <Line key={entry.ticker} dataKey={entry.ticker}
+            dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={1.6} />)}
+        </LineChart></ResponsiveContainer>
+      : <ChartEmpty source="Prices" />}
+    <div className="data-table-wrap"><table>
+      <thead><tr><th>Fund</th><th>Return in range</th></tr></thead>
+      <tbody>{comparison.series.map((entry) => <tr key={entry.ticker}>
+        <td><Link href={`/etf/${entry.ticker}`}>{entry.ticker}</Link></td>
+        <td>{percent(cumulativeReturn(entry.points.filter((point) => point.date >= start && point.date <= end)))}</td>
+      </tr>)}</tbody>
+    </table></div>
+  </div>;
+}
+
+/**
  * A named group of companies, charted together and listed with their weights.
  *
  * The sector registry answers which fund tracks an industry. It cannot answer
@@ -767,6 +821,19 @@ function CompanyGroupPanel({ group, start, end }: { group: SectorGroup; start: s
     {members.length > 6 && <button className="chip show-more" onClick={() => setOpen(!open)}>
       {open ? "Show fewer" : `Show all ${members.length}`}
     </button>}
+    {group.funds.length > 0 && <>
+      <ChartHeading title="Funds holding this group" term="Share of each fund, latest validated file" />
+      <div className="data-table-wrap"><table>
+        <thead><tr><th>Fund</th><th>Share of the fund</th><th>Members held</th><th>As of</th></tr></thead>
+        <tbody>{group.funds.map((row) => <tr key={row.fund_ticker}>
+          <td><Link href={`/etf/${row.fund_ticker}`}>{row.fund_ticker}</Link></td>
+          <td>{percent(row.weight)}</td>
+          <td>{row.members} of {group.members.length}</td>
+          <td>{row.as_of}</td>
+        </tr>)}</tbody>
+      </table></div>
+      <p className="provenance">Owning one of these funds is how a reader gets this group without buying each company. Only funds whose published holdings file parsed to a full portfolio appear, so a fund with no usable file is absent rather than shown at zero.</p>
+    </>}
     <p className="provenance">Membership of this group is a curated judgement, not something any filing states. Each line starts at $10,000 on the first week of the range. Companies with no price history held are left out rather than shown flat.</p>
   </div>;
 }

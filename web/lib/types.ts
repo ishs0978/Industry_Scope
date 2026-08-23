@@ -38,8 +38,17 @@ export type GroupMember = {
   /** Weekly closes, so a group chart can be drawn without daily company bars. */
   weekly: { date: string; value: number }[];
 };
+/** A fund's exposure to a group: how much of it the group makes up. */
+export type GroupFundExposure = { fund_ticker: string; weight: number; members: number; as_of: string };
 export type SectorGroup = {
   slug: string; name: string; blurb: string; members: GroupMember[];
+  /** Which tracked funds hold this group, and how heavily. */
+  funds: GroupFundExposure[];
+};
+
+export type FundComparison = {
+  slug: string; name: string; blurb: string;
+  series: { ticker: string; points: { date: string; value: number }[] }[];
 };
 
 export type CompanyWeek = { ticker: string; week_ending: string; adj_close: number };
@@ -139,6 +148,7 @@ export type IndustryPayload = {
   companyMeta: CompanyMeta[];
   formD: FormD[];
   groups: SectorGroup[];
+  fundComparisons: FundComparison[];
   headlines: Headline[];
   newsVolume: NewsPoint[];
   events: CuratedEvent[];

@@ -37,7 +37,7 @@ function payload(overrides: Partial<IndustryPayload> = {}): IndustryPayload {
     companyMeta: [{ ticker: "XOM", market_cap: 5e11, as_of: "2026-01-07", name: "Exxon Mobil",
       trailing_pe: null, forward_pe: null, price_to_book: null, dividend_yield: null,
       target_mean_price: null, analyst_count: null, recommendation: null }],
-    formD: [], groups: [], headlines: [
+    formD: [], groups: [], fundComparisons: [], headlines: [
       { id: "h1", sector_slug: "energy", published_date: "2026-01-06T14:31:00Z", source: "NYT", headline: "Pipeline news", abstract: null, section: "Business", url: "https://example.test" },
     ],
     newsVolume: [],
