@@ -62,6 +62,20 @@ use API keys. API credentials belong in GitHub Actions secrets only. The web
 deployment receives `DATABASE_URL` only. Never expose ingest keys to the
 browser or prefix them with `NEXT_PUBLIC_`.
 
+### Rebuilding the database from scratch
+
+Nothing in the database is original: every row is derived from SEC, Yahoo, FRED,
+EIA, BLS, GDELT or NYT. Moving to another Postgres provider, or recovering from
+losing the database entirely, is therefore a re-ingest rather than a restore:
+
+```bash
+DATABASE_URL=postgres://... scripts/bootstrap_database.sh
+```
+
+It takes roughly two hours, most of it the SEC quarterly Form D files. Stages run
+in dependency order and each is idempotent, so a failure part way through is
+resumed by running it again.
+
 Copy `.env.example` to `.env` for local values. The Python application does not
 implicitly load `.env`; export it explicitly or use your preferred secret
 manager.
