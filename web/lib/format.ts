@@ -114,3 +114,72 @@ export function formatUnitValue(value: number, units?: string | null): string {
   if (/\b(?:usd|dollars?)\b/i.test(label)) return `$${formatNumber(value)}`;
   return `${formatNumber(value)} ${label}`;
 }
+
+
+/**
+ * US state and country names for the codes EDGAR uses on Form D.
+ *
+ * The filing carries a two-character code, and the table printed it raw: rows
+ * reading D0, A8, X0 and G7, which mean nothing to a reader. The state codes
+ * are postal; the letter-digit codes are EDGAR's own country list.
+ */
+const EDGAR_PLACES: Record<string, string> = {
+  A0: "Alberta", A1: "British Columbia", A2: "Manitoba", A3: "New Brunswick",
+  A4: "Newfoundland", A5: "Nova Scotia", A6: "Ontario", A7: "Prince Edward Island",
+  A8: "Quebec", A9: "Saskatchewan", B0: "Yukon", B2: "Israel", B3: "Australia",
+  C3: "China", D0: "Germany", D8: "Guernsey", E9: "France", F4: "Ireland",
+  G7: "Jersey", H6: "Luxembourg", K3: "Netherlands", L3: "Singapore",
+  L6: "Spain", N4: "Switzerland", U0: "United Kingdom", X0: "United Kingdom",
+  Y6: "Cayman Islands", Y7: "British Virgin Islands", Y8: "Bermuda",
+  Z4: "Canada", B0X: "Yukon",
+};
+
+export function placeName(code: string | null | undefined): string {
+  const value = (code ?? "").trim().toUpperCase();
+  if (!value) return "—";
+  // A real postal abbreviation is two letters; EDGAR's country codes mix a
+  // letter with a digit, which is how you can tell them apart.
+  if (/^[A-Z]{2}$/.test(value)) return value;
+  return EDGAR_PLACES[value] ?? value;
+}
+
+/**
+ * "1 filing", "2 filings" — agreeing the verb as well as the noun.
+ *
+ * The generated prose read "1 filing restate an offering" and "1 offering
+ * appear here only as amendments, their originals...", which is the kind of
+ * thing that makes a careful page look careless.
+ */
+export function plural(count: number, singular: string, pluralForm?: string): string {
+  return `${count.toLocaleString()} ${count === 1 ? singular : (pluralForm ?? `${singular}s`)}`;
+}
+
+export function verb(count: number, singular: string, pluralForm: string): string {
+  return count === 1 ? singular : pluralForm;
+}
+
+
+/**
+ * Ticks that land in distinct months.
+ *
+ * The axis formatter renders any date in September 2025 as "Sep 25", and the
+ * chart library spaces ticks by pixels, so two ticks a fortnight apart both
+ * read "Sep 25" and the axis looks broken while the series behind it is fine.
+ * Choosing the ticks explicitly, one per month at most, removes the collision
+ * rather than papering over it.
+ */
+export function distinctMonthTicks(dates: string[], target = 8): string[] {
+  if (dates.length <= target) return dates;
+  const step = Math.max(1, Math.floor(dates.length / target));
+  const seen = new Set<string>();
+  const picked: string[] = [];
+  for (let index = 0; index < dates.length; index += step) {
+    const month = dates[index].slice(0, 7);
+    if (seen.has(month)) continue;
+    seen.add(month);
+    picked.push(dates[index]);
+  }
+  const last = dates.at(-1)!;
+  if (!seen.has(last.slice(0, 7))) picked.push(last);
+  return picked;
+}

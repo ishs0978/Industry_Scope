@@ -58,6 +58,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npm run export-data
 
+      # The export succeeding says the queries ran, not that what they returned
+      # is publishable. This reads the written payloads and fails on the states
+      # that reached the live site looking like data: a negative-weight future
+      # listed as a holding, a four-figure margin, percentiles from one company.
+      - name: Check the exported data
+        run: npm run check-export
+
       - name: Deploy to production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

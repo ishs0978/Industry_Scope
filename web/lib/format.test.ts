@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, formatNumber, formatPercent, formatPrice, formatPriceChange, formatSignedPercent, formatUnitValue, isStale, readableError, relativeTime, stamp, stampDate } from "./format";
+import { formatMoney, formatNumber, formatPercent, formatPrice, formatPriceChange, formatSignedPercent, formatUnitValue, isStale, readableError, relativeTime, stamp, stampDate, placeName, plural, verb, distinctMonthTicks } from "./format";
 
 describe("numeric presentation", () => {
   it("limits displayed values to two decimal places", () => {
@@ -88,5 +88,59 @@ describe("signed percent and readable errors", () => {
     expect(readableError("Issuer feed returned HTML")).toBe("Issuer feed returned HTML");
     expect(readableError(null)).toBe("Last ingest failed");
     expect(readableError("SourceUnavailable:")).toBe("Last ingest failed");
+  });
+});
+
+describe("EDGAR place codes", () => {
+  it("names the countries behind the codes the filing carries", () => {
+    // The Form D table printed these raw: D0, A8, X0, G7 mean nothing to a
+    // reader, and they are not typos.
+    expect(placeName("D0")).toBe("Germany");
+    expect(placeName("A8")).toBe("Quebec");
+    expect(placeName("X0")).toBe("United Kingdom");
+    expect(placeName("G7")).toBe("Jersey");
+    expect(placeName("F4")).toBe("Ireland");
+  });
+
+  it("leaves a real postal abbreviation alone", () => {
+    expect(placeName("NY")).toBe("NY");
+    expect(placeName("TX")).toBe("TX");
+  });
+
+  it("shows an unknown code rather than dropping it", () => {
+    expect(placeName("Q9")).toBe("Q9");
+    expect(placeName(null)).toBe("—");
+    expect(placeName("")).toBe("—");
+  });
+});
+
+describe("pluralisation", () => {
+  it("agrees the noun and the verb", () => {
+    // "1 filing restate an offering" and "1 of these have been amended" both
+    // shipped.
+    expect(plural(1, "filing")).toBe("1 filing");
+    expect(plural(2, "filing")).toBe("2 filings");
+    expect(`${plural(1, "filing")} ${verb(1, "restates", "restate")}`).toBe("1 filing restates");
+    expect(`${plural(3, "filing")} ${verb(3, "restates", "restate")}`).toBe("3 filings restate");
+  });
+});
+
+describe("axis ticks", () => {
+  it("never renders two ticks in the same month", () => {
+    // The formatter shows "Sep 25" for any September date, so two ticks a
+    // fortnight apart both read the same and the axis looks broken.
+    const dates: string[] = [];
+    for (let day = 0; day < 400; day += 1) {
+      dates.push(new Date(Date.UTC(2025, 8, 1) + day * 86400000).toISOString().slice(0, 10));
+    }
+    const ticks = distinctMonthTicks(dates);
+    const months = ticks.map((tick) => tick.slice(0, 7));
+    expect(new Set(months).size).toBe(months.length);
+    expect(ticks.at(-1)).toBe(dates.at(-1));
+  });
+
+  it("leaves a short series alone", () => {
+    const dates = ["2026-01-01", "2026-02-01", "2026-03-01"];
+    expect(distinctMonthTicks(dates)).toEqual(dates);
   });
 });

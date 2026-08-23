@@ -29,6 +29,22 @@ def load_series_map(path: Path = MAP_PATH) -> dict[str, dict[str, str]]:
     return unique
 
 
+# How far behind a series is allowed to fall before it is worth reporting. A
+# discontinued series does not error and does not disappear: HLTHSCPCHCSA kept
+# serving its last observation from 2021 while its panel read as current, and
+# nothing in the run said so.
+MAX_LAG_DAYS = {"Daily": 10, "Weekly": 21, "Monthly": 75, "Quarterly": 200, "Annual": 550}
+DEFAULT_MAX_LAG_DAYS = 400
+
+
+def is_stale(newest: date | None, frequency: str | None, today: date) -> bool:
+    """Whether a series has stopped being updated at its own publication pace."""
+    if newest is None:
+        return True
+    allowance = MAX_LAG_DAYS.get((frequency or "").strip().title(), DEFAULT_MAX_LAG_DAYS)
+    return (today - newest).days > allowance
+
+
 def validate_series(session: requests.Session, api_key: str, series_id: str) -> dict[str, Any] | None:
     response = session.get(
         f"{FRED_API}/series",
@@ -64,6 +80,8 @@ def run(connection: Any) -> None:
             raise SourceUnavailable("FRED_API_KEY is not set")
         session = requests.Session()
         invalid: list[str] = []
+        stale: dict[str, str] = {}
+        configured_ids = set(load_series_map())
         for series_id, configured in load_series_map().items():
             metadata = validate_series(session, api_key, series_id)
             if metadata is None:
@@ -112,4 +130,26 @@ def run(connection: Any) -> None:
                     ),
                 )
             connection.commit()
-        result.details = {"invalid_series_dropped": invalid}
+            newest = max((date.fromisoformat(item["date"]) for item in observations
+                          if item.get("date")), default=None)
+            frequency = metadata.get("frequency") or configured.get("frequency")
+            if is_stale(newest, frequency, date.today()):
+                stale[series_id] = newest.isoformat() if newest else "no observations"
+
+        # A series swapped out of the config keeps its rows and its panel unless
+        # something removes them, so the page went on showing the series the
+        # config no longer names.
+        removed: list[str] = []
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT series_id FROM macro_meta WHERE source = 'FRED'")
+            removed = [row[0] for row in cursor.fetchall() if row[0] not in configured_ids]
+            if removed:
+                cursor.execute("DELETE FROM macro_series WHERE series_id = ANY(%s)", (removed,))
+                cursor.execute("DELETE FROM macro_meta WHERE series_id = ANY(%s)", (removed,))
+        connection.commit()
+
+        result.details = {
+            "invalid_series_dropped": invalid,
+            "unconfigured_series_removed": removed,
+            "stale_series": stale,
+        }

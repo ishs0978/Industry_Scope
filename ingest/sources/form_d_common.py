@@ -177,7 +177,7 @@ INSERT INTO form_d (
     total_offering_amount, amount_sold, state, submission_type,
     previous_accession_no, industry_group, file_num, is_amendment,
     issuer_count, source, pooled_name_match,
-    is_equity_type, is_debt_type, is_option_to_acquire_type
+    is_equity_type, is_debt_type, is_option_to_acquire_type, issuer_ticker
 )
 SELECT
     s.accession_no,
@@ -202,7 +202,11 @@ SELECT
     -- gives the same answer whichever source the row came from.
     COALESCE(o.is_equity_type, false),
     COALESCE(o.is_debt_type, false),
-    COALESCE(o.is_option_to_acquire_type, false)
+    COALESCE(o.is_option_to_acquire_type, false),
+    -- A listed company placing securities privately files this same form, so
+    -- the panel named Roblox and Dillard's under a heading about private
+    -- companies. The SEC's own ticker registry settles which is which.
+    reporting.ticker
 FROM form_d_submission_raw s
 LEFT JOIN form_d_offering_raw o ON o.accession_no = s.accession_no
 LEFT JOIN LATERAL (
@@ -225,6 +229,8 @@ LEFT JOIN LATERAL (
     ORDER BY length(m.prefix) DESC
     LIMIT 1
 ) sic ON true
+LEFT JOIN reporting_companies reporting
+    ON reporting.cik = lpad(primary_issuer.cik, 10, '0')
 LEFT JOIN LATERAL (
     SELECT p.label
     FROM form_d_pooled_name p
@@ -325,16 +331,18 @@ def rebuild_derived(
         cursor.execute(
             """SELECT count(*), count(*) FILTER (WHERE issuer_count > 1),
                       count(DISTINCT file_num), count(*) FILTER (WHERE source = 'edgar'),
-                      count(*) FILTER (WHERE pooled_name_match IS NOT NULL)
+                      count(*) FILTER (WHERE pooled_name_match IS NOT NULL),
+                      count(*) FILTER (WHERE issuer_ticker IS NOT NULL)
                FROM form_d"""
         )
-        rows, co_issued, file_numbers, from_edgar, name_flagged = cursor.fetchone()
+        rows, co_issued, file_numbers, from_edgar, name_flagged, listed = cursor.fetchone()
     connection.commit()
     return {
         "staged_submissions": staged,
         "derived_rows": written,
         "excluded_or_unattributed_kept_in_staging": staged - written,
         "flagged_by_name_not_excluded": name_flagged,
+        "filed_by_listed_companies": listed,
         "accessions": rows,
         "co_issued_accessions": co_issued,
         "distinct_file_numbers": file_numbers,

@@ -284,7 +284,7 @@ export function coverageNote(coverage: Coverage, start: string, end: string): st
 
 
 export const FORM_D_COLUMNS = [
-  "accession_no", "filed_date", "cik", "issuer_name", "sic_code", "sector_slug",
+  "accession_no", "filed_date", "cik", "issuer_name", "sic_code", "sector_slug", "issuer_ticker",
   "total_offering_amount", "amount_sold", "state", "submission_type",
   "previous_accession_no", "industry_group", "file_num", "is_amendment",
   "issuer_count", "pooled_name_match", "is_equity_type", "is_debt_type",
@@ -294,3 +294,47 @@ export const FORM_D_COLUMNS = [
 export type PackedFormD = Packed<FormD>;
 export const packFormD = (rows: FormD[]): PackedFormD => packRows(FORM_D_COLUMNS, rows);
 export const unpackFormD = (packed: PackedFormD): FormD[] => unpackRows(packed);
+
+
+/**
+ * The offerings that have actually taken money.
+ *
+ * Zero is a real answer on Form D and 19,093 filings give it: the offering is
+ * declared and nothing has closed yet. Averaged in as a raise it answers a
+ * different question from the one the label asks, and it halves the result:
+ * Real Estate's median offering read $1.0m against the $2.59m typical of the
+ * offerings that have taken money.
+ */
+export function raisedOfferings<T extends OfferingFiling>(offerings: Offering<T>[]): Offering<T>[] {
+  return offerings.filter((offering) => offering.amountSold !== null && offering.amountSold > 0);
+}
+
+
+/**
+ * The share of a sector's reported total sitting in its single largest offering.
+ *
+ * Form D amounts are what the filer typed and the SEC does not check them, so
+ * one number can carry a whole sector: Republic Airways was 76% of Transport,
+ * Madison Air Solutions half of Industrials, and a $10B claim from an unknown
+ * entity is indistinguishable from a real one in the data. A total resting on a
+ * single unverified filing should say so rather than read as a market size.
+ */
+export function largestShare<T extends OfferingFiling>(
+  offerings: Offering<T>[],
+): { share: number; offering: Offering<T> } | null {
+  const reported = offerings.filter((offering) => offering.amountSold !== null);
+  // With a handful of offerings the largest is inevitably a large share of the
+  // total, and saying so tells a reader nothing: three equal offerings put the
+  // biggest at a third. The warning is about a total that reads as a sector
+  // aggregate while resting on one filing, which needs enough filings to look
+  // like an aggregate in the first place.
+  if (reported.length < MIN_OFFERINGS_FOR_DOMINANCE) return null;
+  const total = reported.reduce((sum, offering) => sum + (offering.amountSold ?? 0), 0);
+  if (total <= 0) return null;
+  const biggest = reported.reduce((a, b) => ((b.amountSold ?? 0) > (a.amountSold ?? 0) ? b : a));
+  return { share: (biggest.amountSold ?? 0) / total, offering: biggest };
+}
+
+/** Above this, one filing is the sector total rather than part of it. */
+export const DOMINANCE_THRESHOLD = 0.3;
+export const MIN_OFFERINGS_FOR_DOMINANCE = 5;

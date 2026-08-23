@@ -57,7 +57,7 @@ sectors:
     blurb: A physical output measure, so it follows fab utilisation rather than chip prices or company
       revenue.
   ai-robotics:
-  - series_id: A939RX0Q048SBEA
+  - series_id: Y033RX1Q020SBEA
     label: Real Private Fixed Investment in Information Processing Equipment
     units: Billions of Chained Dollars
     frequency: Quarterly
@@ -65,7 +65,7 @@ sectors:
     blurb: What businesses actually spend on computing hardware, which is the demand automation and AI
       vendors sell into.
   software-cloud:
-  - series_id: IIPUSNETIQ
+  - series_id: Y001RC1Q027SBEA
     label: Investment in Software
     units: Billions of Dollars
     frequency: Quarterly
@@ -73,7 +73,7 @@ sectors:
     blurb: Software is booked as investment rather than as a running cost, so this is the closest public
       proxy for aggregate enterprise software demand.
   cybersecurity:
-  - series_id: IIPUSNETIQ
+  - series_id: Y001RC1Q027SBEA
     label: Investment in Software
     units: Billions of Dollars
     frequency: Quarterly
@@ -110,16 +110,17 @@ sectors:
     definition: The extra yield investors demand to hold US high-yield corporate bonds instead of Treasuries.
     blurb: The market's price for corporate default risk, and an early read on stress in bank loan books.
   healthcare-pharma:
-  - series_id: HLTHSCPCHCSA
-    label: Health Care Services CPI
+  - series_id: CPIMEDSL
+    label: Medical Care CPI
     units: Index
     frequency: Monthly
-    definition: The consumer price index for health care services.
+    definition: The consumer price index for medical care, covering services such as physician visits
+      and commodities such as prescription drugs.
     blurb: What care costs households, which is the revenue side for providers and the pressure behind
       drug and service pricing policy.
   defense-aerospace:
-  - series_id: A091RC1Q027SBEA
-    label: Federal Defense Consumption and Investment
+  - series_id: FDEFX
+    label: National Defense Consumption and Investment
     units: Billions of Dollars
     frequency: Quarterly
     definition: Federal defence consumption and investment, from the national accounts.
@@ -148,10 +149,10 @@ sectors:
     blurb: Sets the monthly payment, so it governs affordability, transaction volume and order cancellation
       rates.
   - series_id: CSUSHPINSA
-    label: S&P CoreLogic Case-Shiller U.S. Home Price Index
+    label: S&P Cotality Case-Shiller U.S. Home Price Index
     units: Index
     frequency: Monthly
-    definition: The S&P CoreLogic Case-Shiller national home price index.
+    definition: The S&P Cotality Case-Shiller national home price index, formerly CoreLogic.
     blurb: Built from repeat sales of the same homes, so it tracks price rather than the mix of what happened
       to sell that month.
   industrials:
@@ -174,7 +175,7 @@ sectors:
     label: Retail and Food Services Sales
     units: Millions of Dollars
     frequency: Monthly
-    definition: Retail and food services sales, excluding motor vehicle and parts dealers.
+    definition: Advance retail trade sales, which exclude food services.
     blurb: The closest monthly read on discretionary spending, published well before company results.
   - series_id: UMCSENT
     label: Consumer Sentiment
@@ -184,10 +185,10 @@ sectors:
     blurb: A survey of intent rather than a record of spending, so treat it as a leading indicator that
       is often wrong.
   - series_id: TOTALSA
-    label: Light Vehicle Sales
+    label: Total Vehicle Sales
     units: Millions of Units
     frequency: Monthly
-    definition: Total light vehicle sales, stated at an annual rate.
+    definition: Total vehicle sales, stated at an annual rate.
     blurb: A vehicle is the largest single discretionary purchase most households make, so this turns
       early in a spending cycle.
   consumer-staples:
@@ -230,22 +231,23 @@ sectors:
     blurb: Input costs before they reach the consumer, which is what widens or compresses manufacturer
       margins.
   gold-metals:
-  - series_id: GOLDAMGBD228NLBM
-    label: Gold Fixing Price
-    units: U.S. Dollars per Troy Ounce
-    frequency: Daily
-    definition: The London gold fixing price per troy ounce.
-    blurb: Bullion produces no cash flow, so this is the entire fundamental for a gold trust and the revenue
-      line for a miner.
-  clean-energy:
-  - series_id: IPG2211A2N
-    label: Renewable Electric Power Generation
+  - series_id: IQ12260
+    label: Gold Export Price Index
     units: Index
     frequency: Monthly
-    definition: Industrial production of renewable electric power generation, indexed.
+    definition: The export price index for nonmonetary gold. FRED discontinued both London
+      gold fixings, and this index moves with the bullion price.
+    blurb: Bullion produces no cash flow, so the metal's price is the entire fundamental for a gold trust
+      and the revenue line for a miner.
+  clean-energy:
+  - series_id: IPN221114T8S
+    label: Renewables and Other Electric Power Generation
+    units: Index
+    frequency: Monthly
+    definition: Industrial production of renewable and other electric power generation, indexed.
     blurb: Electricity actually generated from renewables, which follows installed capacity with a lag.
   uranium-nuclear:
-  - series_id: IPG221113A
+  - series_id: IPN221113S
     label: Nuclear Electric Power Generation
     units: Index
     frequency: Monthly
@@ -277,14 +279,14 @@ sectors:
     blurb: A volume measure rather than a revenue one, so it separates how much is shipped from what shippers
       are paid to ship it.
   technology:
-  - series_id: A939RX0Q048SBEA
+  - series_id: Y033RX1Q020SBEA
     label: Real Private Fixed Investment in Information Processing Equipment
     units: Billions of Chained Dollars
     frequency: Quarterly
     definition: Real private fixed investment in information processing equipment.
     blurb: What businesses actually spend on computing hardware, which is the demand automation and AI
       vendors sell into.
-  - series_id: IIPUSNETIQ
+  - series_id: Y001RC1Q027SBEA
     label: Investment in Software
     units: Billions of Dollars
     frequency: Quarterly

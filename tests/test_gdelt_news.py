@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from ingest.registry import load_sectors
 from ingest.sources.gdelt_news import (
     KEEP_PER_SECTOR, MAX_PER_DOMAIN, article_id, article_rows, clean_title, headline_terms,
-    parse_seen_date, relevance,
+    is_boilerplate, normalized_title, parse_seen_date, relevance,
 )
 
 
@@ -63,7 +63,7 @@ def test_the_most_relevant_survive_the_cap():
     payload = {"articles": [
         article(
             f"https://a.example/{index}",
-            "Oil rises" if index else "Crude oil gas pipeline surge",
+            f"Oil rises again in week {index}" if index else "Crude oil gas pipeline surge",
             domain=f"paper{index}.example",
         )
         for index in range(KEEP_PER_SECTOR + 5)
@@ -75,11 +75,11 @@ def test_the_most_relevant_survive_the_cap():
 
 def test_unusable_articles_and_duplicates_are_dropped():
     payload = {"articles": [
-        article("", "Oil rises"),
+        article("", "Oil rises again today"),
         article("https://a.example/1", ""),
-        article("https://a.example/2", "Oil rises", seendate="not-a-date"),
-        article("https://a.example/3", "Oil rises"),
-        article("https://a.example/3", "Oil rises again"),
+        article("https://a.example/2", "Oil rises again today", seendate="not-a-date"),
+        article("https://a.example/3", "Oil rises again today"),
+        article("https://a.example/3", "Oil rises again tomorrow"),
     ]}
     rows, considered = article_rows(payload, ENERGY)
     assert considered == 5
@@ -103,7 +103,9 @@ def test_one_publisher_cannot_fill_a_sector():
     # tickers, and GDELT indexes them next to newsrooms. Without a cap, one of
     # them takes the whole list.
     payload = {"articles": [
-        article(f"https://farm.example/{index}", "Oil stock moves today", domain="tickerreport.com")
+        # Distinct headlines: the farm publishes one story per ticker, so this
+        # is the publisher cap under test rather than the wire-copy dedupe.
+        article(f"https://farm.example/{index}", f"Oil stock moves today, story {index}", domain="tickerreport.com")
         for index in range(10)
     ] + [
         article("https://paper.example/1", "Oil output falls", domain="reuters.com"),
@@ -113,3 +115,69 @@ def test_one_publisher_cannot_fill_a_sector():
     domains = [row[3] for row in rows]
     assert domains.count("tickerreport.com") == MAX_PER_DOMAIN
     assert {"reuters.com", "apnews.com"} <= set(domains)
+
+
+def test_tokenized_punctuation_is_put_back_where_it_belongs():
+    # GDELT hands back every punctuation mark as its own token, and each of these
+    # reached the page verbatim before the normalizer covered its case.
+    assert clean_title("Software - as - a - Service ( SaaS ) growth") == "Software-as-a-Service (SaaS) growth"
+    assert clean_title("Revenue hit 2. 1 million") == "Revenue hit 2.1 million"
+    assert clean_title("Weve Lost 75, 000 Manufacturing Job") == "Weve Lost 75,000 Manufacturing Job"
+    assert clean_title("U. S. output up 4. 2 % [ chart ]") == "U.S. output up 4.2% [chart]"
+    assert clean_title("Ph. D. student wins award") == "Ph.D. student wins award"
+
+
+def test_the_same_wire_story_from_many_outlets_counts_once():
+    # One agency story is republished verbatim, so thirteen copies of a single
+    # piece filled a sector's timeline. Case and the publisher tag are all that
+    # separated them.
+    payload = {"articles": [
+        article("https://a.com/1", "Oil prices surge as pipeline halts - Reuters", domain="a.com"),
+        article("https://b.com/2", "OIL PRICES SURGE AS PIPELINE HALTS | AP News", domain="b.com"),
+        article("https://c.com/3", "Oil Prices Surge as Pipeline Halts", domain="c.com"),
+        article("https://d.com/4", "Refinery fire cuts Texas crude runs", domain="d.com"),
+    ]}
+    rows, considered = article_rows(payload, ENERGY)
+    assert considered == 4
+    titles = {row[4] for row in rows}
+    assert len(rows) == 2, titles
+    assert "Refinery fire cuts Texas crude runs" in titles
+
+
+def test_generated_market_noise_never_reaches_the_page():
+    # These mention the sector, carry a date and a publisher, and report nothing
+    # that happened. They are written from a price feed.
+    for headline in (
+        "Exxon Mobil Corp shares cross above 200 day moving average",
+        "Vanguard Group Inc. Sells 1,200 Shares of Chevron Corp",
+        "Bank of America Boosts Stake in First Solar",
+        "5 Best Energy Stocks To Buy Now",
+        "Analysts Set Price Target for Devon Energy",
+        "Oil prices",
+    ):
+        assert is_boilerplate(headline), headline
+
+
+def test_the_noise_filter_does_not_eat_real_reporting():
+    # A sale of a stake and a purchase of a company are the news, not filler,
+    # and an earlier rule that keyed on "sells stake" dropped both.
+    for headline in (
+        "Exxon sells stake in Nigerian oil unit to Seplat",
+        "Chevron buys Hess after two-year arbitration fight",
+        "Ukraine strikes Russian refinery, pushing Brent above $80",
+        "Fed holds rates steady as bank lending tightens",
+    ):
+        assert not is_boilerplate(headline), headline
+
+
+def test_boilerplate_is_filtered_out_of_the_rows_themselves():
+    payload = {"articles": [
+        article("https://a.com/1", "Chevron Corp shares cross above 200 day moving average"),
+        article("https://b.com/2", "Refinery fire cuts Texas crude runs", domain="b.com"),
+    ]}
+    rows, _ = article_rows(payload, ENERGY)
+    assert [row[4] for row in rows] == ["Refinery fire cuts Texas crude runs"]
+
+
+def test_a_publisher_tag_does_not_make_two_different_stories_one():
+    assert normalized_title("Shell profits fall - Reuters") != normalized_title("BP profits fall - Reuters")

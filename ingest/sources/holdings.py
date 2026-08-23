@@ -158,6 +158,31 @@ def parse_state_street(content: bytes, fund_ticker: str, as_of: date) -> list[tu
     return _normalize_holdings(frame, fund_ticker, as_of, ticker_col, name_col, weight_col, sector_col)
 
 
+# A holdings file is not only equities. State Street lists the index future it
+# uses to equitise cash, and a cash line, both with a weight: XLE ended with
+# "XAE ENERGY SEP26 / IXPU6 / 0.02%" and XLC with an S&P E-mini at -0.00%. They
+# are positions in the fund and not companies, so counting them as constituents
+# sends the SEC walk looking for a future's fundamentals and puts a negative
+# weight in a composition table.
+NON_EQUITY_NAME_MARKERS = (
+    "e-mini", "emini", "s+p emini", "future", "futures", "cash", "usd cash",
+    "net other assets", "collateral", "margin", "repurchase agreement",
+)
+NON_EQUITY_TICKER_MARKERS = ("-", "--", "CASH", "USD", "MARGIN")
+
+
+def is_equity_position(ticker: str, name: str) -> bool:
+    """Whether a holdings row is a company rather than a fund mechanic."""
+    lowered = name.lower()
+    if any(marker in lowered for marker in NON_EQUITY_NAME_MARKERS):
+        return False
+    if ticker in NON_EQUITY_TICKER_MARKERS:
+        return False
+    # Index futures carry an exchange code rather than a listing symbol, and the
+    # month-year suffix on the name is the reliable tell.
+    return not bool(re.search(r"\b(SEP|DEC|MAR|JUN)\d{2}\b", name.upper()))
+
+
 def _normalize_holdings(
     frame: pd.DataFrame,
     fund_ticker: str,
@@ -172,10 +197,14 @@ def _normalize_holdings(
     for record in frame.to_dict("records"):
         ticker = str(record.get(ticker_col, "")).strip().upper()
         weight = parse_percent(record.get(weight_col))
+        name = str(record.get(name_col, "")).strip()
         if not ticker or ticker in {"NAN", "-", "—"} or weight is None or ticker in seen:
             continue
+        # A weight of zero or below is a fund mechanic, not a position, and a
+        # negative one rendered as "-0.00%" in the composition table.
+        if weight <= 0 or not is_equity_position(ticker, name):
+            continue
         seen.add(ticker)
-        name = str(record.get(name_col, "")).strip()
         sub_sector = str(record.get(sector_col, "")).strip() if sector_col else None
         rows.append((fund_ticker, as_of, ticker, name, weight, sub_sector or None))
     if not rows:

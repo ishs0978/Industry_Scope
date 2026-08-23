@@ -11,7 +11,8 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "export-data": "tsx scripts/export-data.ts"
+    "export-data": "tsx scripts/export-data.ts",
+    "check-export": "tsx scripts/check-export.ts"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.1.12",

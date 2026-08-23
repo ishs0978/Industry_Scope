@@ -199,6 +199,10 @@ th:first-child, td:first-child, .left { text-align: left; }
 .chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 /* Inline marker for a filing that names co-issuers, so one offering stays one row. */
 .chip-inline { border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 11px; margin-left: 6px; padding: 1px 7px; white-space: nowrap; }
+/* Marks a figure that is computed correctly and reads wrongly without context:
+   a revenue fall caused by a spin-off, or a net margin above operating margin. */
+.marked { border-bottom: 1px dotted var(--muted); cursor: help; }
+.marked sup { color: var(--muted); font-size: 10px; margin-left: 1px; }
 /* Sits under a timeline heading to say what that feed is and how current. */
 .feed-note { margin: -4px 0 12px; }
 

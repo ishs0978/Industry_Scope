@@ -121,6 +121,7 @@ export default function HomeExplorer({ sectors, performance, pricesThrough, last
         <div className="section-heading"><h2>All industries</h2><span className="eyebrow">{sectors.length} sectors</span></div>
         <div className="grid-notes">
           <p className="grid-note">This registry mixes broad GICS sector funds with narrower thematic funds. Semiconductors, Technology, Software &amp; Cloud, AI &amp; Robotics and Cybersecurity overlap heavily by design, so compare them against each other rather than adding them together.</p>
+          <p className="grid-note">The overlap is not only in technology. Industrials holds the railroads, parcel carriers and airlines that Transport &amp; Shipping is made of: UNP, CSX, NSC, UPS, FDX, DAL, EXPD and CHRW are 10.6% of XLI. Materials &amp; Mining holds Newmont at 8.0% of XLB, which is also a top holding of the gold miners fund. Sector totals across this grid count those companies more than once.</p>
           {/* prices.py stores Yahoo's Adj Close, which reinvests dividends, so
               "adjusted close" alone would not tell a reader whether XLU's number
               includes its yield. Say total return, and print both dates. */}

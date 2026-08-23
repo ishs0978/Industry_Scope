@@ -65,7 +65,12 @@ def run(connection: Any) -> None:
         for start in range(0, len(items), 25):
             batch = dict(items[start : start + 25])
             body: dict[str, Any] = {
-                "seriesid": list(batch), "startyear": str(current_year - 20),
+                # The v2 API allows a 20-year span and silently clamps a longer
+                # one to its FIRST 20 years, which drops the current year: a
+                # 2006-2026 request came back ending 2025-M12 and every
+                # employment series on the site sat eight months behind while
+                # the run reported success. 19 back plus this year is exactly 20.
+                "seriesid": list(batch), "startyear": str(current_year - 19),
                 "endyear": str(current_year), "calculations": False,
             }
             body["registrationkey"] = api_key
@@ -95,12 +100,18 @@ def run(connection: Any) -> None:
                     )
                     with connection.cursor() as cursor:
                         cursor.execute(
+                            # last_release_date stays null: FRED reports when a
+                            # series was actually published and this column holds
+                            # that, but the BLS timeseries response carries no
+                            # release date. Storing the newest reference month
+                            # here instead put "Release: Dec 1, 2025" on a page
+                            # for data BLS published in January.
                             """INSERT INTO macro_meta (series_id,label,units,frequency,source,last_release_date,as_of)
-                            VALUES (%s,%s,%s,'Monthly','BLS',%s,now())
+                            VALUES (%s,%s,%s,'Monthly','BLS',NULL,now())
                             ON CONFLICT (series_id) DO UPDATE SET label=EXCLUDED.label,units=EXCLUDED.units,
                             frequency=EXCLUDED.frequency,source=EXCLUDED.source,
-                            last_release_date=EXCLUDED.last_release_date,as_of=EXCLUDED.as_of""",
-                            (storage_id, config["label"], config["units"], max(row[1] for row in storage_rows)),
+                            last_release_date=NULL,as_of=EXCLUDED.as_of""",
+                            (storage_id, config["label"], config["units"]),
                         )
                     connection.commit()
         result.details = {

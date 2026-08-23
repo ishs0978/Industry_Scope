@@ -6,7 +6,7 @@ sectors:
     comparison_etfs: [OIH, XOP, AMLP]
     news_keywords: [energy sector, crude oil, natural gas, oilfield, pipeline]
     sic_prefixes: ['13', '29']
-    naics_code: '211'
+    naics_code: '21'
 
   - slug: semiconductors
     name: Semiconductors
@@ -21,7 +21,7 @@ sectors:
     name: Technology
     aliases: [tech, information technology, technology sector, big tech]
     primary_etf: XLK
-    comparison_etfs: []
+    comparison_etfs: [VGT, FTEC]
     news_keywords: [technology sector, information technology, tech company, computer hardware]
     sic_prefixes: ['357', '367']
     naics_code: '334'
@@ -35,7 +35,7 @@ sectors:
     # resolves to software-cloud through its '737' prefix; see sector_for_sic.
     news_keywords: [artificial intelligence, industrial robot, robotics, automation]
     sic_prefixes: ['3569', '3571']
-    naics_code: '333998'
+    naics_code: '3345'
 
   - slug: software-cloud
     name: Software & Cloud
@@ -58,13 +58,13 @@ sectors:
     naics_code: '541512'
 
   - slug: banks
-    name: Banks
+    name: Financials
     aliases: [banking, financial institutions, regional banks, commercial banks]
     primary_etf: XLF
     comparison_etfs: [KRE, KBE]
     news_keywords: [banking sector, regional bank, commercial bank, bank lending]
     sic_prefixes: ['60', '61', '62']
-    naics_code: '522110'
+    naics_code: '52'
 
   - slug: healthcare-pharma
     name: Healthcare & Pharmaceuticals
@@ -73,7 +73,7 @@ sectors:
     comparison_etfs: [IBB, XBI]
     news_keywords: [healthcare sector, pharmaceutical, biotechnology, drug approval]
     sic_prefixes: ['283', '384', '80']
-    naics_code: '325412'
+    naics_code: '62'
 
   - slug: defense-aerospace
     name: Defense & Aerospace
@@ -82,7 +82,7 @@ sectors:
     comparison_etfs: [XAR, PPA]
     news_keywords: [defense contractor, aerospace industry, military procurement, aircraft manufacturing]
     sic_prefixes: ['372', '376', '381']
-    naics_code: '336414'
+    naics_code: '3364'
 
   - slug: homebuilders
     name: Homebuilding & Building Products
@@ -115,16 +115,16 @@ sectors:
     name: Consumer Staples
     aliases: [staples, essential goods, food and beverage, household products]
     primary_etf: XLP
-    comparison_etfs: []
+    comparison_etfs: [VDC, FSTA]
     news_keywords: [consumer staples, packaged food, household products, grocery sales]
     sic_prefixes: ['20', '21', '54']
-    naics_code: '445'
+    naics_code: '311'
 
   - slug: utilities
     name: Utilities
     aliases: [electric utilities, power utilities, regulated utilities, electricity providers]
     primary_etf: XLU
-    comparison_etfs: []
+    comparison_etfs: [VPU, IDU]
     news_keywords: [utility sector, electric utility, power grid, regulated utility]
     sic_prefixes: ['49']
     naics_code: '221'
@@ -145,10 +145,10 @@ sectors:
     comparison_etfs: [XME]
     news_keywords: [mining industry, industrial metals, raw materials, basic materials]
     sic_prefixes: ['10', '12', '14', '26']
-    naics_code: '212'
+    naics_code: '325'
 
   - slug: gold-metals
-    name: Gold & Precious Metals (bullion and miners)
+    name: Gold & Precious Metals
     aliases: [gold, precious metals, gold miners, silver]
     # Led by the miners, which are operating companies with SEC filings. GLD is
     # a physically backed bullion trust and is kept as a comparison, not as the
@@ -184,7 +184,7 @@ sectors:
     name: Communication Services
     aliases: [telecom, telecommunications, media, internet services]
     primary_etf: XLC
-    comparison_etfs: []
+    comparison_etfs: [VOX, FCOM]
     news_keywords: [telecommunications, communication services, wireless carrier, media company]
     sic_prefixes: ['48']
     naics_code: '517'
@@ -193,10 +193,10 @@ sectors:
     name: Transportation & Shipping
     aliases: [transportation, shipping, freight, logistics]
     primary_etf: IYT
-    comparison_etfs: []
+    comparison_etfs: [XTN, FTXR]
     news_keywords: [freight transport, shipping industry, logistics, cargo airline]
     sic_prefixes: ['40', '42', '44', '45']
-    naics_code: '483'
+    naics_code: '48-49'
 
   - slug: bonds
     name: Bonds
