@@ -26,11 +26,23 @@ import type {
  * Nothing calls end() any more: the pool lives as long as the process, and Node
  * exiting closes the sockets.
  */
+/**
+ * The connection string, without the whitespace a paste tends to carry.
+ *
+ * A connection string pasted into a secrets field picks up a trailing newline
+ * remarkably easily, and Postgres reads it as part of the last parameter:
+ * sslmode becomes "require\n", which is not a valid mode. Every query then
+ * fails with an error that says nothing about newlines.
+ */
+export function databaseUrl(): string | undefined {
+  return process.env.DATABASE_URL?.trim() || undefined;
+}
+
 let pool: ReturnType<typeof postgres> | null = null;
 
 function db() {
   if (!pool) {
-    pool = postgres(process.env.DATABASE_URL!, {
+    pool = postgres(databaseUrl()!, {
       ssl: "require", max: 10, idle_timeout: 30, connect_timeout: 30,
     });
   }
@@ -198,7 +210,7 @@ export const serializable = <T>(value: T): T => JSON.parse(
 export async function getIndustryPayload(slug: string): Promise<WireIndustryPayload | null> {
   const sector = sectorBySlug(slug);
   if (!sector) return null;
-  if (!process.env.DATABASE_URL) return emptyPayload(sector);
+  if (!databaseUrl()) return emptyPayload(sector);
 
   // Every `date` column is cast to text so the components receive bare
   // YYYY-MM-DD. The driver hands back a JS Date, which serializable() turns into
@@ -347,7 +359,7 @@ export async function getHomePerformance(): Promise<HomeData> {
   let pricesThrough: string | null = null;
   let lastChecked: string | null = null;
   let companies: HomeCompany[] = [];
-  if (!process.env.DATABASE_URL) return { performance: result, pricesThrough, lastChecked, companies };
+  if (!databaseUrl()) return { performance: result, pricesThrough, lastChecked, companies };
   const sql = db();
   try {
     // YTD is measured from the prior year-end close, so the first trading day's
@@ -412,7 +424,7 @@ export async function getEtfPayload(ticker: string): Promise<EtfPayload | null> 
     isPrimary: fund.primary,
     peers: [fund.sector.primary_etf, ...fund.sector.comparison_etfs].filter((peer) => peer !== symbol),
   };
-  if (!process.env.DATABASE_URL) {
+  if (!databaseUrl()) {
     return { ...base, meta: null, prices: [], benchmark: [], riskFree: [], holdings: [],
       errors: [{ source: "Neon Postgres", reason: EMPTY_SOURCE_REASON }] };
   }
@@ -455,7 +467,7 @@ export async function getCompanyPayload(ticker: string): Promise<CompanyPayload 
   const symbol = ticker.toUpperCase();
   if (!/^[A-Z0-9.\-]{1,12}$/.test(symbol)) return null;
   const base = { ticker: symbol, sectorSlug: null, sectorName: null };
-  if (!process.env.DATABASE_URL) {
+  if (!databaseUrl()) {
     return { ...base, meta: null, facts: [], weekly: [], heldBy: [],
       errors: [{ source: "Neon Postgres", reason: EMPTY_SOURCE_REASON }] };
   }

@@ -19,7 +19,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import postgres from "postgres";
-import { getCompanyPayload, getEtfPayload, getHomePerformance, getIndustryPayload } from "../lib/data";
+import { databaseUrl, getCompanyPayload, getEtfPayload, getHomePerformance, getIndustryPayload } from "../lib/data";
 import { fundsWithSector, sectors } from "../lib/registry";
 
 const OUT = path.resolve(process.cwd(), "data");
@@ -34,7 +34,7 @@ async function write(relative: string, value: unknown): Promise<number> {
 
 /** Every company held by a fund, which is exactly the set with its own page. */
 async function constituents(): Promise<string[]> {
-  const sql = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 2 });
+  const sql = postgres(databaseUrl()!, { ssl: "require", max: 2 });
   try {
     const rows = await sql`SELECT DISTINCT constituent_ticker AS ticker FROM holdings
       WHERE constituent_ticker IS NOT NULL AND constituent_ticker <> '' ORDER BY 1`;
@@ -45,7 +45,7 @@ async function constituents(): Promise<string[]> {
 }
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
+  if (!databaseUrl()) {
     console.error("DATABASE_URL is required to export site data.");
     process.exit(1);
   }

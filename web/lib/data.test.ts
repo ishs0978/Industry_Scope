@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gateMacroByFreshness, macroSourceAllowed, serializable, isDatabaseUnreachable } from "./data";
+import { gateMacroByFreshness, macroSourceAllowed, serializable, isDatabaseUnreachable, databaseUrl } from "./data";
 
 describe("macro source gates", () => {
   it("test_eia_energy_only", () => {
@@ -51,5 +51,22 @@ describe("a dead database must not replace good pages", () => {
     expect(isDatabaseUnreachable(new Error('relation "form_d" does not exist'))).toBe(false);
     expect(isDatabaseUnreachable(new Error("column sic_code does not exist"))).toBe(false);
     expect(isDatabaseUnreachable(new Error("division by zero"))).toBe(false);
+  });
+});
+
+describe("connection string hygiene", () => {
+  it("strips the newline a pasted secret carries", () => {
+    // A connection string pasted into a secrets field picks up a trailing
+    // newline easily, and Postgres reads it as part of the last parameter:
+    // sslmode becomes "require\n", and every source fails at once with an
+    // error that never mentions newlines.
+    process.env.DATABASE_URL = "postgres://u:p@h:5432/db?sslmode=require\n";
+    expect(databaseUrl()).toBe("postgres://u:p@h:5432/db?sslmode=require");
+    process.env.DATABASE_URL = "  postgres://u:p@h:5432/db  ";
+    expect(databaseUrl()).toBe("postgres://u:p@h:5432/db");
+    process.env.DATABASE_URL = "   ";
+    expect(databaseUrl()).toBeUndefined();
+    delete process.env.DATABASE_URL;
+    expect(databaseUrl()).toBeUndefined();
   });
 });
