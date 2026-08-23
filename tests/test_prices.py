@@ -1,3 +1,5 @@
+import pytest
+
 from datetime import date, timedelta
 
 import pandas as pd
@@ -135,3 +137,16 @@ def test_full_refresh_rewrites_the_whole_history_on_one_adjustment_basis():
         full_refresh=True,
     )
     assert recorded == [None]
+
+
+def test_dividend_yield_is_stored_as_a_fraction_not_a_percentage():
+    from ingest.sources.company_prices import dividend_yield
+
+    # Yahoo reports 3.47 to mean 3.47%. Stored raw it rendered as 347%, the same
+    # unit error the ETF expense ratio already had.
+    assert dividend_yield(3.47) == pytest.approx(0.0347)
+    assert dividend_yield(0) == 0
+    assert dividend_yield(None) is None
+    # Above a quarter is not a yield; better blank than a confident wrong number.
+    assert dividend_yield(120) is None
+    assert dividend_yield(-1) is None

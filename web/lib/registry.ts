@@ -60,3 +60,19 @@ export function companyGroups(): CompanyGroup[] {
 export function groupsForSector(slug: string): CompanyGroup[] {
   return companyGroups().filter((group) => group.sector === slug);
 }
+
+export type FundGroup = {
+  slug: string; name: string; sectors: string[]; blurb: string; tickers: string[];
+};
+
+let cachedFundGroups: FundGroup[] | null = null;
+
+/** Funds charted together for a comparison that cuts across sectors. */
+export function fundGroupsForSector(slug: string): FundGroup[] {
+  if (!cachedFundGroups) {
+    const groupsPath = path.resolve(process.cwd(), "config", "company_groups.yaml");
+    const document = YAML.parse(fs.readFileSync(groupsPath, "utf8")) as { fund_groups?: FundGroup[] };
+    cachedFundGroups = document.fund_groups ?? [];
+  }
+  return cachedFundGroups.filter((group) => group.sectors.includes(slug));
+}

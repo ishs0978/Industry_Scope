@@ -19,12 +19,21 @@ groups:
       membership is a matter of common usage.
     tickers: [AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA]
 
-  - slug: ai-semiconductors
-    name: AI semiconductors
+  - slug: ai-accelerators
+    name: GPUs and AI accelerators
     sector: ai-robotics
     blurb: >-
-      Companies designing the processors that training and inference run on.
-    tickers: [NVDA, AMD, AVGO, INTC, QCOM, MU, TXN, ADI, MRVL, ARM]
+      The companies whose chips actually run training and inference, either as
+      merchant GPUs or as custom accelerators designed for one buyer.
+    tickers: [NVDA, AMD, AVGO, MRVL, INTC]
+
+  - slug: ai-semiconductors
+    name: Broader semiconductors and memory
+    sector: ai-robotics
+    blurb: >-
+      The rest of the chip supply chain the accelerators depend on, including
+      the memory that has become the binding constraint on shipping them.
+    tickers: [MU, TXN, ADI, QCOM, ARM, NXPI, SWKS, ON]
 
   - slug: ai-equipment
     name: Chip equipment and fabrication
@@ -48,3 +57,16 @@ groups:
     blurb: >-
       The companies renting the compute out and selling what runs on it.
     tickers: [MSFT, GOOGL, AMZN, META, ORCL, CRM, NOW, PLTR, SNOW]
+
+# Groups of funds charted together, for comparisons that cut across sectors.
+# A reader deciding where income should sit is comparing bonds against munis
+# against property, and each of those lives on a different page.
+fund_groups:
+  - slug: income-assets
+    name: Bonds, municipals and property
+    sectors: [bonds, municipal-bonds, real-estate]
+    blurb: >-
+      The three places income-seeking money usually goes, on one axis. Municipal
+      income is federally tax-exempt for most holders, so its lower headline
+      return is not directly comparable with the other two before tax.
+    tickers: [AGG, MUB, XLRE, TLT]
