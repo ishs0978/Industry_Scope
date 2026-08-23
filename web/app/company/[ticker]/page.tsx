@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import CompanyDetail from "@/components/CompanyDetail";
-import { getCompanyPayload } from "@/lib/data";
+import { companyPayload } from "@/lib/payloads";
 
 // Companies come and go from a fund, and there are hundreds of them, so these
 // render on demand and are cached rather than being built up front.
@@ -15,7 +15,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ ticker: string }> }): Promise<Metadata> {
   const { ticker } = await params;
-  const payload = await getCompanyPayload(ticker);
+  const payload = await companyPayload(ticker);
   return payload
     ? {
       title: `${payload.ticker}${payload.meta?.name ? ` · ${payload.meta.name}` : ""}`,
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ ticker: s
 
 export default async function CompanyPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
-  const payload = await getCompanyPayload(ticker);
+  const payload = await companyPayload(ticker);
   if (!payload) notFound();
   return <CompanyDetail payload={payload} />;
 }

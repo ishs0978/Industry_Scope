@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import EtfDetail from "@/components/EtfDetail";
-import { getEtfPayload } from "@/lib/data";
+import { etfPayload } from "@/lib/payloads";
 import { fundsWithSector } from "@/lib/registry";
 
 export const revalidate = 86400;
@@ -13,7 +13,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ ticker: string }> }): Promise<Metadata> {
   const { ticker } = await params;
-  const payload = await getEtfPayload(ticker);
+  const payload = await etfPayload(ticker);
   return payload
     ? {
       title: `${payload.ticker} · ${payload.meta?.name ?? payload.sectorName}`,
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ ticker: s
 
 export default async function EtfPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
-  const payload = await getEtfPayload(ticker);
+  const payload = await etfPayload(ticker);
   if (!payload) notFound();
   return <EtfDetail payload={payload} />;
 }

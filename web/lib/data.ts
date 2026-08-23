@@ -26,11 +26,23 @@ import type {
  * Nothing calls end() any more: the pool lives as long as the process, and Node
  * exiting closes the sockets.
  */
+/**
+ * The connection string, without the whitespace a paste tends to carry.
+ *
+ * A connection string pasted into a secrets field picks up a trailing newline
+ * remarkably easily, and Postgres reads it as part of the last parameter:
+ * sslmode becomes "require\n", which is not a valid mode. Every query then
+ * fails with an error that says nothing about newlines.
+ */
+export function databaseUrl(): string | undefined {
+  return process.env.DATABASE_URL?.trim() || undefined;
+}
+
 let pool: ReturnType<typeof postgres> | null = null;
 
 function db() {
   if (!pool) {
-    pool = postgres(process.env.DATABASE_URL!, {
+    pool = postgres(databaseUrl()!, {
       ssl: "require", max: 10, idle_timeout: 30, connect_timeout: 30,
     });
   }
@@ -61,6 +73,30 @@ function benchmarkAndRiskFree() {
     }));
   }
   return sharedSeries;
+}
+
+/**
+ * Whether an error means the database could not be reached at all.
+ *
+ * This decides whether a page may render without data, and getting it wrong is
+ * what broke the site. Every loader used to catch everything and return an
+ * empty payload, so when Neon refused connections the pages still rendered
+ * "successfully" with nothing in them, and Next cached that over the last good
+ * version. A transient outage should never be able to replace real content.
+ *
+ * Throwing instead means the opposite happens: a revalidation that cannot reach
+ * the database leaves the previously generated page in place, and a build that
+ * cannot reach it fails rather than shipping an empty site. Both are the safe
+ * direction. A query that fails for its own reasons is still caught per source,
+ * because one broken source should not take down a page that can show the rest.
+ */
+export function isDatabaseUnreachable(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return [
+    "data transfer quota", "exceeded", "connection", "econnrefused", "etimedout",
+    "timeout", "terminated", "password authentication", "too many clients",
+    "could not connect", "getaddrinfo", "socket",
+  ].some((needle) => message.includes(needle));
 }
 
 export const EMPTY_SOURCE_REASON = "DATABASE_URL is not configured; no live data was queried.";
@@ -174,7 +210,7 @@ export const serializable = <T>(value: T): T => JSON.parse(
 export async function getIndustryPayload(slug: string): Promise<WireIndustryPayload | null> {
   const sector = sectorBySlug(slug);
   if (!sector) return null;
-  if (!process.env.DATABASE_URL) return emptyPayload(sector);
+  if (!databaseUrl()) return emptyPayload(sector);
 
   // Every `date` column is cast to text so the components receive bare
   // YYYY-MM-DD. The driver hands back a JS Date, which serializable() turns into
@@ -301,25 +337,29 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
       headlines, newsVolume, events, freshness, errors,
     } as unknown as WireIndustryPayload);
   } catch (error) {
+    if (isDatabaseUnreachable(error)) throw error;
     return emptyPayload(sector, error instanceof Error ? error.message : String(error));
   }
 }
 
 export type HomePricePoint = { date: string; value: number; close: number | null };
 export type HomePerformance = Record<string, { prices: HomePricePoint[]; error?: string }>;
+export type HomeCompany = { ticker: string; name: string | null; market_cap: number | null };
 export type HomeData = {
   performance: HomePerformance;
   /** Latest observation in the price table. */
   pricesThrough: string | null;
   /** When the price ingest last finished, which is a different question. */
   lastChecked: string | null;
+  companies: HomeCompany[];
 };
 
 export async function getHomePerformance(): Promise<HomeData> {
   const result: HomePerformance = {};
   let pricesThrough: string | null = null;
   let lastChecked: string | null = null;
-  if (!process.env.DATABASE_URL) return { performance: result, pricesThrough, lastChecked };
+  let companies: HomeCompany[] = [];
+  if (!databaseUrl()) return { performance: result, pricesThrough, lastChecked, companies };
   const sql = db();
   try {
     // YTD is measured from the prior year-end close, so the first trading day's
@@ -348,10 +388,20 @@ export async function getHomePerformance(): Promise<HomeData> {
     const [run] = await sql`SELECT finished_at,started_at FROM ingest_runs
       WHERE source='prices' AND status='success' ORDER BY started_at DESC LIMIT 1`;
     lastChecked = (run?.finished_at ?? run?.started_at ?? null) as string | null;
+    // The largest companies held by the tracked funds, purely so the home page
+    // can show that company pages exist. Ranking by market cap needs no
+    // judgement about which companies matter.
+    companies = (await sql`SELECT ticker,name,market_cap::float FROM company_meta
+      WHERE market_cap IS NOT NULL
+        AND ticker IN (SELECT DISTINCT constituent_ticker FROM holdings)
+      ORDER BY market_cap DESC LIMIT 12`) as unknown as HomeCompany[];
   } catch (error) {
+    // Serving an empty home page is worse than serving yesterday's: Next keeps
+    // the last good render when this throws.
+    if (isDatabaseUnreachable(error)) throw error;
     result.__error = { prices: [], error: error instanceof Error ? error.message : String(error) };
   }
-  return { performance: result, pricesThrough, lastChecked };
+  return { performance: result, pricesThrough, lastChecked, companies };
 }
 
 const COMPANY_META_COLUMNS = `ticker,market_cap::float,as_of,name,trailing_pe::float,
@@ -374,7 +424,7 @@ export async function getEtfPayload(ticker: string): Promise<EtfPayload | null> 
     isPrimary: fund.primary,
     peers: [fund.sector.primary_etf, ...fund.sector.comparison_etfs].filter((peer) => peer !== symbol),
   };
-  if (!process.env.DATABASE_URL) {
+  if (!databaseUrl()) {
     return { ...base, meta: null, prices: [], benchmark: [], riskFree: [], holdings: [],
       errors: [{ source: "Neon Postgres", reason: EMPTY_SOURCE_REASON }] };
   }
@@ -400,6 +450,7 @@ export async function getEtfPayload(ticker: string): Promise<EtfPayload | null> 
       benchmark: shared.benchmark, riskFree: shared.riskFree, holdings, errors: [],
     } as unknown as EtfPayload);
   } catch (error) {
+    if (isDatabaseUnreachable(error)) throw error;
     return { ...base, meta: null, prices: [], benchmark: [], riskFree: [], holdings: [],
       errors: [{ source: "Neon Postgres", reason: error instanceof Error ? error.message : String(error) }] };
   }
@@ -416,7 +467,7 @@ export async function getCompanyPayload(ticker: string): Promise<CompanyPayload 
   const symbol = ticker.toUpperCase();
   if (!/^[A-Z0-9.\-]{1,12}$/.test(symbol)) return null;
   const base = { ticker: symbol, sectorSlug: null, sectorName: null };
-  if (!process.env.DATABASE_URL) {
+  if (!databaseUrl()) {
     return { ...base, meta: null, facts: [], weekly: [], heldBy: [],
       errors: [{ source: "Neon Postgres", reason: EMPTY_SOURCE_REASON }] };
   }
@@ -445,6 +496,7 @@ export async function getCompanyPayload(ticker: string): Promise<CompanyPayload 
       errors: [],
     } as unknown as CompanyPayload);
   } catch (error) {
+    if (isDatabaseUnreachable(error)) throw error;
     return { ...base, meta: null, facts: [], weekly: [], heldBy: [],
       errors: [{ source: "Neon Postgres", reason: error instanceof Error ? error.message : String(error) }] };
   }

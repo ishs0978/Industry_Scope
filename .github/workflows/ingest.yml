@@ -18,6 +18,8 @@ on:
 permissions:
   contents: read
   issues: write
+  # Needed to trigger the deploy workflow once fresh rows are in.
+  actions: write
 
 concurrency:
   group: ingest
@@ -69,3 +71,14 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python .github/scripts/assert_price_freshness.py
+
+      # The site is built from an export of the database rather than by querying
+      # it, so fresh rows only reach readers once a deploy re-exports them.
+      # Without this the site would show yesterday's numbers until someone
+      # pushed code, which is exactly the silent staleness the deploy workflow
+      # was written to prevent.
+      - name: Publish the new data
+        if: steps.schedule.outputs.run == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: gh workflow run "Deploy to Vercel" --ref main

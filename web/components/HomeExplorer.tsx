@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
 import { formatPercent, formatPrice, formatPriceChange, formatSignedPercent, stamp, stampDate } from "@/lib/format";
 import type { Sector } from "@/lib/types";
+import type { CompanyGroup } from "@/lib/registry";
+import type { HomeCompany } from "@/lib/data";
 
 type Performance = Record<string, { prices: { date: string; value: number; close: number | null }[]; error?: string }>;
 
@@ -31,7 +33,58 @@ function distance(a: string, b: string): number {
   return matrix[a.length][b.length];
 }
 
-export default function HomeExplorer({ sectors, performance, pricesThrough, lastChecked }: { sectors: Sector[]; performance: Performance; pricesThrough: string | null; lastChecked: string | null }) {
+/**
+ * Ways into the pages behind the sector grid.
+ *
+ * Every fund, every company and every curated group has had its own page for a
+ * while, and none of them was reachable from here: the landing page offered a
+ * search box and a grid of sectors and gave no sign the rest existed. These are
+ * entry points, not a second navigation; each one lands on the page that owns
+ * the subject.
+ */
+function Explore(
+  { funds, groups, companies }:
+  { funds: { ticker: string; sector: Sector }[]; groups: CompanyGroup[]; companies: HomeCompany[] },
+) {
+  return <section>
+    <div className="section-heading"><h2>Go deeper</h2><span className="eyebrow">Funds · groups · companies</span></div>
+    <div className="explore">
+      <div className="explore-col">
+        <h3>Every fund</h3>
+        <p>Fees, risk against the S&amp;P 500, drawdown and full composition, one page each.</p>
+        <div className="explore-links">
+          {funds.map((fund) => <Link href={`/etf/${fund.ticker}`} key={fund.ticker} title={fund.sector.name}>
+            {fund.ticker}
+          </Link>)}
+        </div>
+      </div>
+      <div className="explore-col">
+        <h3>Groups worth watching</h3>
+        <p>Companies grouped by what they do rather than by the fund that holds them, with the funds that give exposure to each.</p>
+        <div className="explore-links">
+          {groups.map((group) => <Link href={`/industry/${group.sector}#groups`} key={group.slug}>
+            {group.name}
+          </Link>)}
+        </div>
+      </div>
+      <div className="explore-col">
+        <h3>Largest companies</h3>
+        <p>Valuation, analyst targets, reported margins and yearly returns. Every company in a fund has a page; these are the biggest.</p>
+        {companies.length
+          ? <div className="explore-links">
+              {companies.map((company) => <Link href={`/company/${company.ticker}`} key={company.ticker} title={company.name ?? company.ticker}>
+                {company.ticker}
+              </Link>)}
+            </div>
+          // An empty row reads as a broken column rather than a missing list.
+          // Say which source is absent, the same way every other panel does.
+          : <p className="grid-note">Company rankings need market caps from the database, which is unavailable. Open any sector and its companies are still listed there.</p>}
+      </div>
+    </div>
+  </section>;
+}
+
+export default function HomeExplorer({ sectors, performance, pricesThrough, lastChecked, funds, groups, companies }: { sectors: Sector[]; performance: Performance; pricesThrough: string | null; lastChecked: string | null; funds: { ticker: string; sector: Sector }[]; groups: CompanyGroup[]; companies: HomeCompany[] }) {
   const [query, setQuery] = useState("");
   const search = useMemo(() => {
     const q = normalize(query);
@@ -62,14 +115,18 @@ export default function HomeExplorer({ sectors, performance, pricesThrough, last
         </div>
       </section>
 
+      <Explore funds={funds} groups={groups} companies={companies} />
+
       <section>
         <div className="section-heading"><h2>All industries</h2><span className="eyebrow">{sectors.length} sectors</span></div>
-        <p className="grid-note">This registry mixes broad GICS sector funds with narrower thematic funds. Semiconductors, Technology, Software &amp; Cloud, AI &amp; Robotics and Cybersecurity overlap heavily by design, so compare them against each other rather than adding them together.</p>
-        {/* prices.py stores Yahoo's Adj Close, which reinvests dividends, so
-            "adjusted close" alone would not tell a reader whether XLU's number
-            includes its yield. Say total return, and print both dates. */}
-        <p className="grid-note">Total return, dividends reinvested. Prices through {stampDate(pricesThrough)}. Last checked {stamp(lastChecked)}.</p>
-        <p className="grid-note">Each line is that fund&rsquo;s price path so far this year, scaled to its own range. Compare the shapes, not the heights.</p>
+        <div className="grid-notes">
+          <p className="grid-note">This registry mixes broad GICS sector funds with narrower thematic funds. Semiconductors, Technology, Software &amp; Cloud, AI &amp; Robotics and Cybersecurity overlap heavily by design, so compare them against each other rather than adding them together.</p>
+          {/* prices.py stores Yahoo's Adj Close, which reinvests dividends, so
+              "adjusted close" alone would not tell a reader whether XLU's number
+              includes its yield. Say total return, and print both dates. */}
+          <p className="grid-note">Total return, dividends reinvested. Prices through {stampDate(pricesThrough)}. Last checked {stamp(lastChecked)}.</p>
+          <p className="grid-note">Each line is that fund&rsquo;s price path so far this year, scaled to its own range. Compare the shapes, not the heights.</p>
+        </div>
         {performance.__error?.error && <div className="source-error">Neon Postgres: {performance.__error.error}</div>}
         <div className="sector-grid">
           {sectors.map((sector) => {

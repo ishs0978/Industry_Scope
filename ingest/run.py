@@ -13,7 +13,7 @@ from uuid import uuid4
 
 import psycopg
 
-from ingest.db import apply_migrations, sync_sector_registry
+from ingest.db import apply_migrations, database_url, sync_sector_registry
 from ingest.sources import (
     bls, company_prices, eia, events, form_d, form_d_dera, fred, gdelt, gdelt_news,
     holdings, nyt, prices, sec_xbrl,
@@ -209,8 +209,8 @@ def run_all(connection: Any, *, today: date | None = None, force_all: bool = Fal
 
 
 def main() -> int:
-    database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
+    url = database_url()
+    if not url:
         print("DATABASE_URL is required", file=sys.stderr)
         FAILURES_PATH.write_text(json.dumps([{"source": "database", "reason": "DATABASE_URL is required"}], indent=2))
         return 1
@@ -218,7 +218,7 @@ def main() -> int:
     failures: list[dict[str, str]] = []
     database_failed = False
     try:
-        with psycopg.connect(database_url) as connection:
+        with psycopg.connect(url) as connection:
             apply_migrations(connection)
             sync_sector_registry(connection)
             failures = run_all(connection, force_all=os.environ.get("FORCE_ALL") == "1")

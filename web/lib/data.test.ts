@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gateMacroByFreshness, macroSourceAllowed, serializable } from "./data";
+import { gateMacroByFreshness, macroSourceAllowed, serializable, isDatabaseUnreachable, databaseUrl } from "./data";
 
 describe("macro source gates", () => {
   it("test_eia_energy_only", () => {
@@ -24,5 +24,49 @@ describe("macro source gates", () => {
   it("redacts source credentials from public freshness errors", () => {
     const payload = serializable({ error: "https://api.example.test/data?api_key=secret-value&length=5" });
     expect(payload.error).toBe("https://api.example.test/data?api_key=[REDACTED]&length=5");
+  });
+});
+
+describe("a dead database must not replace good pages", () => {
+  it("recognises the failures that mean the database is unreachable", () => {
+    // The exact message Neon returned when the quota ran out. Caught and
+    // swallowed, it rendered every page empty and Next cached that over the
+    // last good version of the site.
+    expect(isDatabaseUnreachable(new Error(
+      "connection failed: ERROR:  Your project has exceeded the data transfer quota.",
+    ))).toBe(true);
+    for (const message of [
+      "write CONNECTION_DESTROYED ep-x.aws.neon.tech:5432",
+      "connect ETIMEDOUT 10.0.0.1:5432",
+      "Connection terminated unexpectedly",
+      "password authentication failed for user",
+      "sorry, too many clients already",
+    ]) {
+      expect(isDatabaseUnreachable(new Error(message))).toBe(true);
+    }
+  });
+
+  it("still lets a query fail on its own without taking the page down", () => {
+    // One broken source should show its own error, not blank the page.
+    expect(isDatabaseUnreachable(new Error('relation "form_d" does not exist'))).toBe(false);
+    expect(isDatabaseUnreachable(new Error("column sic_code does not exist"))).toBe(false);
+    expect(isDatabaseUnreachable(new Error("division by zero"))).toBe(false);
+  });
+});
+
+describe("connection string hygiene", () => {
+  it("strips the newline a pasted secret carries", () => {
+    // A connection string pasted into a secrets field picks up a trailing
+    // newline easily, and Postgres reads it as part of the last parameter:
+    // sslmode becomes "require\n", and every source fails at once with an
+    // error that never mentions newlines.
+    process.env.DATABASE_URL = "postgres://u:p@h:5432/db?sslmode=require\n";
+    expect(databaseUrl()).toBe("postgres://u:p@h:5432/db?sslmode=require");
+    process.env.DATABASE_URL = "  postgres://u:p@h:5432/db  ";
+    expect(databaseUrl()).toBe("postgres://u:p@h:5432/db");
+    process.env.DATABASE_URL = "   ";
+    expect(databaseUrl()).toBeUndefined();
+    delete process.env.DATABASE_URL;
+    expect(databaseUrl()).toBeUndefined();
   });
 });

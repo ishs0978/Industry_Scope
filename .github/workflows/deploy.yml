@@ -49,6 +49,15 @@ jobs:
       - name: Test
         run: npm run test
 
+      # Vercel builds the uploaded source, so whatever this writes into
+      # web/data is what the build reads. Doing it once here replaces 84 pages
+      # each opening their own connection during the build, which is what
+      # exhausted the database's data transfer allowance and blanked the site.
+      - name: Export site data
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run export-data
+
       - name: Deploy to production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

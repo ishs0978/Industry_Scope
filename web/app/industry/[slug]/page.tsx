@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import IndustryDashboard from "@/components/IndustryDashboard";
-import { getIndustryPayload } from "@/lib/data";
+import { industryPayload } from "@/lib/payloads";
 import { sectorBySlug, sectors } from "@/lib/registry";
 
 export const revalidate = 86400;
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function IndustryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const payload = await getIndustryPayload(slug);
+  const payload = await industryPayload(slug);
   if (!payload) notFound();
   return <IndustryDashboard initialPayload={payload} />;
 }

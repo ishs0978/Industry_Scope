@@ -100,9 +100,21 @@ def sync_sector_registry(connection: Any) -> int:
     return len(rows)
 
 
+def database_url() -> str | None:
+    """The connection string, without the whitespace a paste tends to carry.
+
+    A connection string pasted into a secrets field picks up a trailing newline
+    remarkably easily, and Postgres reads it as part of the last parameter:
+    sslmode becomes "require\n", which is not a valid mode, and every source in
+    the run fails at once with an error that says nothing about newlines.
+    """
+    value = os.environ.get("DATABASE_URL")
+    return value.strip() if value else None
+
+
 def main() -> None:
-    database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
+    url = database_url()
+    if not url:
         raise SystemExit("DATABASE_URL is required")
 
     try:
@@ -110,7 +122,7 @@ def main() -> None:
     except ImportError as exc:
         raise SystemExit("psycopg is not installed; run: pip install -r requirements.txt") from exc
 
-    with psycopg.connect(database_url) as connection:
+    with psycopg.connect(url) as connection:
         applied = apply_migrations(connection)
         sector_count = sync_sector_registry(connection)
 
