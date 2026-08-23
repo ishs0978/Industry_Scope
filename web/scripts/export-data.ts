@@ -62,12 +62,20 @@ async function main() {
     counts.sectors += 1;
   }
 
+  // Every fund is measured against the same benchmark and the same risk-free
+  // series, so embedding them in each payload wrote SPY's entire history to
+  // disk 56 times. They are written once and reattached when read.
+  let shared: { benchmark: unknown; riskFree: unknown } | null = null;
   for (const fund of fundsWithSector()) {
     const payload = await getEtfPayload(fund.ticker);
     if (!payload) continue;
-    bytes += await write(`etf/${fund.ticker}.json`, payload);
+    if (!shared) shared = { benchmark: payload.benchmark, riskFree: payload.riskFree };
+    const { benchmark, riskFree, ...rest } = payload;
+    void benchmark; void riskFree;
+    bytes += await write(`etf/${fund.ticker}.json`, rest);
     counts.funds += 1;
   }
+  if (shared) bytes += await write("shared.json", shared);
 
   // A company with no data returns null and simply gets no file; the page then
   // renders its own "not found" rather than an empty shell.

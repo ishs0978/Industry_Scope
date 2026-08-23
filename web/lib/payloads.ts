@@ -39,7 +39,22 @@ export async function industryPayload(slug: string): Promise<WireIndustryPayload
 
 export async function etfPayload(ticker: string): Promise<EtfPayload | null> {
   const symbol = ticker.toUpperCase();
-  return (await fromFile<EtfPayload>(`etf/${symbol}.json`)) ?? getEtfPayload(symbol);
+  const exported = await fromFile<Omit<EtfPayload, "benchmark" | "riskFree">>(`etf/${symbol}.json`);
+  if (!exported) return getEtfPayload(symbol);
+  // The benchmark and risk-free series are identical for every fund and are
+  // stored once rather than in all 56 payloads.
+  const shared = await sharedSeries();
+  return { ...exported, benchmark: shared.benchmark, riskFree: shared.riskFree } as EtfPayload;
+}
+
+let sharedCache: Promise<{ benchmark: EtfPayload["benchmark"]; riskFree: EtfPayload["riskFree"] }> | null = null;
+
+function sharedSeries() {
+  if (!sharedCache) {
+    sharedCache = fromFile<{ benchmark: EtfPayload["benchmark"]; riskFree: EtfPayload["riskFree"] }>("shared.json")
+      .then((value) => value ?? { benchmark: [], riskFree: [] });
+  }
+  return sharedCache;
 }
 
 export async function companyPayload(ticker: string): Promise<CompanyPayload | null> {
