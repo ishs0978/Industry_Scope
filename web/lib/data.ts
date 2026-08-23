@@ -307,19 +307,22 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
 
 export type HomePricePoint = { date: string; value: number; close: number | null };
 export type HomePerformance = Record<string, { prices: HomePricePoint[]; error?: string }>;
+export type HomeCompany = { ticker: string; name: string | null; market_cap: number | null };
 export type HomeData = {
   performance: HomePerformance;
   /** Latest observation in the price table. */
   pricesThrough: string | null;
   /** When the price ingest last finished, which is a different question. */
   lastChecked: string | null;
+  companies: HomeCompany[];
 };
 
 export async function getHomePerformance(): Promise<HomeData> {
   const result: HomePerformance = {};
   let pricesThrough: string | null = null;
   let lastChecked: string | null = null;
-  if (!process.env.DATABASE_URL) return { performance: result, pricesThrough, lastChecked };
+  let companies: HomeCompany[] = [];
+  if (!process.env.DATABASE_URL) return { performance: result, pricesThrough, lastChecked, companies };
   const sql = db();
   try {
     // YTD is measured from the prior year-end close, so the first trading day's
@@ -348,10 +351,17 @@ export async function getHomePerformance(): Promise<HomeData> {
     const [run] = await sql`SELECT finished_at,started_at FROM ingest_runs
       WHERE source='prices' AND status='success' ORDER BY started_at DESC LIMIT 1`;
     lastChecked = (run?.finished_at ?? run?.started_at ?? null) as string | null;
+    // The largest companies held by the tracked funds, purely so the home page
+    // can show that company pages exist. Ranking by market cap needs no
+    // judgement about which companies matter.
+    companies = (await sql`SELECT ticker,name,market_cap::float FROM company_meta
+      WHERE market_cap IS NOT NULL
+        AND ticker IN (SELECT DISTINCT constituent_ticker FROM holdings)
+      ORDER BY market_cap DESC LIMIT 12`) as unknown as HomeCompany[];
   } catch (error) {
     result.__error = { prices: [], error: error instanceof Error ? error.message : String(error) };
   }
-  return { performance: result, pricesThrough, lastChecked };
+  return { performance: result, pricesThrough, lastChecked, companies };
 }
 
 const COMPANY_META_COLUMNS = `ticker,market_cap::float,as_of,name,trailing_pe::float,

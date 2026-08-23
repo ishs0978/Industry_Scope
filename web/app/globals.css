@@ -44,7 +44,23 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 
 .section-heading { align-items: end; border-bottom: 1px solid var(--ink); display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 12px; }
 .section-heading h2 { font-family: Georgia, serif; font-size: clamp(28px, 3vw, 42px); font-weight: 500; }
-.grid-note { color: var(--muted); font-size: 14px; margin: -8px 0 20px; max-width: 62ch; }
+/* Three of these used to stack down the left of a 1440px column, each capped
+   at 62ch, leaving most of the width empty and reading as a broken wrap. They
+   now sit side by side and each keeps a comfortable measure. */
+.grid-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 32px; margin: 0 0 24px; }
+.grid-note { color: var(--muted); font-size: 14px; margin: 0; max-width: 52ch; }
+
+/* Entry points to the pages behind the grid: funds, curated groups and the
+   largest companies. Without these the home page gave no sign they existed. */
+.explore { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 44px; }
+.explore-col { background: var(--panel); padding: 20px 22px; }
+.explore-col h3 { font-family: Georgia, serif; font-size: 19px; font-weight: 500; margin: 0 0 4px; }
+.explore-col p { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 14px; }
+.explore-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.explore-links a { border: 1px solid var(--line); border-radius: 99px; color: var(--ink); font-size: 12px; padding: 3px 10px; text-decoration: none; }
+.explore-links a:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.explore-links a .muted { color: var(--muted); margin-left: 5px; }
+.explore-links a:hover .muted { color: var(--paper); }
 
 .event-pill { background: none; cursor: pointer; font: inherit; }
 .event-pill.active { background: var(--ink); color: var(--paper); }
