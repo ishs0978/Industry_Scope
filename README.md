@@ -13,9 +13,19 @@ missing or its last run failed, the API and UI identify the source and reason.
 GitHub Actions (daily at 06:00 America/New_York)
   -> Python 3.11 ingest modules
   -> Neon Postgres
-  -> Next.js 15 App Router on Vercel (daily ISR)
+  -> export step writes web/data/*.json, then triggers a deploy
+  -> Next.js 15 App Router on Vercel, built from those files
   -> JSON API and Excel downloads
 ```
+
+The Vercel build does not open a database connection. It used to: each of
+the 84 pages ran its own queries while rendering, so one build pulled the same
+rows dozens of times over, and a month of rebuilds exhausted the database's
+data transfer allowance. Every page then rendered empty, and the empty version
+was cached over the real one. The deploy workflow now exports each page's
+payload once, in the job that already holds the credentials, and Vercel builds
+from those files. Fresh rows reach readers because the ingest job triggers a
+deploy when it finishes.
 
 External APIs are called only by `ingest/sources`. The Next.js application
 reads PostgreSQL; it does not call market, government, SEC, or news APIs during

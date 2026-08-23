@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getIndustryPayload } from "@/lib/data";
+import { industryPayload } from "@/lib/payloads";
 import { unpackFormD } from "@/lib/formd";
 import { unpackRows } from "@/lib/wire";
 
@@ -19,7 +19,7 @@ export function OPTIONS() {
 
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const payload = await getIndustryPayload(slug);
+  const payload = await industryPayload(slug);
   if (!payload) return NextResponse.json({ error: { source: "sector registry", reason: `Unknown sector: ${slug}` } }, { status: 404, headers: cors });
   const status = payload.errors.some((error) => error.source === "Neon Postgres") ? 503 : 200;
   // generated_at lets the workbook show when this response was built.
