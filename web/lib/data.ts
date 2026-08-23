@@ -63,6 +63,30 @@ function benchmarkAndRiskFree() {
   return sharedSeries;
 }
 
+/**
+ * Whether an error means the database could not be reached at all.
+ *
+ * This decides whether a page may render without data, and getting it wrong is
+ * what broke the site. Every loader used to catch everything and return an
+ * empty payload, so when Neon refused connections the pages still rendered
+ * "successfully" with nothing in them, and Next cached that over the last good
+ * version. A transient outage should never be able to replace real content.
+ *
+ * Throwing instead means the opposite happens: a revalidation that cannot reach
+ * the database leaves the previously generated page in place, and a build that
+ * cannot reach it fails rather than shipping an empty site. Both are the safe
+ * direction. A query that fails for its own reasons is still caught per source,
+ * because one broken source should not take down a page that can show the rest.
+ */
+export function isDatabaseUnreachable(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return [
+    "data transfer quota", "exceeded", "connection", "econnrefused", "etimedout",
+    "timeout", "terminated", "password authentication", "too many clients",
+    "could not connect", "getaddrinfo", "socket",
+  ].some((needle) => message.includes(needle));
+}
+
 export const EMPTY_SOURCE_REASON = "DATABASE_URL is not configured; no live data was queried.";
 
 function emptyPayload(sector: Sector, reason = EMPTY_SOURCE_REASON): WireIndustryPayload {
@@ -301,6 +325,7 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
       headlines, newsVolume, events, freshness, errors,
     } as unknown as WireIndustryPayload);
   } catch (error) {
+    if (isDatabaseUnreachable(error)) throw error;
     return emptyPayload(sector, error instanceof Error ? error.message : String(error));
   }
 }
@@ -359,6 +384,9 @@ export async function getHomePerformance(): Promise<HomeData> {
         AND ticker IN (SELECT DISTINCT constituent_ticker FROM holdings)
       ORDER BY market_cap DESC LIMIT 12`) as unknown as HomeCompany[];
   } catch (error) {
+    // Serving an empty home page is worse than serving yesterday's: Next keeps
+    // the last good render when this throws.
+    if (isDatabaseUnreachable(error)) throw error;
     result.__error = { prices: [], error: error instanceof Error ? error.message : String(error) };
   }
   return { performance: result, pricesThrough, lastChecked, companies };
@@ -410,6 +438,7 @@ export async function getEtfPayload(ticker: string): Promise<EtfPayload | null> 
       benchmark: shared.benchmark, riskFree: shared.riskFree, holdings, errors: [],
     } as unknown as EtfPayload);
   } catch (error) {
+    if (isDatabaseUnreachable(error)) throw error;
     return { ...base, meta: null, prices: [], benchmark: [], riskFree: [], holdings: [],
       errors: [{ source: "Neon Postgres", reason: error instanceof Error ? error.message : String(error) }] };
   }
@@ -455,6 +484,7 @@ export async function getCompanyPayload(ticker: string): Promise<CompanyPayload 
       errors: [],
     } as unknown as CompanyPayload);
   } catch (error) {
+    if (isDatabaseUnreachable(error)) throw error;
     return { ...base, meta: null, facts: [], weekly: [], heldBy: [],
       errors: [{ source: "Neon Postgres", reason: error instanceof Error ? error.message : String(error) }] };
   }
