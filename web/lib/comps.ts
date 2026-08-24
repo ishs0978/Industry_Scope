@@ -30,6 +30,18 @@ export const REVENUE_TAGS = [
  * earned 2,333%. Blanking it is honest; printing it is not, and a reader has no
  * way to tell the difference.
  */
+/**
+ * The only facts a sector page reads.
+ *
+ * The comps table and the margin trend divide a profit line by a revenue line;
+ * nothing on the page touches a balance sheet. Shipping the rest cost 44% of
+ * the fact payload and pushed Technology to 19.23 MB, past the 19.07 MB ceiling
+ * Vercel puts on a prerendered response, which fails the deploy outright.
+ * Company pages load their own facts and still get everything.
+ */
+export const SECTOR_FACT_METRICS: string[] =
+  [...REVENUE_TAGS, "GrossProfit", "OperatingIncomeLoss", "NetIncomeLoss"];
+
 export const MAX_PLAUSIBLE_MARGIN = 1;
 
 export function plausibleMargin(value: number | null): number | null {
