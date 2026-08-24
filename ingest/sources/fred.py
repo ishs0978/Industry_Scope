@@ -29,20 +29,52 @@ def load_series_map(path: Path = MAP_PATH) -> dict[str, dict[str, str]]:
     return unique
 
 
-# How far behind a series is allowed to fall before it is worth reporting. A
-# discontinued series does not error and does not disappear: HLTHSCPCHCSA kept
-# serving its last observation from 2021 while its panel read as current, and
-# nothing in the run said so.
-MAX_LAG_DAYS = {"Daily": 10, "Weekly": 21, "Monthly": 75, "Quarterly": 200, "Annual": 550}
-DEFAULT_MAX_LAG_DAYS = 400
+# How often each kind of series publishes. FRED spells the frequency with a
+# qualifier attached, "Daily, 7-Day" and "Weekly, Ending Monday", so the leading
+# word is what identifies it.
+PUBLICATION_INTERVAL_DAYS = {
+    "daily": 1, "weekly": 7, "biweekly": 14, "monthly": 31,
+    "quarterly": 92, "semiannual": 183, "annual": 366, "annually": 366,
+}
+DEFAULT_INTERVAL_DAYS = 92
+# A late publication is one missed release; two is a series that has stopped.
+# The grace period is scaled so a daily series is not judged over a long
+# weekend and an annual one is not given two years to prove it is dead.
+MIN_GRACE_DAYS = 13
 
 
-def is_stale(newest: date | None, frequency: str | None, today: date) -> bool:
-    """Whether a series has stopped being updated at its own publication pace."""
+def publication_interval(frequency: str | None) -> int:
+    """How many days apart this series' releases are meant to be."""
+    leading = (frequency or "").strip().lower().split(",")[0].split()[0] if (frequency or "").strip() else ""
+    return PUBLICATION_INTERVAL_DAYS.get(leading, DEFAULT_INTERVAL_DAYS)
+
+
+def is_stale(
+    newest: date | None,
+    frequency: str | None,
+    today: date,
+    *,
+    last_release: date | None = None,
+) -> bool:
+    """Whether a series has stopped being updated.
+
+    Judged on when the publisher last touched it, not on how far behind its
+    newest observation sits. Those are different questions and only the first
+    one is about staleness: the industrial-production detail series runs three
+    months behind by design and is published on time every month, and an
+    observation-age test called five such series stale on a run where all five
+    were current. Every live series here was released within 27 days; the
+    discontinued one had not been touched for 597.
+
+    Observation age is the fallback for a source that reports no release date.
+    """
     if newest is None:
         return True
-    allowance = MAX_LAG_DAYS.get((frequency or "").strip().title(), DEFAULT_MAX_LAG_DAYS)
-    return (today - newest).days > allowance
+    interval = publication_interval(frequency)
+    allowance = interval + max(MIN_GRACE_DAYS, interval // 4)
+    if last_release is not None:
+        return (today - last_release).days > allowance
+    return (today - newest).days > interval + allowance
 
 
 def validate_series(session: requests.Session, api_key: str, series_id: str) -> dict[str, Any] | None:
@@ -133,7 +165,7 @@ def run(connection: Any) -> None:
             newest = max((date.fromisoformat(item["date"]) for item in observations
                           if item.get("date")), default=None)
             frequency = metadata.get("frequency") or configured.get("frequency")
-            if is_stale(newest, frequency, date.today()):
+            if is_stale(newest, frequency, date.today(), last_release=last_release):
                 stale[series_id] = newest.isoformat() if newest else "no observations"
 
         # A series swapped out of the config keeps its rows and its panel unless
