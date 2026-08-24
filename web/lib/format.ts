@@ -117,21 +117,82 @@ export function formatUnitValue(value: number, units?: string | null): string {
 
 
 /**
- * US state and country names for the codes EDGAR uses on Form D.
+ * EDGAR's own state and country codes, as published by the SEC.
  *
- * The filing carries a two-character code, and the table printed it raw: rows
- * reading D0, A8, X0 and G7, which mean nothing to a reader. The state codes
- * are postal; the letter-digit codes are EDGAR's own country list.
+ * Taken verbatim from https://www.sec.gov/Archives/edgar/lookup-data.js, the
+ * table EDGAR's own search uses. It replaced a hand-written list of 31 codes,
+ * 18 of which were wrong: U0 was labelled United Kingdom and is Singapore, K3
+ * was Netherlands and is Hong Kong, D0 was Germany and is Bermuda, Y8 was
+ * Bermuda and is Isle of Man. A guessed country name is worse than a raw code,
+ * because a reader cannot tell that it is a guess.
+ *
+ * Two-letter postal abbreviations are passed through by placeName and are not
+ * repeated here. 254 codes, covering every value in the Form D data.
  */
 const EDGAR_PLACES: Record<string, string> = {
-  A0: "Alberta", A1: "British Columbia", A2: "Manitoba", A3: "New Brunswick",
-  A4: "Newfoundland", A5: "Nova Scotia", A6: "Ontario", A7: "Prince Edward Island",
-  A8: "Quebec", A9: "Saskatchewan", B0: "Yukon", B2: "Israel", B3: "Australia",
-  C3: "China", D0: "Germany", D8: "Guernsey", E9: "France", F4: "Ireland",
-  G7: "Jersey", H6: "Luxembourg", K3: "Netherlands", L3: "Singapore",
-  L6: "Spain", N4: "Switzerland", U0: "United Kingdom", X0: "United Kingdom",
-  Y6: "Cayman Islands", Y7: "British Virgin Islands", Y8: "Bermuda",
-  Z4: "Canada", B0X: "Yukon",
+  "1A": "Anguilla", "1B": "Armenia", "1C": "Aruba", "1D": "Azerbaijan",
+  "1E": "Bosnia and Herzegovina", "1F": "Belarus", "1G": "Djibouti", "1H": "Estonia",
+  "1J": "Eritrea", "1K": "Micronesia, Federated States of",
+  "1L": "South Georgia and the South Sandwich Islands", "1M": "Croatia", "1N": "Kyrgyzstan",
+  "1P": "Kazakhstan", "1Q": "Lithuania", "1R": "Latvia", "1S": "Moldova, Republic of",
+  "1T": "Marshall Islands", "1U": "Macedonia, the Former Yugoslav Republic of",
+  "1V": "Northern Mariana Islands", "1W": "New Caledonia", "1X": "Palestinian Territory, Occupied",
+  "1Y": "Palau", "1Z": "Russian Federation", "2A": "Slovenia", "2B": "Slovakia",
+  "2C": "French Southern Territories", "2D": "Tajikistan", "2E": "Turkmenistan", "2G": "Tuvalu",
+  "2H": "Ukraine", "2J": "United States Minor Outlying Islands", "2K": "Uzbekistan",
+  "2L": "Vanuatu", "2M": "Germany", "2N": "Czech Republic", "2P": "Mayotte",
+  "2Q": "Georgia (country)", "A0": "Alberta, Canada", "A1": "British Columbia, Canada",
+  "A2": "Manitoba, Canada", "A3": "New Brunswick, Canada", "A4": "Newfoundland, Canada",
+  "A5": "Nova Scotia, Canada", "A6": "Ontario, Canada", "A7": "Prince Edward Island, Canada",
+  "A8": "Quebec, Canada", "A9": "Saskatchewan, Canada", "B0": "Yukon, Canada", "B1": "Botswana",
+  "B2": "Afghanistan", "B3": "Albania", "B4": "Algeria", "B5": "American Samoa", "B6": "Andorra",
+  "B7": "Angola", "B8": "Antarctica", "B9": "Antigua and Barbuda", "C0": "United Arab Emirates",
+  "C1": "Argentina", "C3": "Australia", "C4": "Austria", "C5": "Bahamas", "C6": "Bahrain",
+  "C7": "Bangladesh", "C8": "Barbados", "C9": "Belgium", "D0": "Bermuda", "D1": "Belize",
+  "D2": "Bhutan", "D3": "Bolivia", "D4": "Bouvet Island", "D5": "Brazil",
+  "D6": "British Indian Ocean Territory", "D7": "Solomon Islands", "D8": "Virgin Islands, British",
+  "D9": "Brunei Darussalam", "E0": "Bulgaria", "E1": "Myanmar", "E2": "Burundi", "E3": "Cambodia",
+  "E4": "Cameroon", "E8": "Cape Verde", "E9": "Cayman Islands", "F0": "Central African Republic",
+  "F1": "Sri Lanka", "F2": "Chad", "F3": "Chile", "F4": "China", "F5": "Taiwan",
+  "F6": "Christmas Island", "F7": "Cocos (Keeling) Islands", "F8": "Colombia", "F9": "Comoros",
+  "G0": "Congo", "G1": "Cook Islands", "G2": "Costa Rica", "G3": "Cuba", "G4": "Cyprus",
+  "G6": "Benin", "G7": "Denmark", "G8": "Dominican Republic", "G9": "Dominica", "H1": "Ecuador",
+  "H2": "Egypt", "H3": "El Salvador", "H4": "Equatorial Guinea", "H5": "Ethiopia",
+  "H6": "Faroe Islands", "H7": "Falkland Islands (Malvinas)", "H8": "Fiji", "H9": "Finland",
+  "I0": "France", "I3": "French Guiana", "I4": "French Polynesia", "I5": "Gabon", "I6": "Gambia",
+  "J0": "Ghana", "J1": "Gibraltar", "J2": "Kiribati", "J3": "Greece", "J4": "Greenland",
+  "J5": "Grenada", "J6": "Guadeloupe", "J8": "Guatemala", "J9": "Guinea", "K0": "Guyana",
+  "K1": "Haiti", "K2": "Honduras", "K3": "Hong Kong", "K4": "Heard Island and Mcdonald Islands",
+  "K5": "Hungary", "K6": "Iceland", "K7": "India", "K8": "Indonesia",
+  "K9": "Iran, Islamic Republic of", "L0": "Iraq", "L2": "Ireland", "L3": "Israel", "L6": "Italy",
+  "L7": "Cote D'ivoire ", "L8": "Jamaica", "L9": "Svalbard and Jan Mayen", "M0": "Japan",
+  "M2": "Jordan", "M3": "Kenya", "M4": "Korea, Democratic People's Republic of ",
+  "M5": "Korea, Republic of", "M6": "Kuwait", "M7": "Lao People's Democratic Republic ",
+  "M8": "Lebanon", "M9": "Lesotho", "N0": "Liberia", "N1": "Libyan Arab Jamahiriya",
+  "N2": "Liechtenstein", "N4": "Luxembourg", "N5": "Macau", "N6": "Madagascar", "N7": "Malawi",
+  "N8": "Malaysia", "N9": "Maldives", "O0": "Mali", "O1": "Malta", "O2": "Martinique",
+  "O3": "Mauritania", "O4": "Mauritius", "O5": "Mexico", "O9": "Monaco", "P0": "Mongolia",
+  "P1": "Montserrat", "P2": "Morocco", "P3": "Mozambique", "P4": "Oman", "P5": "Nauru",
+  "P6": "Nepal", "P7": "Netherlands", "P8": "Netherlands Antilles", "Q1": "Viet Nam",
+  "Q2": "New Zealand", "Q3": "Nicaragua", "Q4": "Niger", "Q5": "Nigeria", "Q6": "Niue",
+  "Q7": "Norfolk Island", "Q8": "Norway", "R0": "Pakistan", "R1": "Panama",
+  "R2": "Papua New Guinea", "R4": "Paraguay", "R5": "Peru", "R6": "Philippines", "R8": "Pitcairn",
+  "R9": "Poland", "S0": "Guinea-bissau", "S1": "Portugal", "S3": "Qatar", "S4": "Reunion",
+  "S5": "Romania", "S6": "Rwanda", "S8": "San Marino", "S9": "Sao Tome and Principe",
+  "T0": "Saudi Arabia", "T1": "Senegal", "T2": "Seychelles", "T3": "South Africa", "T6": "Namibia",
+  "T7": "Yemen", "T8": "Sierra Leone", "U0": "Singapore", "U1": "Somalia", "U3": "Spain",
+  "U5": "Western Sahara", "U7": "Saint Kitts and Nevis", "U8": "Saint Helena", "U9": "Saint Lucia",
+  "V0": "Saint Pierre and Miquelon", "V1": "Saint Vincent and the Grenadines", "V2": "Sudan",
+  "V3": "Suriname", "V6": "Swaziland", "V7": "Sweden", "V8": "Switzerland",
+  "V9": "Syrian Arab Republic", "W0": "Tanzania, United Republic of", "W1": "Thailand",
+  "W2": "Togo", "W3": "Tokelau", "W4": "Tonga", "W5": "Trinidad and Tobago", "W6": "Tunisia",
+  "W7": "Turks and Caicos Islands", "W8": "Turkey", "W9": "Uganda", "X0": "United Kingdom",
+  "X1": "United States", "X2": "Burkina Faso", "X3": "Uruguay",
+  "X4": "Holy See (Vatican City State)", "X5": "Venezuela", "X8": "Wallis and Futuna",
+  "Y0": "Samoa", "Y3": "Congo, the Democratic Republic of the", "Y4": "Zambia", "Y5": "Zimbabwe",
+  "Y6": "Aland Islands", "Y7": "Guernsey", "Y8": "Isle of Man", "Y9": "Jersey",
+  "Z0": "Saint Barthelemy", "Z1": "Saint Martin", "Z2": "Serbia", "Z3": "Timor-leste",
+  "Z4": "Canada (Federal Level)", "Z5": "Montenegro"
 };
 
 export function placeName(code: string | null | undefined): string {
