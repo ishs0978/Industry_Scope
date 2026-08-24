@@ -34,7 +34,7 @@ groups:
     blurb: >-
       The rest of the chip supply chain the accelerators depend on, including
       the memory that has become the binding constraint on shipping them.
-    tickers: [MU, TXN, ADI, QCOM, ARM, NXPI, SWKS, ON]
+    tickers: [MU, TXN, ADI, QCOM, ARM, NXPI, SWKS, "ON"]
 
   - slug: ai-equipment
     name: Chip equipment and fabrication

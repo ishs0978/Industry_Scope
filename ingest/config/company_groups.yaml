@@ -14,8 +14,9 @@ groups:
     name: Magnificent 7
     sector: technology
     blurb: >-
-      The seven companies that drive most of the S&P 500's movement by weight.
-      The grouping is a market convention rather than an index with rules, and
+      Seven companies that together are about a third of the S&P 500 by weight,
+      which is enough for them to move the index but not enough to be it. The
+      grouping is a market convention rather than an index with rules, and
       membership is a matter of common usage.
     tickers: [AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA]
 
@@ -33,7 +34,7 @@ groups:
     blurb: >-
       The rest of the chip supply chain the accelerators depend on, including
       the memory that has become the binding constraint on shipping them.
-    tickers: [MU, TXN, ADI, QCOM, ARM, NXPI, SWKS, ON]
+    tickers: [MU, TXN, ADI, QCOM, ARM, NXPI, SWKS, "ON"]
 
   - slug: ai-equipment
     name: Chip equipment and fabrication
