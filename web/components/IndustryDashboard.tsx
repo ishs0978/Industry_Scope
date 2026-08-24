@@ -12,15 +12,16 @@ import {
   cumulativeReturn, holdingsOverlap, investmentValue, maxDrawdown,
   sharpeRatio, type SeriesPoint,
 } from "@/lib/metrics";
-import { compsRows, latestFactsByTicker, revenueTags } from "@/lib/comps";
+import { compsRows, factsCoverage, latestFactsByTicker, mergeShareClasses, revenueTags, type FactsCoverage } from "@/lib/comps";
 import { validatedFundHoldings } from "@/lib/holdings";
-import { coIssuerLabel, coverageNote, debtSplit, formDCounts, groupOfferings, totalRaised, unpackFormD, type Coverage, type DebtSplit, type FormDCounts, type Offering } from "@/lib/formd";
-import { formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatSignedPercent as signedPercent, formatUnitValue as unitValue, isStale, readableError, relativeTime, stamp, stampDate } from "@/lib/format";
+import { coIssuerLabel, coverageNote, debtSplit, DOMINANCE_THRESHOLD, formDCounts, groupOfferings, largestShare, raisedOfferings, totalRaised, unpackFormD, type Coverage, type DebtSplit, type FormDCounts, type Offering } from "@/lib/formd";
+import { distinctMonthTicks, placeName, plural, verb, formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatSignedPercent as signedPercent, formatUnitValue as unitValue, isStale, readableError, relativeTime, stamp, stampDate } from "@/lib/format";
 import { unpackRows } from "@/lib/wire";
-import type { FundComparison, IndustryPayload, MacroMeta, SectorGroup, WireIndustryPayload } from "@/lib/types";
+import { Unavailable } from "@/components/DetailUi";
+import type { CompanyMeta, FundComparison, IndustryPayload, MacroMeta, SectorGroup, WireIndustryPayload } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
 
-const COLORS = ["#1d6b4d", "#143142", "#b97816", "#7d5a91", "#a4463f"];
+const COLORS = ["#1d6b4d", "#143142", "#b97816", "#7d5a91", "#a4463f", "#2f7f9e", "#6b7a2f", "#8a4b6b"];
 const DAY = 86_400_000;
 const MACRO_VISIBLE = 4;
 const COVERAGE_PAGE = 20;
@@ -179,8 +180,8 @@ function SectionHead({ index, title, term, description, asOf }: { index: string;
 // positioning logic, break at narrow widths and are awkward on touch.
 const CHART_COPY = {
   growth: {
-    definition: "Growth of $100 restates every fund on the same starting basis, so their paths can be compared no matter what their share prices are.",
-    lines: "What $100 would be worth now if you had invested at the start of the window and reinvested every dividend. The thick line is this sector's fund; the grey dashed line is the S&P 500.",
+    definition: "Rebasing restates every fund to the same starting value, so their paths can be compared no matter what their share prices are. The axis is an index, not a price: a fund trading at $63 can sit at 152 here, meaning it has returned 52% over the window.",
+    lines: "Every fund set to 100 on the first day of the window, so their paths can be compared whatever their share prices are. 160 means up 60%. The thick line is this sector's fund; the grey dashed line is the S&P 500.",
     more: "Shaded bands mark dated events listed further down the page. Add peer funds with the chips above the chart. This is what the arithmetic produces, not a record of a real investment.",
   },
   drawdown: {
@@ -205,7 +206,7 @@ const CHART_COPY = {
   },
   formd: {
     definition: "Form D is the filing a private company sends the SEC when it raises money without going public. It is the only public record of most private rounds.",
-    lines: "What private companies in this sector told the SEC they raised, placed in the quarter the offering began.",
+    lines: "Securities placed privately under Regulation D by issuers the SEC classifies in this sector, placed in the quarter the offering began. Filers are not all private companies: a listed company placing securities privately files the same form, and those rows are marked.",
     more: "Watch whether private funding turns before or after the public market does. Each offering is counted once, at the cumulative figure from its most recent filing; a company that amends restates its total rather than adding to it. An offering is plotted in the quarter its original filing was made, which is a simplification: raising can run for years after that date, and the money shown in one quarter was not necessarily all raised in it. Offerings whose original predates this data have no known start date and are left out of these bars, though they remain in the table below. Many filings report no amount at all and count toward the filing tally only. Hovering a bar gives the number of offerings behind it, because a tall bar built from one offering means something different from the same total spread across fifty.",
   },
   news: {
@@ -381,7 +382,9 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
   const drawdown = drawdownSeries(primary);
   const maximumDrawdown = maxDrawdown(primary);
   const selected = validatedFundHoldings(payload, fund, end);
-  const selectedHoldings = selected.failure ? [] : selected.rows;
+  // GOOGL and GOOG are one company; counted separately they split a position
+  // in two and drop one half out of any group naming only the other.
+  const selectedHoldings = selected.failure ? [] : mergeShareClasses(selected.rows);
   const holdingsByFund = Object.fromEntries(compositionFunds.flatMap((ticker) => {
     const candidate = validatedFundHoldings(payload, ticker, end);
     return candidate.failure || !candidate.rows.length ? [] : [[ticker, candidate.rows.map((holding) => ({ ticker: holding.constituent_ticker, weight: holding.weight }))]];
@@ -452,9 +455,12 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       .sort((a, b) => a.quarter.localeCompare(b.quarter));
   }, [offerings, primary]);
 
-  const medianReportedRaise = quantile(
-    offerings.filter((row) => row.amountSold !== null).map((row) => row.amountSold), .5,
-  );
+  // Zero is a real answer on Form D: the offering is declared and nothing has
+  // closed yet, and 19,093 filings say it. Counted as a raise it halves the
+  // median, so Real Estate's typical offering read $1.0m against the $2.59m
+  // typical of the offerings that have actually taken money.
+  const nothingSoldYet = offerings.filter((row) => row.amountSold === 0).length;
+  const medianReportedRaise = quantile(raisedOfferings(offerings).map((row) => row.amountSold), .5);
   // The total counts every offering; the bars can only carry the ones with a
   // known start quarter. Naming the difference keeps the two from contradicting
   // each other on the same panel.
@@ -588,20 +594,24 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
         <Stat label="Beta vs S&P 500" value={number(beta(primary, spy))} />
         <Stat label="Sharpe ratio" term="vs 3-month Treasury" value={number(sharpeRatio(primary, riskFree))} />
       </div>
-      <div className="chart-shell"><ChartHeading title="What $100 would be worth today" term="Growth of $100, dividends reinvested" definition={CHART_COPY.growth.definition} />
+      <div className="chart-shell"><ChartHeading title="How each fund has performed" term="Rebased to 100, dividends reinvested" definition={CHART_COPY.growth.definition} />
         {peerTickers.length > 0 && <div className="peer-chips">{peerTickers.map((ticker) => <button aria-pressed={activePeers.includes(ticker)} className={`chip${activePeers.includes(ticker) ? " active" : ""}`} key={ticker} onClick={() => setActivePeers(activePeers.includes(ticker) ? activePeers.filter((item) => item !== ticker) : [...activePeers, ticker])}>{ticker}</button>)}</div>}
-        {performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} /><Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} /><Legend /><ReferenceLine y={100} stroke="#c9cdc2" strokeDasharray="3 3" /><EventBands events={payload.events} start={start} end={end} />{shownTickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}<Line key="SPY" dataKey="SPY" dot={false} connectNulls stroke={BENCHMARK_STROKE} strokeWidth={1.2} strokeDasharray="4 3" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.growth.lines} more={CHART_COPY.growth.more} /><FundLinks tickers={[payload.sector.primary_etf, ...peerTickers]} primary={payload.sector.primary_etf} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
+        {performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" ticks={distinctMonthTicks(performance.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => Math.round(Number(value)).toString()} tick={{ fontSize: 10 }} width={48} /><Tooltip formatter={(value, name) => [`${Math.round(Number(value))} (${signedPercent(Number(value) / 100 - 1)})`, String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} /><Legend /><ReferenceLine y={100} stroke="#c9cdc2" strokeDasharray="3 3" /><EventBands events={payload.events} start={start} end={end} />{shownTickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}<Line key="SPY" dataKey="SPY" dot={false} connectNulls stroke={BENCHMARK_STROKE} strokeWidth={1.2} strokeDasharray="4 3" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.growth.lines} more={CHART_COPY.growth.more} /><FundLinks tickers={[payload.sector.primary_etf, ...peerTickers]} primary={payload.sector.primary_etf} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
       <div className="chart-grid">
-        <div className="chart-shell"><ChartHeading title="How far below its last peak" term="Drawdown" definition={CHART_COPY.drawdown.definition} />{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} labelFormatter={(value) => fullDate(String(value))} /><ReferenceLine y={0} stroke="#c9cdc2" strokeDasharray="3 3" /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.drawdown.lines} more={CHART_COPY.drawdown.more} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
+        <div className="chart-shell"><ChartHeading title="How far below its last peak" term="Drawdown" definition={CHART_COPY.drawdown.definition} />{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" ticks={distinctMonthTicks(drawdown.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} labelFormatter={(value) => fullDate(String(value))} /><ReferenceLine y={0} stroke="#c9cdc2" strokeDasharray="3 3" /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.drawdown.lines} more={CHART_COPY.drawdown.more} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
       </div>
-      {maximumDrawdown && <p className="panel-description">Maximum drawdown {percent(maximumDrawdown.maxDrawdown)} from {maximumDrawdown.peakDate} to {maximumDrawdown.troughDate}; {maximumDrawdown.recoveryDate ? `recovered ${maximumDrawdown.recoveryDate}` : "not recovered in the selected window"} ({maximumDrawdown.durationDays} days).</p>}
+      {maximumDrawdown && <p className="panel-description">Maximum drawdown {percent(maximumDrawdown.maxDrawdown)} from {maximumDrawdown.peakDate} to {maximumDrawdown.troughDate}; {maximumDrawdown.recoveryDate
+        ? `recovered ${maximumDrawdown.recoveryDate}, ${maximumDrawdown.durationDays} days from peak to recovery`
+        : `not recovered in the selected window, ${maximumDrawdown.durationDays} days from peak to the end of the range`}.</p>}
       <div className="hero-meta">{describedEvents(payload.events, start, end).map((event) => <button className={`pill event-pill${selectedEvent?.id === event.id ? " active" : ""}`} onClick={() => setSelectedEventId(selectedEvent?.id === event.id ? null : event.id)} key={event.id}>{event.title}</button>)}</div>
       {selectedEvent && <EventWindowReturns payload={payload} event={selectedEvent} onClose={() => setSelectedEventId(null)} />}
       <CalendarTable payload={payload} tickers={tickers} start={start} end={end} />
     </section>
 
     <section className="panel" id="composition">
-      <SectionHead index="02" title="What the fund holds" term="Constituents and weights" description="Latest issuer-published snapshots. Unsupported issuers are hidden rather than represented by empty portfolios." asOf={asOfLabel(selected.rows.map((row) => row.as_of))} />
+      <SectionHead index="02" title="What the fund holds" term="Constituents and weights" description="Latest issuer-published snapshots. Unsupported issuers are hidden rather than represented by empty portfolios. Share classes of one company are combined, so a fund holding two lines of the same issuer counts it once." asOf={asOfLabel(selected.rows.map((row) => row.as_of))} />
+      <SubstituteFundNote shown={fund} primary={payload.sector.primary_etf}
+        reason={payload.etfMeta.find((meta) => meta.ticker === payload.sector.primary_etf)?.holdings_error ?? null} />
       {compositionFunds.length > 0 && <select className="fund-selector" value={fund} onChange={(event) => setFund(event.target.value)}>{compositionFunds.map((ticker) => <option key={ticker}>{ticker}</option>)}</select>}
       {selected.failure ? <div className="source-error">Holdings · {fund} · {selected.failure}</div> : <>
       {snapshotAgeDays !== null && snapshotAgeDays > 7 && <div className="source-error">Holdings · {fund} · stale snapshot dated {snapshotDate}.</div>}
@@ -625,36 +635,50 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
     </section>
 
     {payload.fundComparisons.length > 0 && <section className="panel" id="comparison">
-      <SectionHead index="01b" title="Against the alternatives" term="Funds from other sectors"
+      <SectionHead index="02" title="Against the alternatives" term="Funds from other sectors"
         description="The same money could sit in a different asset entirely. These funds live on their own pages; this puts them on one axis so the choice between them can be seen."
         asOf={asOfLabel(payload.fundComparisons.flatMap((c) => c.series.flatMap((s) => s.points.map((p) => p.date))))} />
       {payload.fundComparisons.map((comparison) => <FundComparisonPanel key={comparison.slug} comparison={comparison} start={start} end={end} />)}
     </section>}
 
     {payload.groups.length > 0 && <section className="panel" id="groups">
-      <SectionHead index="02b" title="Groups worth watching" term="Curated company groups"
+      <SectionHead index="03" title="Groups worth watching" term="Curated company groups"
         description="Companies grouped by what they actually do, cutting across the fund that happens to hold them. These groupings are curated rather than taken from a filing, because the issuer holdings files carry no usable sub-sector of their own."
         asOf={asOfLabel(payload.groups.flatMap((group) => group.members.flatMap((member) => member.weekly.map((point) => point.date))))} />
       {payload.groups.map((group) => <CompanyGroupPanel key={group.slug} group={group} start={start} end={end} />)}
     </section>}
 
     <section className="panel" id="fundamentals">
-      <SectionHead index="03" title="How the companies are doing" term="SEC XBRL reported facts" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
+      <SectionHead index="04" title="How the companies are doing" term="SEC XBRL reported facts" description="Reported SEC XBRL facts only. Missing tags remain blank; quartiles use available observations. Market cap is today's value and is not aligned to the selected date range." asOf={asOfLabel(payload.companyFacts.map((row) => row.filed_date))} />
       {comps.length ? <>
         <ChartHeading title="Every company in the fund, side by side" term="One row per constituent" definition={COMPS_DEFINITION} />
         <p className="provenance">Each figure below is a number the company itself filed with the SEC in XBRL, for the period named in its row. Revenue, gross profit, operating income and net income are reported values, taken as filed. The three margins are the only calculated cells: each divides a reported profit line by that same company&rsquo;s reported revenue for the same period. Nothing here is estimated, and a company that did not report a figure leaves the cell blank rather than showing a zero.</p>
-        <CompsTable rows={comps} />
+        <CompsCoverage coverage={factsCoverage(selectedHoldings, factsAsOfEnd)} />
+        <CompsTable rows={comps} coverage={factsCoverage(selectedHoldings, factsAsOfEnd)} />
       </> : <div className="source-error">SEC XBRL: no company facts are available for the latest primary-fund constituents.</div>}
       {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" definition={CHART_COPY.margins.definition} /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} itemSorter={byValueDescending} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer><ChartCaption lines={CHART_COPY.margins.lines} more={CHART_COPY.margins.more} /><ChartFreshness payload={payload} source="sec_xbrl" dataThrough={latestFactFiled} /></div>}
     </section>
 
+    <section className="panel">
+      <SectionHead index="04b" title="What the market pays for them" term="Yahoo Finance multiples"
+        description="These are vendor figures, not filings. Every number in the panel above is a value a company filed with the SEC; every number here is Yahoo Finance's, computed from a price the company does not set and an earnings basis Yahoo chooses. They are shown separately for that reason. Blanks are common: a REIT or a bank often has no meaningful P/E, and Yahoo reports none rather than a wrong one."
+        asOf={asOfLabel(payload.companyMeta.map((row) => String(row.as_of)))} />
+      <VendorMultiples meta={payload.companyMeta} holdings={selectedHoldings} />
+    </section>
+
     <section className="panel" id="private-capital">
-      <SectionHead index="04" title="Private fundraising" term="SEC Form D filings" description="Reported Form D amounts, grouped into offerings by the file number EDGAR keeps constant across a filing and its amendments, and placed in the quarter each offering began rather than the quarter it was last amended. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once at its latest reported figure. A fund raising capital is not an operating industry, so two kinds of pooled vehicle are excluded on the filer's own answers: those selecting Pooled Investment Fund as their industry, and those saying the security sold is an interest in a pooled investment fund, which is how insurance separate accounts filing under Insurance are caught. Vehicles are most Form D filings, so these counts are a minority of all filings. Amounts are unverified self-reports and the SEC does not check them." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
-      <div className="stat-grid stat-grid-three"><Stat label="Form D filings" term="Distinct accessions" value={counts.filings.toLocaleString()} /><Stat label="Offerings" term="Distinct file numbers" value={counts.offerings.toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={offerings.some((row) => row.amountSold !== null) ? money(totalRaised(offerings.map((row) => row.latest))) : "—"} /><Stat label="Typical raise" term="Median offering" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Raised as debt" term="Share of classified dollars" value={debt.share === null ? "—" : percent(debt.share)} /><Stat label="Offerings per quarter" term="Median quarter" value={offeringsPerQuarter === null ? "—" : Math.round(offeringsPerQuarter).toLocaleString()} /></div>
+      <SectionHead index="05" title="Reg D placements" term="SEC Form D filings" description="Reported Form D amounts, grouped into offerings by the file number EDGAR keeps constant across a filing and its amendments, and placed in the quarter each offering began rather than the quarter it was last amended. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once at its latest reported figure. A fund raising capital is not an operating industry, so two kinds of pooled vehicle are excluded on the filer's own answers: those selecting Pooled Investment Fund as their industry, and those saying the security sold is an interest in a pooled investment fund, which is how insurance separate accounts filing under Insurance are caught. Vehicles are most Form D filings, so these counts are a minority of all filings. Amounts are unverified self-reports and the SEC does not check them. Which filings appear here is decided by the industry category the filer picked on the form, falling back to the issuer's SIC code in EDGAR where that category maps to no sector: only 5% of these filings carry a SIC code that resolves at all, so membership is mostly the filer's own idea of its industry rather than a classification of its business, and it is coarser than the fund definition used everywhere else on this page." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
+      <div className="stat-grid stat-grid-three"><Stat label="Form D filings" term="Distinct accessions" value={counts.filings.toLocaleString()} /><Stat label="Offerings" term="Distinct file numbers" value={counts.offerings.toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={offerings.some((row) => row.amountSold !== null) ? money(totalRaised(offerings.map((row) => row.latest))) : "—"} /><Stat label="Typical raise" term="Median offering that has taken money" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Raised as debt" term="Share of classified dollars" value={debt.share === null ? "—" : percent(debt.share)} /><Stat label="Offerings per quarter" term="Median quarter" value={offeringsPerQuarter === null ? "—" : Math.round(offeringsPerQuarter).toLocaleString()} /></div>
       <FormDCoverage coverage={formDCoverage} start={start} end={end} />
+      <FormDConcentration offerings={offerings} />
+      {nothingSoldYet > 0 && <p className="provenance">
+        {plural(nothingSoldYet, "offering")} here reported no securities sold as of the filing. They
+        are counted as offerings and shown as &ldquo;None yet&rdquo;, and they are left out of the
+        typical raise, which is the median of the offerings that have taken money.
+      </p>}
       <FormDReconciliation counts={counts} issuers={new Set(formDInRange.map((row) => row.cik ?? row.issuer_name)).size} undated={undatedRaised} debt={debt} />
       <div className="chart-shell">
-        <ChartHeading title="Private fundraising by quarter" term="Form D amount sold by quarter" definition={CHART_COPY.formd.definition} />
+        <ChartHeading title="Placements by quarter" term="Form D amount sold by quarter" definition={CHART_COPY.formd.definition} />
         {/* Fewer than four quarters cannot show a trend, and drawing three bars
             invites one to be read as one. Say what the coverage is instead. */}
         {privateCapital.length < MINIMUM_QUARTERS
@@ -669,7 +693,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
     </section>
 
     <section className="panel" id="macro">
-      <SectionHead index="05" title="Economic backdrop" term="FRED, EIA and BLS series" description="Sector-relevant FRED, EIA, and BLS raw series aligned to the same date window." asOf={asOfLabel(payload.macro.meta.map((row) => row.as_of))} />
+      <SectionHead index="06" title="Economic backdrop" term="FRED, EIA and BLS series" description="Sector-relevant FRED, EIA, and BLS raw series aligned to the same date window." asOf={asOfLabel(payload.macro.meta.map((row) => row.as_of))} />
       <div className="small-multiples">{payload.macro.meta.slice(0, MACRO_VISIBLE).map((meta) => <MacroChart key={meta.series_id} meta={meta} points={macroPoints(meta)} />)}</div>
       {payload.macro.meta.length > MACRO_VISIBLE && <details className="macro-more">
         <summary>Show all {payload.macro.meta.length} indicators</summary>
@@ -679,7 +703,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
     </section>
 
     <section className="panel" id="timeline">
-      <SectionHead index="06" title="News and events" term="GDELT volume, live coverage and NYT headlines" description="Quantitative GDELT activity above. Below it, human-curated events, then coverage from two feeds with different lags: GDELT indexes publishers continuously, while the NYT Archive publishes a month at a time once that month has completed." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
+      <SectionHead index="07" title="News and events" term="GDELT volume, live coverage and NYT headlines" description="Quantitative GDELT activity above. Below it, human-curated events, then coverage from two feeds with different lags: GDELT indexes publishers continuously, while the NYT Archive publishes a month at a time once that month has completed." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
       {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {readableError(gdeltRun.error_message)} · coverage below may be incomplete.</div>}
       <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" definition={CHART_COPY.news.definition} />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} labelFormatter={(value) => fullDate(String(value))} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><EventBands events={payload.events} start={start} end={end} /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}<EventRail events={timelineEvents} start={start} end={end} onSelect={selectEvent} /><ChartCaption lines={CHART_COPY.news.lines} more={CHART_COPY.news.more} /><ChartFreshness payload={payload} source="gdelt" dataThrough={newsInRange.at(-1)?.date} /></div>
       {timelineEvents.length > 0 && <>
@@ -741,7 +765,7 @@ function FundComparisonPanel(
     {chart.length > 1
       ? <ResponsiveContainer width="100%" height={300}><LineChart data={chart}>
           <CartesianGrid stroke="#e4e6df" vertical={false} />
-          <XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} tickFormatter={axisDate} />
+          <XAxis dataKey="date" ticks={distinctMonthTicks(chart.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} />
           <YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} />
           <Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} />
           <Legend />
@@ -750,12 +774,13 @@ function FundComparisonPanel(
         </LineChart></ResponsiveContainer>
       : <ChartEmpty source="Prices" />}
     <div className="data-table-wrap"><table>
-      <thead><tr><th>Fund</th><th>Return in range</th></tr></thead>
+      <thead><tr><th>Fund</th><th>Total return in range</th></tr></thead>
       <tbody>{comparison.series.map((entry) => <tr key={entry.ticker}>
         <td><Link href={`/etf/${entry.ticker}`}>{entry.ticker}</Link></td>
         <td>{percent(cumulativeReturn(entry.points.filter((point) => point.date >= start && point.date <= end)))}</td>
       </tr>)}</tbody>
     </table></div>
+    <PeerSpread comparison={comparison} start={start} end={end} />
   </div>;
 }
 
@@ -772,6 +797,39 @@ function FundComparisonPanel(
  * do not fit the database. Over the multi-year spans these groups are read at,
  * a weekly close answers the same question.
  */
+/** Two funds sold as the same theme can hold almost nothing in common. */
+const PEER_SPREAD = .15;
+
+/**
+ * Says when funds tracking one theme disagree about what the theme is.
+ *
+ * BOTZ returned -0.47% against IRBO's +35.88% over the same window, and IGV
+ * -2.18% against SKYY's +23.95%. Neither fund is wrong: a theme has no index
+ * committee, so each issuer writes its own inclusion rules and the funds end up
+ * holding different companies. Shown side by side without that, the gap reads
+ * as one of them tracking the sector badly.
+ */
+function PeerSpread(
+  { comparison, start, end }: { comparison: FundComparison; start: string; end: string },
+) {
+  const returns = comparison.series
+    .map((entry) => ({
+      ticker: entry.ticker,
+      value: cumulativeReturn(entry.points.filter((point) => point.date >= start && point.date <= end)),
+    }))
+    .filter((entry): entry is { ticker: string; value: number } => entry.value !== null);
+  if (returns.length < 2) return null;
+  const best = returns.reduce((a, b) => (b.value > a.value ? b : a));
+  const worst = returns.reduce((a, b) => (b.value < a.value ? b : a));
+  if (best.value - worst.value < PEER_SPREAD) return null;
+  return <p className="provenance">
+    {best.ticker} returned {percent(best.value)} over this window and {worst.ticker}{" "}
+    {percent(worst.value)}. A theme has no index committee, so each issuer writes its own inclusion
+    rules and funds with the same label hold different companies. Read the gap as disagreement about
+    what belongs in the theme, not as one fund tracking it badly.
+  </p>;
+}
+
 function CompanyGroupPanel({ group, start, end }: { group: SectorGroup; start: string; end: string }) {
   const [open, setOpen] = useState(false);
   const members = useMemo(
@@ -792,22 +850,27 @@ function CompanyGroupPanel({ group, start, end }: { group: SectorGroup; start: s
   }, [members, start, end]);
 
   const shown = open ? members : members.slice(0, 6);
+  // The table collapses to six; the chart does not, because a legend that omits
+  // a company the heading counts reads as a missing company rather than a
+  // shortened list. Beyond the palette there is no way to tell lines apart.
+  const charted = members.slice(0, COLORS.length);
   return <div className="chart-shell" style={{ marginTop: 20 }}>
-    <ChartHeading title={group.name} term={`${members.length} companies, weekly closes`} />
+    <ChartHeading title={group.name} term={`${members.length} companies, weekly closes, dividends reinvested`} />
+    {charted.length < members.length && <p className="grid-note">The chart draws the {charted.length} largest by market value; the table lists all {members.length}.</p>}
     <p className="panel-description">{group.blurb}</p>
     {chart.length > 1
       ? <ResponsiveContainer width="100%" height={300}><LineChart data={chart}>
           <CartesianGrid stroke="#e4e6df" vertical={false} />
-          <XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} tickFormatter={axisDate} />
+          <XAxis dataKey="date" ticks={distinctMonthTicks(chart.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} />
           <YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} />
           <Tooltip formatter={(value, name) => [money(Number(value)), String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} />
           <Legend />
-          {shown.map((member, index) => <Line key={member.ticker} dataKey={member.ticker} dot={false}
-            connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={1.4} />)}
+          {charted.map((member, index) => <Line key={member.ticker} dataKey={member.ticker} dot={false}
+            connectNulls stroke={COLORS[index]} strokeWidth={1.4} />)}
         </LineChart></ResponsiveContainer>
       : <ChartEmpty source="Weekly company prices" />}
     <div className="data-table-wrap"><table>
-      <thead><tr><th>Company</th><th>Name</th><th>Market cap</th><th>Return in range</th></tr></thead>
+      <thead><tr><th>Company</th><th>Name</th><th>Market cap</th><th>Total return in range</th></tr></thead>
       <tbody>{shown.map((member) => {
         const windowed = member.weekly.filter((point) => point.date >= start && point.date <= end);
         return <tr key={member.ticker}>
@@ -860,6 +923,53 @@ function FeedNote({ children }: { children: React.ReactNode }) {
   return children ? <p className="provenance feed-note">{children}</p> : null;
 }
 
+/**
+ * Says so when the composition on screen is not the sector's own fund.
+ *
+ * Nine funds publish no holdings file this site can read, so the panel falls
+ * back to whichever comparison fund does. Semiconductors then showed XSD's
+ * equal-weight portfolio, whose largest position is PI at 3.51%, under a
+ * heading a reader takes for SMH. The substitution is reasonable; presenting it
+ * unlabelled is not.
+ */
+function SubstituteFundNote(
+  { shown, primary, reason }: { shown: string; primary: string; reason: string | null },
+) {
+  if (shown === primary) return null;
+  return <p className="provenance">
+    This composition is {shown}, not {primary}. {primary} publishes no holdings file this
+    site can parse{reason ? ` (${reason})` : ""}, so a comparison fund from the same sector
+    is shown instead. Its portfolio is built differently and its weights are its own.
+  </p>;
+}
+
+/**
+ * What the fundamentals below actually cover.
+ *
+ * The SEC walk cannot fetch every company in one run, so a page can hold
+ * figures for part of its fund. Printing a "sector median" over that subset
+ * without saying so is the part that misleads: Energy's median was taken with
+ * XOM absent, and XOM is a fifth of the fund.
+ */
+function CompsCoverage({ coverage }: { coverage: FactsCoverage }) {
+  if (!coverage.constituents) return null;
+  const share = `${Math.round(coverage.weightCovered * 100)}% of the fund by weight`;
+  if (coverage.reliable) {
+    return <p className="provenance">
+      Reported figures for {coverage.covered} of {coverage.constituents} constituents, {share}.
+    </p>;
+  }
+  const missingLargest = coverage.largest && !coverage.largest.covered
+    ? ` The largest holding, ${coverage.largest.ticker} at ${percent(coverage.largest.weight)} of the fund, is among them.`
+    : "";
+  return <p className="provenance">
+    Reported figures for {coverage.covered} of {coverage.constituents} constituents, {share}.
+    {missingLargest} Sector percentiles are withheld until coverage is complete enough to mean
+    something: a median of whichever companies have been collected is not a median of the sector.
+    The company rows below are each as filed.
+  </p>;
+}
+
 const COMPS_DEFINITION = "Every company held by this sector's fund that files with the SEC, with the figures it reported for its most recent period. The sector rows at the top are percentiles across those companies, so you can see where any one of them sits against its peers.";
 
 // Three bars cannot show a trend, and drawing them invites one to be read as
@@ -883,6 +993,25 @@ function FormDCoverage(
 }
 
 /**
+ * Says when a sector total is really one filing.
+ *
+ * Form D amounts are what the filer typed and the SEC does not check them, so a
+ * single claim can carry a whole sector: Republic Airways was 76% of Transport
+ * and Madison Air Solutions half of Industrials. Presented as a total, that
+ * reads as a market size rather than as one unverified number.
+ */
+function FormDConcentration({ offerings }: { offerings: Offering<IndustryPayload["formD"][number]>[] }) {
+  const biggest = largestShare(offerings);
+  if (!biggest || biggest.share < DOMINANCE_THRESHOLD) return null;
+  return <p className="provenance">
+    One offering is {percent(biggest.share)} of the reported total here:{" "}
+    {biggest.offering.latest.issuer_name} at {money(biggest.offering.amountSold ?? 0)}. Amounts on
+    Form D are what the filer typed and the SEC does not verify them, so read this total as one
+    large claim plus everything else, not as a measured figure.
+  </p>;
+}
+
+/**
  * The four counts that have to agree, stated as one sentence a reader can check.
  *
  * Before this, the panel showed a filing count and an offering count with no
@@ -894,13 +1023,12 @@ function FormDReconciliation(
   { counts: FormDCounts; issuers: number; undated: number; debt: DebtSplit },
 ) {
   if (!counts.filings) return null;
-  const plural = (value: number, word: string) => `${value.toLocaleString()} ${word}${value === 1 ? "" : "s"}`;
   const { filings, offerings, amendments, orphanOfferings } = counts;
   // Composed as one string rather than as sibling JSX expressions, because JSX
   // puts whitespace between lines and it lands in front of the punctuation.
   const sentence = [
     `${plural(filings, "filing")} from ${plural(issuers, "issuer")} resolve to ${plural(offerings, "offering")}`,
-    amendments ? `, because ${plural(amendments, "filing")} restate an offering already counted` : "",
+    amendments ? `, because ${plural(amendments, "filing")} ${verb(amendments, "restates", "restate")} an offering already counted` : "",
     ".",
     orphanOfferings
       ? ` ${plural(orphanOfferings, "offering")} appear here only as amendments, their originals having been filed before the data begins, so ${orphanOfferings === 1 ? "its start date is not known and it is" : "their start dates are not known and they are"} left out of the quarterly chart below while staying in the table.${undated > 0 ? ` That is why the bars total less than the figure above: ${money(undated)} of the money shown sits in offerings with no quarter to put it in.` : ""}`
@@ -933,11 +1061,11 @@ function FormDIssuers({ offerings }: { offerings: Offering<IndustryPayload["form
   const flagged = offerings.filter((row) => row.latest.pooled_name_match).length;
   return <div style={{ marginTop: 24 }}>
     <ChartHeading title="Who raised it" term="One row per offering" definition="Every offering behind the totals above, largest first. An offering appears once: where a company amended its filing, the row shows the most recent figure it reported, not the sum of its filings. Started is the date of the original filing, so amending does not move an offering to a later date." />
-    <p className="provenance">Grouped by the 021 file number EDGAR keeps constant across an offering and its amendments{amended ? `; ${amended.toLocaleString()} of these have been amended at least once` : ""}{coIssued ? `, and ${coIssued.toLocaleString()} name co-issuers, shown once under the primary issuer` : ""}. Industry is the issuer&rsquo;s own selection on the form. Name pattern marks {flagged.toLocaleString()} offering{flagged === 1 ? "" : "s"} whose issuer is named like a pooled vehicle; unlike the two exclusions above, a name drops nothing, because plenty of operating businesses are limited partnerships.</p>
+    <p className="provenance">Grouped by the 021 file number EDGAR keeps constant across an offering and its amendments{amended ? `; ${plural(amended, "of these has", "of these have")} been amended at least once` : ""}{coIssued ? `, and ${coIssued.toLocaleString()} name co-issuers, shown once under the primary issuer` : ""}. Industry is the issuer&rsquo;s own selection on the form. Name pattern marks {flagged.toLocaleString()} offering{flagged === 1 ? "" : "s"} whose issuer is named like a pooled vehicle; unlike the two exclusions above, a name drops nothing, because plenty of operating businesses are limited partnerships.</p>
     <div className="data-table-wrap"><table>
-      <thead><tr><th>Issuer</th><th>Started</th><th>Latest filing</th><th>Industry (self-selected)</th><th>Name pattern</th><th>Reported raised</th><th>Offering size</th><th>State</th></tr></thead>
+      <thead><tr><th>Issuer</th><th>Started</th><th>Latest filing</th><th>Industry (self-selected)</th><th>Name pattern</th><th>Reported raised</th><th>Offering size</th><th>Place</th></tr></thead>
       <tbody>{shown.map((row) => <tr key={row.key}>
-        <td>{row.latest.issuer_name}{coIssuerLabel(row.latest) && <span className="chip-inline"> {coIssuerLabel(row.latest)}</span>}</td>
+        <td>{row.latest.issuer_name}{row.latest.issuer_ticker && <span className="chip-inline" title="Already an SEC reporting company. A listed company placing securities privately files this same form."> listed · {row.latest.issuer_ticker}</span>}{coIssuerLabel(row.latest) && <span className="chip-inline"> {coIssuerLabel(row.latest)}</span>}</td>
         <td>{row.originUnknown
           ? <span title="The original filing predates this data, so this is the date of the earliest amendment held here.">Before {row.startDate}<span className="chip-inline"> start unknown</span></span>
           : row.startDate}</td>
@@ -946,9 +1074,11 @@ function FormDIssuers({ offerings }: { offerings: Offering<IndustryPayload["form
         <td>{row.latest.pooled_name_match
           ? <span title="The name matches a pattern common among pooled vehicles. It is a hint only: nothing is excluded on the strength of a name, because plenty of operating businesses are limited partnerships.">{row.latest.pooled_name_match}</span>
           : "—"}</td>
-        <td>{row.amountSold === null ? "Not reported" : money(row.amountSold)}</td>
+        <td>{row.amountSold === null ? "Not reported"
+          : row.amountSold === 0 ? <span title="The filer reported the offering but no securities sold as of this filing.">None yet</span>
+          : money(row.amountSold)}</td>
         <td>{row.latest.total_offering_amount === null ? "Not reported" : money(row.latest.total_offering_amount)}</td>
-        <td>{row.latest.state ?? "—"}</td>
+        <td>{placeName(row.latest.state)}</td>
       </tr>)}</tbody>
     </table></div>
     {ranked.length > 10 && <button className="chip show-more" onClick={() => setOpen(!open)}>{open ? "Show fewer" : `Show all ${ranked.length} offerings`}</button>}
@@ -992,16 +1122,104 @@ const METRIC_LABELS: Record<string, string> = {
   operatingMargin: "Operating margin",
   netMargin: "Net margin",
 };
-function CompsTable({ rows }: { rows: CompRow[] }) {
+/** Below this many reporting companies, a percentile describes its sample. */
+const MIN_QUARTILE_OBSERVATIONS = 4;
+
+/** A revenue move this large is usually a changed company, not a changed market. */
+const STRUCTURAL_GROWTH = .4;
+
+/**
+ * The marks on figures that are correctly computed and read wrongly.
+ *
+ * Revenue growth compares a period against the same period a year earlier, and
+ * a company that sold a division is not the same company in both: DD fell
+ * 44.92% on the Qnity spin and DLTR 42.73% on Family Dollar, which look like
+ * collapsing demand. Net margin above operating margin is likewise real and
+ * looks like an error: income below the operating line, such as AMZN's equity
+ * investment gains, can exceed operating profit. Neither can be detected from
+ * the filed facts alone, so the page marks them rather than adjusting them.
+ */
+function growthNote(value: number | null): string | null {
+  if (value === null || Math.abs(value) < STRUCTURAL_GROWTH) return null;
+  return "A move this size usually means the company changed rather than its market: a spin-off, "
+    + "a divestiture or a large acquisition changes what is being compared against last year. The "
+    + "filed facts do not say which, so this is not adjusted.";
+}
+
+function marginNote(operating: number | null, net: number | null): string | null {
+  if (operating === null || net === null || net <= operating) return null;
+  return "Net margin above operating margin is not an error: income arising below the operating "
+    + "line, such as investment gains or a tax benefit, can exceed operating profit for the period.";
+}
+
+function Marked({ value, note }: { value: string; note: string | null }) {
+  return note ? <span className="marked" title={note}>{value}<sup>*</sup></span> : <>{value}</>;
+}
+
+/**
+ * Multiples the vendor computed, kept away from the facts the companies filed.
+ *
+ * The panel above states that nothing in it is estimated, which is true because
+ * every cell is a filed XBRL value. A trailing P/E is not one: it divides a
+ * price by an earnings basis the vendor picks, and the two belong in different
+ * panels with different attribution rather than in one table that would make
+ * the first claim false.
+ */
+function VendorMultiples(
+  { meta, holdings }: { meta: CompanyMeta[]; holdings: IndustryPayload["holdings"] },
+) {
+  const [open, setOpen] = useState(false);
+  const weights = new Map(holdings.map((row) => [row.constituent_ticker, row.weight]));
+  const rows = meta
+    .filter((row) => weights.has(row.ticker))
+    .filter((row) => row.trailing_pe !== null || row.forward_pe !== null
+      || row.price_to_book !== null || row.dividend_yield !== null)
+    .sort((a, b) => (b.market_cap ?? -1) - (a.market_cap ?? -1));
+  if (!rows.length) {
+    return <Unavailable>
+      No vendor multiples are held for this fund&rsquo;s constituents. The reported figures above do
+      not depend on them.
+    </Unavailable>;
+  }
+  const shown = open ? rows : rows.slice(0, 20);
+  return <>
+    <div className="data-table-wrap"><table>
+      <thead><tr><th>Company</th><th>Weight</th><th>Trailing P/E</th><th>Forward P/E</th><th>Price to book</th><th>Dividend yield</th></tr></thead>
+      <tbody>{shown.map((row) => <tr key={row.ticker}>
+        <td><Link href={`/company/${row.ticker}`}>{row.ticker}</Link></td>
+        <td>{percent(weights.get(row.ticker) ?? null, 2)}</td>
+        <td>{number(row.trailing_pe)}</td>
+        <td>{number(row.forward_pe)}</td>
+        <td>{number(row.price_to_book)}</td>
+        <td>{percent(row.dividend_yield)}</td>
+      </tr>)}</tbody>
+    </table></div>
+    {rows.length > 20 && <button className="chip show-more" onClick={() => setOpen(!open)}>
+      {open ? "Show fewer" : `Show all ${rows.length}`}
+    </button>}
+  </>;
+}
+
+function CompsTable({ rows, coverage }: { rows: CompRow[]; coverage: FactsCoverage }) {
   const [sortKey, setSortKey] = useState<keyof CompRow>("marketCap");
   const ordered = [...rows].sort((a, b) => ((b[sortKey] as number | null) ?? -Infinity) - ((a[sortKey] as number | null) ?? -Infinity));
-  const metrics: (keyof CompRow)[] = ["marketCap", "revenueGrowth", "grossMargin", "operatingMargin", "netMargin"];
-  const summaries = [
+  // Banks, Communication Services and Energy report no gross profit at all, so
+  // the column was a full width of dashes on those pages.
+  const metrics: (keyof CompRow)[] =
+    (["marketCap", "revenueGrowth", "grossMargin", "operatingMargin", "netMargin"] as (keyof CompRow)[])
+      .filter((metric) => rows.some((row) => typeof row[metric] === "number"));
+  // A percentile over an arbitrary subset is not a sector percentile. They are
+  // shown only when the fundamentals cover most of the fund and include its
+  // largest holding; otherwise the reader gets the constituent rows and a
+  // statement of what is missing.
+  const summaries = coverage.reliable ? [
     { ticker: "Sector 25th percentile", q: .25 }, { ticker: "Sector median", q: .5 }, { ticker: "Sector 75th percentile", q: .75 },
-  ];
-  return <div className="data-table-wrap"><table><thead><tr><th onClick={() => setSortKey("ticker")}>Company</th><th>Period</th>{metrics.map((metric) => <th key={metric} onClick={() => setSortKey(metric)}>{METRIC_LABELS[metric] ?? metric}</th>)}</tr></thead><tbody>{summaries.map((summary) => <tr key={summary.ticker}><td><strong>{summary.ticker}</strong></td><td>—</td>{metrics.map((metric) => { const value = quantile(rows.map((row) => typeof row[metric] === "number" ? row[metric] as number : null), summary.q); return <td key={metric}>{metric === "marketCap" ? value === null ? "—" : money(value) : percent(value)}</td>; })}</tr>)}{ordered.map((row) => <tr key={row.ticker}><td><Link href={`/company/${row.ticker}`}>{row.ticker}</Link></td><td>{row.period}</td><td>{row.marketCap === null ? "—" : money(row.marketCap)}</td><td>{percent(row.revenueGrowth)}</td><td>{percent(row.grossMargin)}</td><td>{percent(row.operatingMargin)}</td><td>{percent(row.netMargin)}</td></tr>)}</tbody></table></div>;
+  ] : [];
+  const metricsWithData = (metric: keyof CompRow) =>
+    rows.filter((row) => typeof row[metric] === "number").length;
+  return <div className="data-table-wrap"><table><thead><tr><th onClick={() => setSortKey("ticker")}>Company</th><th>Period</th>{metrics.map((metric) => <th key={metric} onClick={() => setSortKey(metric)}>{METRIC_LABELS[metric] ?? metric}</th>)}</tr></thead><tbody>{summaries.map((summary) => <tr key={summary.ticker}><td><strong>{summary.ticker}</strong></td><td>—</td>{metrics.map((metric) => { const observations = metricsWithData(metric); const value = observations < MIN_QUARTILE_OBSERVATIONS ? null : quantile(rows.map((row) => typeof row[metric] === "number" ? row[metric] as number : null), summary.q); return <td key={metric} title={observations < MIN_QUARTILE_OBSERVATIONS ? `${plural(observations, "company")} in this fund reported it, too few for a percentile` : undefined}>{value === null ? "—" : metric === "marketCap" ? money(value) : percent(value)}</td>; })}</tr>)}{ordered.map((row) => <tr key={row.ticker}><td><Link href={`/company/${row.ticker}`}>{row.ticker}</Link></td><td>{row.period}</td><td>{row.marketCap === null ? "—" : money(row.marketCap)}</td><td><Marked value={percent(row.revenueGrowth)} note={growthNote(row.revenueGrowth)} /></td><td>{percent(row.grossMargin)}</td><td>{percent(row.operatingMargin)}</td><td><Marked value={percent(row.netMargin)} note={marginNote(row.operatingMargin, row.netMargin)} /></td></tr>)}</tbody></table></div>;
 }
 
 function MacroChart({ meta, points }: { meta: MacroMeta; points: SeriesPoint[] }) {
-  return <div className="chart-shell"><ChartHeading title={meta.label} definition={meta.definition ?? undefined} />{points.length ? <ResponsiveContainer width="100%" height={220}><LineChart data={points}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 9 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 9 }} /><Tooltip formatter={(value) => unitValue(Number(value), meta.units)} labelFormatter={(value) => fullDate(String(value))} /><Line dataKey="value" dot={false} stroke="#1d6b4d" /></LineChart></ResponsiveContainer> : <ChartEmpty source={meta.source} />}{meta.blurb && <ChartCaption lines={meta.blurb} />}<div className="as-of" style={{ textAlign: "left" }}>{meta.source} · {meta.units ?? "units unavailable"}<br />Release: {stampDate(meta.last_release_date)} · Ingest: {stamp(meta.as_of)}</div></div>;
+  return <div className="chart-shell"><ChartHeading title={meta.label} definition={meta.definition ?? undefined} />{points.length ? <ResponsiveContainer width="100%" height={220}><LineChart data={points}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 9 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 9 }} /><Tooltip formatter={(value) => unitValue(Number(value), meta.units)} labelFormatter={(value) => fullDate(String(value))} /><Line dataKey="value" dot={false} stroke="#1d6b4d" /></LineChart></ResponsiveContainer> : <ChartEmpty source={meta.source} />}{meta.blurb && <ChartCaption lines={meta.blurb} />}<div className="as-of" style={{ textAlign: "left" }}>{meta.source} · {meta.units ?? "units unavailable"}<br />Data through {stampDate(points.at(-1)?.date ?? null)}{meta.last_release_date && <> · Released {stampDate(meta.last_release_date)}</>} · Ingest: {stamp(meta.as_of)}</div></div>;
 }

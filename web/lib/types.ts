@@ -107,6 +107,8 @@ export type FormD = {
    * box on the form is resolved to false when the derived table is built.
    */
   is_equity_type: boolean; is_debt_type: boolean; is_option_to_acquire_type: boolean;
+  /** The listing symbol if this issuer is already an SEC reporting company. */
+  issuer_ticker: string | null;
 };
 export type Headline = {
   id: string; sector_slug: string; published_date: string; source: string;

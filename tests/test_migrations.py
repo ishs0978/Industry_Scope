@@ -35,6 +35,7 @@ def test_migrations_are_ordered_and_versioned():
         "0010_form_d_pooled_vehicles.sql",
         "0011_form_d_security_types.sql",
         "0012_company_prices_and_analysts.sql",
+        "0013_reporting_companies.sql",
     ]
 
 

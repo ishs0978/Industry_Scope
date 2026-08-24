@@ -21,6 +21,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from hashlib import sha1
 import os
+import re
 import time
 from typing import Any
 
@@ -67,11 +68,55 @@ def parse_seen_date(value: str | None) -> datetime | None:
 
 
 def clean_title(value: str | None) -> str:
-    """GDELT pads punctuation out into its own token; put the spacing back."""
+    """Undo GDELT's tokenisation, which puts spaces around every punctuation mark.
+
+    Headlines arrived as "Software - as - a - Service ( SaaS )", "Ph. D.",
+    "2. 1 million" and "Weve Lost 75, 000 Manufacturing Job". Each is one rule:
+    hyphens inside a compound, a period inside an abbreviation, a decimal point
+    and a thousands separator all had a space inserted next to them.
+    """
     text = " ".join((value or "").split())
-    for spaced, tight in ((" ?", "?"), (" !", "!"), (" ,", ","), (" .", "."), (" :", ":"), (" ;", ";")):
+    # Punctuation that closes a word: no space before it.
+    for spaced, tight in ((" ?", "?"), (" !", "!"), (" ,", ","), (" .", "."),
+                          (" :", ":"), (" ;", ";"), (" %", "%"), (" 's", "'s")):
         text = text.replace(spaced, tight)
+    # Brackets and quotes hug what they contain.
+    text = re.sub(r"\(\s+", "(", text)
+    text = re.sub(r"\s+\)", ")", text)
+    text = re.sub(r"\[\s+", "[", text)
+    text = re.sub(r"\s+\]", "]", text)
+    # A number split by its own separator: "2. 1 million", "75, 000".
+    text = re.sub(r"(\d)[.] (\d)", r"\1.\2", text)
+    text = re.sub(r"(\d), (\d{3})\b", r"\1,\2", text)
+    # A hyphen inside a compound: "Software - as - a - Service".
+    text = re.sub(r"(?<=\w) - (?=\w)", "-", text)
+    # An abbreviation broken by its own periods: "Ph. D." and "U. S." Each pass
+    # consumes the period it joins on, so "L. L. C." needs more than one.
+    for _ in range(4):
+        joined = re.sub(r"\b([A-Z][a-z]?)[.] ([A-Z])[.]", r"\1.\2.", text)
+        if joined == text:
+            break
+        text = joined
     return text.strip()
+
+
+def normalized_title(title: str) -> str:
+    """A title reduced to what makes two headlines the same story.
+
+    Wire copy is republished verbatim across dozens of outlets, so one story
+    filled a sector: thirteen copies of a UK retail piece under Staples, eight
+    of an Ontario item under Homebuilders. Case, punctuation and the trailing
+    publisher tag are all that differ between them.
+    """
+    text = re.split(r"\s+[-|–—]\s+", title.lower())[0]
+    # clean_title tightens a spaced hyphen so compounds read correctly, and that
+    # also glues the publisher tag onto the last word: "...halts-Reuters". Strip
+    # that tail, but only when what remains is still a headline, which leaves
+    # "Software-as-a-Service growth" intact.
+    head = re.sub(r"[-–—][a-z0-9. ]{2,30}$", "", text)
+    if len(head.split()) >= 4:
+        text = head
+    return " ".join(re.sub(r"[^a-z0-9 ]+", " ", text).split())
 
 
 # Words that describe how a keyword is phrased rather than what it is about.
@@ -94,6 +139,39 @@ def headline_terms(sector: Sector) -> frozenset[str]:
         for word in "".join(c if c.isalnum() else " " for c in keyword.lower()).split()
         if len(word) >= 3 and word not in STRUCTURAL_WORDS
     )
+
+
+# Headlines a machine wrote from a price feed. Financial keyword queries pull in
+# a large volume of these: they mention the sector, they are dated, they carry a
+# publisher, and they report nothing that happened. They crowd out the coverage
+# the page exists to show, so they are filtered by shape rather than by domain,
+# because the same outlet also files real reporting.
+BOILERPLATE_PATTERNS = (
+    r"\bshares? (?:cross(?:es)?|moves?) (?:above|below)\b",
+    r"\b[\d,.]+\s+shares\b",
+    r"\bshares of\b.*\bstock\b",
+    r"\b(?:boosts?|trims?|lowers?|raises?|grows?|reduces?)\s+(?:its\s+)?(?:stock\s+)?(?:holdings|position|stake)\b",
+    r"\bprice target\b",
+    r"\b(?:short interest|trading (?:up|down)|reaches new|hits new|sets new)\b",
+    r"\b(?:buy|sell|hold)[,/ ]+(?:or\s+)?(?:sell|hold|buy)\b",
+    r"^\d+\s+(?:best|top|reasons|stocks|things)\b",
+    r"\bstocks? to (?:buy|watch|consider)\b",
+    r"\b(?:52[- ]week|moving average)\b",
+    r"\bhere'?s (?:why|what|how much)\b.*\b(?:invested|bought|shares)\b",
+    r"\bgiven (?:a\s+)?(?:new\s+)?(?:average\s+)?rating\b",
+)
+BOILERPLATE = re.compile("|".join(BOILERPLATE_PATTERNS), re.IGNORECASE)
+
+# A headline this short is a stub, a section label or a truncation, not a story.
+# Three, not four: "Fed cuts rates" is a real headline and "Oil prices" is not.
+MIN_TITLE_WORDS = 3
+
+
+def is_boilerplate(title: str) -> bool:
+    """Whether a headline is generated market noise rather than reporting."""
+    if len(title.split()) < MIN_TITLE_WORDS:
+        return True
+    return bool(BOILERPLATE.search(title))
 
 
 def relevance(title: str, terms: frozenset[str]) -> int:
@@ -120,6 +198,7 @@ def article_rows(
     terms = headline_terms(sector)
     scored: list[tuple[int, tuple[Any, ...]]] = []
     seen: set[str] = set()
+    seen_titles: set[str] = set()
     considered = 0
     for article in payload.get("articles") or []:
         considered += 1
@@ -129,6 +208,14 @@ def article_rows(
         if not url or not title or published is None or url in seen:
             continue
         seen.add(url)
+        # Wire copy is republished verbatim, so the same story arrives from
+        # dozens of outlets and one of them fills the sector on its own.
+        key = normalized_title(title)
+        if key in seen_titles:
+            continue
+        seen_titles.add(key)
+        if is_boilerplate(title):
+            continue
         score = relevance(title, terms)
         if not score:
             continue

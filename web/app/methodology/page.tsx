@@ -55,6 +55,13 @@ export default function MethodologyPage() {
     <p>A failed download never overwrites good data. The previous value stays, and the panel is marked
     with the date it was collected. Each chart shows two dates: the latest observation in the series,
     and when the job last ran. Those answer different questions and are never merged.</p>
+    <p>The export the site is built from is checked before it ships, and the build fails on the states
+    that once reached these pages looking like data: a fund&rsquo;s cash-equitisation future listed as
+    a holding at a negative weight, a margin in the thousands of percent, a sector percentile computed
+    from one company, a fiscal period more than a year older than the build. Conditions that are real
+    rather than broken are reported and allowed through, because the pages disclose them: one filer
+    can honestly be most of a sector&rsquo;s Reg D total, and one wire story genuinely runs in twenty
+    papers.</p>
       </div>
     </section>
 

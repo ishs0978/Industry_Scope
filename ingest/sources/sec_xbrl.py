@@ -17,8 +17,28 @@ from ingest.sources.common import (
 
 
 SEC_DATA = "https://data.sec.gov"
+# Revenue has no single tag across industries, and taking whichever one a filer
+# happens to report produces nonsense rather than a blank. Camden Property Trust
+# files no Revenues at all, so the contract-revenue tag was used instead: a $5M
+# ancillary fee line against $119M of net income, printed as a 2,333% margin.
+# A bank's equivalent is net interest income, a REIT's is rental income, and an
+# insurer's is premiums. All of them are collected so the panel can resolve the
+# right one per company rather than divide by the wrong line.
+REVENUE_TAGS = (
+    "Revenues",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
+    "RevenuesNetOfInterestExpense",
+    "InterestAndDividendIncomeOperating",
+    "InterestIncomeExpenseNet",
+    "OperatingLeaseLeaseIncome",
+    "RealEstateRevenueNet",
+    "PremiumsEarnedNet",
+    "SalesRevenueNet",
+)
+
 US_GAAP_TAGS = (
-    "Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax",
+    *REVENUE_TAGS,
     "GrossProfit", "OperatingIncomeLoss", "NetIncomeLoss", "Assets",
     "StockholdersEquity", "LongTermDebt", "LongTermDebtCurrent",
     "LongTermDebtNoncurrent", "ShortTermBorrowings",
@@ -59,24 +79,39 @@ def ticker_cik_map(session: requests.Session, limiter: SecRateLimiter) -> dict[s
 
 
 def primary_constituents(connection: Any, limit: int | None = None) -> tuple[str, ...]:
+    """Constituents to fetch next: never-seen first, then heaviest first.
+
+    One run cannot walk 800 companies inside the SEC's rate limit, so the order
+    decides who is covered and who is missing until the next one. Ordering by
+    ticker meant the answer was the alphabet: coverage stopped in the F's, and
+    on nine of twelve funds the single largest holding was the one absent. A
+    sector page then showed a median of whichever companies happened to sort
+    early, with XOM missing from Energy at 20.6% of the fund.
+
+    Weight is the honest tie-break. A fund's largest position is the one whose
+    absence distorts the page most, so it is fetched first, and the tail fills
+    in over subsequent runs.
+    """
     primary = [sector.primary_etf for sector in load_sectors()]
     with connection.cursor() as cursor:
         cursor.execute(
             """
             WITH constituents AS (
-                SELECT DISTINCT h.constituent_ticker
+                SELECT h.constituent_ticker, max(h.weight) AS weight
                 FROM holdings h
                 JOIN (
                 SELECT fund_ticker, max(as_of) AS as_of
                 FROM holdings WHERE fund_ticker = ANY(%s) GROUP BY fund_ticker
                 ) latest USING (fund_ticker, as_of)
                 WHERE h.constituent_ticker ~ '^[A-Z][A-Z0-9.-]*$'
+                  AND h.weight > 0
+                GROUP BY h.constituent_ticker
             )
-            SELECT constituents.constituent_ticker
-            FROM constituents
-            LEFT JOIN company_facts ON company_facts.ticker=constituents.constituent_ticker
-            GROUP BY constituents.constituent_ticker
-            ORDER BY max(company_facts.filed_date) ASC NULLS FIRST, constituents.constituent_ticker
+            SELECT c.constituent_ticker
+            FROM constituents c
+            LEFT JOIN company_facts ON company_facts.ticker = c.constituent_ticker
+            GROUP BY c.constituent_ticker, c.weight
+            ORDER BY max(company_facts.filed_date) ASC NULLS FIRST, c.weight DESC
             LIMIT %s
             """,
             (primary, limit),
@@ -119,33 +154,82 @@ def fetch_frame(
     return fetch_json(session, limiter, f"{SEC_DATA}/api/xbrl/frames/us-gaap/{tag}/USD/{frame}.json")
 
 
-def ingest_market_cap(connection: Any, ticker: str) -> int:
-    import yfinance as yf
+# Market caps are written by company_prices, which fetches them alongside the
+# multiples and analyst figures in one call per company. This module used to
+# write them too, from a second call with its own timestamp, so the same ticker
+# could carry two values in one build: NVDA read $5.27T on one page and $5.20T
+# on another. One writer, one as-of date.
 
-    info = yf.Ticker(ticker).fast_info
-    market_cap = info.get("marketCap") if info else None
-    if market_cap is None:
-        return 0
+
+def store_reporting_companies(connection: Any, mapping: dict[str, str]) -> int:
+    """Record which CIKs belong to companies with a listed security.
+
+    Form D is a private placement exemption, not a private company register: a
+    listed company placing securities privately files the same form. Without
+    this, Roblox, HEICO, MasTec and Dillard's all appeared under a heading about
+    private companies.
+    """
+    rows = [(cik, ticker, None) for ticker, cik in mapping.items()]
+    return upsert_rows(
+        connection,
+        """INSERT INTO reporting_companies (cik, ticker, name) VALUES (%s,%s,%s)
+        ON CONFLICT (cik) DO UPDATE SET ticker = EXCLUDED.ticker""",
+        rows,
+    )
+
+
+def coverage_by_fund(connection: Any) -> dict[str, Any]:
+    """How much of each fund the fundamentals actually cover.
+
+    Reported so a partial walk is visible in the run record rather than only on
+    the page, and so the guard below has something to assert against.
+    """
     with connection.cursor() as cursor:
         cursor.execute(
-            """INSERT INTO company_meta (ticker, market_cap, as_of) VALUES (%s, %s, now())
-            ON CONFLICT (ticker) DO UPDATE SET market_cap=EXCLUDED.market_cap, as_of=EXCLUDED.as_of""",
-            (ticker, market_cap),
+            """
+            WITH latest AS (
+                SELECT h.fund_ticker, h.constituent_ticker, h.weight
+                FROM holdings h
+                JOIN (SELECT fund_ticker, max(as_of) AS as_of FROM holdings GROUP BY fund_ticker)
+                     m USING (fund_ticker, as_of)
+                WHERE h.weight > 0
+            )
+            SELECT
+                count(*) FILTER (WHERE f.ticker IS NULL) AS uncovered,
+                count(*) AS total,
+                round(100 * sum(l.weight) FILTER (WHERE f.ticker IS NOT NULL) / NULLIF(sum(l.weight),0)) AS weight_covered
+            FROM latest l
+            LEFT JOIN (SELECT DISTINCT ticker FROM company_facts) f ON f.ticker = l.constituent_ticker
+            """
         )
-    connection.commit()
-    return 1
+        uncovered, total, weight = cursor.fetchone()
+    return {
+        "constituents_without_facts": int(uncovered or 0),
+        "constituents_total": int(total or 0),
+        "percent_of_fund_weight_covered": int(weight or 0),
+    }
 
 
 def run(connection: Any) -> None:
     with logged_run(connection, "sec_xbrl") as result:
         session = sec_session()
         limiter = SecRateLimiter()
-        max_companies = int(os.environ.get("SEC_XBRL_MAX_COMPANIES_PER_RUN", "100"))
+        # 100 a week against ~800 constituents took two months to cycle, so most
+        # of every fund was missing at any moment. The SEC's limit is ten
+        # requests a second; the real bound is how long the job may run.
+        max_companies = int(os.environ.get("SEC_XBRL_MAX_COMPANIES_PER_RUN", "400"))
+        max_seconds = float(os.environ.get("SEC_XBRL_MAX_SECONDS", "1200"))
+        deadline = time.monotonic() + max_seconds
         mapping = ticker_cik_map(session, limiter)
+        reporting = store_reporting_companies(connection, mapping)
         missing_cik: list[str] = []
         failures: dict[str, str] = {}
         companies = primary_constituents(connection, max_companies)
+        attempted = 0
         for ticker in companies:
+            if time.monotonic() >= deadline:
+                break
+            attempted += 1
             cik = mapping.get(ticker.replace(".", "-")) or mapping.get(ticker)
             if not cik:
                 missing_cik.append(ticker)
@@ -161,14 +245,18 @@ def run(connection: Any) -> None:
                     ticker=EXCLUDED.ticker,value=EXCLUDED.value,filed_date=EXCLUDED.filed_date""",
                     rows,
                 )
-                result.rows_written += ingest_market_cap(connection, ticker)
             except Exception as exc:
                 failures[ticker] = str(exc)
         result.details = {
-            "missing_cik": missing_cik,
-            "company_errors": failures,
-            "companies_attempted": len(companies),
+            "missing_cik": missing_cik[:20],
+            "missing_cik_count": len(missing_cik),
+            "company_errors": dict(list(failures.items())[:10]),
+            "company_error_count": len(failures),
+            "companies_attempted": attempted,
+            "companies_selected": len(companies),
             "per_run_limit": max_companies,
+            "reporting_companies_known": reporting,
+            **coverage_by_fund(connection),
         }
         if failures:
             raise SourceUnavailable(f"SEC XBRL failed for {len(failures)} companies")

@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   coIssuerLabel, coverageNote, debtSplit, formDCounts, groupOfferings, isAmendment,
-  packFormD, totalRaised, unpackFormD, FORM_D_COLUMNS, type OfferingFiling,
-} from "./formd";
+  packFormD, totalRaised, unpackFormD, FORM_D_COLUMNS, type OfferingFiling, largestShare, DOMINANCE_THRESHOLD, MIN_OFFERINGS_FOR_DOMINANCE, raisedOfferings } from "./formd";
 
 const filing = (
   accession_no: string,
@@ -340,5 +339,59 @@ describe("wire packing", () => {
 
   it("handles an empty payload", () => {
     expect(unpackFormD(packFormD([]))).toEqual([]);
+  });
+});
+
+describe("single-filing dominance", () => {
+  const o = (accession_no: string, amount_sold: number) =>
+    filing(accession_no, "2026-01-01", amount_sold, { file_num: `021-${accession_no}` });
+
+  it("flags a total that rests on one unverified filing", () => {
+    // Republic Airways was 76% of Transport; Madison Air Solutions half of
+    // Industrials. Form D amounts are self-reported and unchecked.
+    const result = largestShare(groupOfferings([
+      o("1", 829), o("2", 90), o("3", 60), o("4", 40), o("5", 30), o("6", 20),
+    ]));
+    expect(result!.share).toBeGreaterThan(DOMINANCE_THRESHOLD);
+    expect(result!.offering.latest.accession_no).toBe("1");
+  });
+
+  it("stays quiet when the total is spread across filings", () => {
+    const result = largestShare(groupOfferings([
+      o("1", 100), o("2", 100), o("3", 100), o("4", 100), o("5", 100), o("6", 100),
+    ]));
+    expect(result!.share).toBeLessThan(DOMINANCE_THRESHOLD);
+  });
+
+  it("says nothing when there are too few offerings for a share to mean anything", () => {
+    // Three equal offerings put the largest at a third, which is arithmetic
+    // rather than a finding.
+    expect(largestShare(groupOfferings([o("1", 100), o("2", 100), o("3", 100)]))).toBeNull();
+    expect(largestShare(groupOfferings([o("1", 500)]))).toBeNull();
+    expect(largestShare([])).toBeNull();
+  });
+});
+
+describe("offerings that reported nothing sold", () => {
+  const offering = (accession: string, amountSold: number | null) => ({
+    fileNumber: accession, amountSold, originUnknown: false, amendments: 0,
+    latest: { accession_no: accession, amount_sold: amountSold } as never,
+  }) as never;
+
+  it("leaves declared-but-unsold offerings out of the typical raise", () => {
+    // Four offerings have taken money and two have not. Counting the zeros
+    // makes the median $750k, which describes no offering in the sector.
+    const offerings = [
+      offering("a", 0), offering("b", 0),
+      offering("c", 1_000_000), offering("d", 2_000_000),
+      offering("e", 3_000_000), offering("f", 4_000_000),
+    ];
+    const raised = raisedOfferings(offerings as never);
+    expect(raised).toHaveLength(4);
+    expect(raised.map((row) => row.amountSold)).toEqual([1_000_000, 2_000_000, 3_000_000, 4_000_000]);
+  });
+
+  it("keeps a not-reported amount out too, because it is not a zero", () => {
+    expect(raisedOfferings([offering("a", null), offering("b", 5)] as never)).toHaveLength(1);
   });
 });
