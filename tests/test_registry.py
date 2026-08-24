@@ -1,3 +1,4 @@
+from pathlib import Path
 from ingest.registry import load_sectors, search_sectors
 
 
@@ -108,3 +109,53 @@ def test_sic_resolution_prefers_the_more_specific_sector():
     assert sector_for_sic("1041") == "gold-metals"
     assert sector_for_sic("3674") == "semiconductors"
     assert sector_for_sic("3576") == "technology"
+
+
+def test_the_two_copies_of_each_shared_config_agree():
+    """The site and the ingest read separate files that must say the same thing.
+
+    They are duplicated because the web build cannot import from the Python
+    package. Nothing enforced that they matched, so a correction applied to one
+    copy silently did not apply to the other: seven FRED series were replaced in
+    the ingest map while the site kept requesting the deleted ids, and every
+    affected macro panel rendered empty in production.
+    """
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    for name, key in (("fred_map.yaml", None), ("sectors.yaml", "sectors"),
+                      ("company_groups.yaml", None)):
+        ingest = yaml.safe_load((root / "ingest" / "config" / name).read_text(encoding="utf-8"))
+        web = yaml.safe_load((root / "web" / "config" / name).read_text(encoding="utf-8"))
+        # sectors.yaml also carries holdings_feeds, which only the ingest reads.
+        if key:
+            ingest, web = ingest[key], web[key]
+        assert ingest == web, f"{name} differs between ingest/config and web/config"
+
+
+def test_no_ticker_was_parsed_as_a_boolean():
+    """YAML 1.1 reads a bare ON as true, and onsemi's ticker is ON.
+
+    It left a `true` in the semiconductor group where a company should be, and
+    the company itself was absent from a group built to contain it.
+    """
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    for name in ("company_groups.yaml", "sectors.yaml"):
+        for directory in ("ingest", "web"):
+            document = yaml.safe_load((root / directory / "config" / name).read_text(encoding="utf-8"))
+            for found in _walk_tickers(document):
+                assert isinstance(found, str), f"{directory}/config/{name} has a non-string ticker: {found!r}"
+
+
+def _walk_tickers(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in {"tickers", "comparison_etfs"} and isinstance(value, list):
+                yield from value
+            else:
+                yield from _walk_tickers(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _walk_tickers(item)
