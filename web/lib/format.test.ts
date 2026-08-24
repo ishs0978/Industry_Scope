@@ -95,11 +95,11 @@ describe("EDGAR place codes", () => {
   it("names the countries behind the codes the filing carries", () => {
     // The Form D table printed these raw: D0, A8, X0, G7 mean nothing to a
     // reader, and they are not typos.
-    expect(placeName("D0")).toBe("Germany");
-    expect(placeName("A8")).toBe("Quebec");
+    expect(placeName("D0")).toBe("Bermuda");
+    expect(placeName("A8")).toBe("Quebec, Canada");
     expect(placeName("X0")).toBe("United Kingdom");
-    expect(placeName("G7")).toBe("Jersey");
-    expect(placeName("F4")).toBe("Ireland");
+    expect(placeName("G7")).toBe("Denmark");
+    expect(placeName("F4")).toBe("China");
   });
 
   it("leaves a real postal abbreviation alone", () => {
@@ -142,5 +142,37 @@ describe("axis ticks", () => {
   it("leaves a short series alone", () => {
     const dates = ["2026-01-01", "2026-02-01", "2026-03-01"];
     expect(distinctMonthTicks(dates)).toEqual(dates);
+  });
+});
+
+describe("EDGAR place codes", () => {
+  it("names the countries the old hand-written map got wrong", () => {
+    // These were not missing, they were mislabelled, which is worse: the page
+    // stated a country with the same confidence as a correct one. Values from
+    // the SEC's own lookup table.
+    expect(placeName("U0")).toBe("Singapore");        // was "United Kingdom"
+    expect(placeName("K3")).toBe("Hong Kong");        // was "Netherlands"
+    expect(placeName("D0")).toBe("Bermuda");          // was "Germany"
+    expect(placeName("Y8")).toBe("Isle of Man");      // was "Bermuda"
+    expect(placeName("B2")).toBe("Afghanistan");      // was "Israel"
+    expect(placeName("E9")).toBe("Cayman Islands");   // was "France"
+  });
+
+  it("resolves the codes that were rendering raw", () => {
+    // 1,166 filings showed a bare code because the map held only 31 entries.
+    expect(placeName("X1")).toBe("United States");
+    expect(placeName("V8")).toBe("Switzerland");
+    expect(placeName("O5")).toBe("Mexico");
+    expect(placeName("2Q")).toBe("Georgia (country)");
+  });
+
+  it("leaves a postal abbreviation alone and copes with nothing", () => {
+    // Two letters is a US state or a Canadian-style abbreviation, already
+    // readable; expanding it would make the column wider for no gain.
+    expect(placeName("CA")).toBe("CA");
+    expect(placeName("")).toBe("—");
+    expect(placeName(null)).toBe("—");
+    // An unknown code still prints, rather than vanishing.
+    expect(placeName("ZZ9")).toBe("ZZ9");
   });
 });

@@ -1077,7 +1077,10 @@ function FormDIssuers({ offerings }: { offerings: Offering<IndustryPayload["form
         <td>{row.amountSold === null ? "Not reported"
           : row.amountSold === 0 ? <span title="The filer reported the offering but no securities sold as of this filing.">None yet</span>
           : money(row.amountSold)}</td>
-        <td>{row.latest.total_offering_amount === null ? "Not reported" : money(row.latest.total_offering_amount)}</td>
+        <td>{row.latest.total_offering_amount === null ? "Not reported"
+          : row.latest.total_offering_amount === 0
+            ? <span title="The filer reported no dollar amount. A Form D covers securities issued as consideration in an acquisition as well as securities sold for cash, and the first has no offering size.">No cash amount</span>
+            : money(row.latest.total_offering_amount)}</td>
         <td>{placeName(row.latest.state)}</td>
       </tr>)}</tbody>
     </table></div>
