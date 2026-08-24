@@ -37,7 +37,8 @@ const MAX_SAME_HEADLINE = 2;
  * room to act on it rather than at the point of failure.
  */
 const PAYLOAD_LIMIT_MB = 19.07;
-const PAYLOAD_WARN_MB = 15;
+const PAYLOAD_FAIL_MB = 17.5;
+const PAYLOAD_WARN_MB = 14;
 
 type Problem = { level: "error" | "warning"; where: string; message: string };
 
@@ -172,11 +173,12 @@ async function main() {
 
   for (const file of files) {
     const bytes = (await stat(path.join(DATA, "sectors", file))).size / 1_048_576;
-    const level = bytes >= PAYLOAD_LIMIT_MB ? "error" : bytes >= PAYLOAD_WARN_MB ? "warning" : null;
+    const level = bytes >= PAYLOAD_FAIL_MB ? "error" : bytes >= PAYLOAD_WARN_MB ? "warning" : null;
     if (level) {
       problems.push({
         level, where: file.replace(".json", ""),
-        message: `payload is ${bytes.toFixed(2)} MB against Vercel's ${PAYLOAD_LIMIT_MB} MB limit`,
+        message: `payload is ${bytes.toFixed(2)} MB; Vercel rejects a prerendered response over `
+          + `${PAYLOAD_LIMIT_MB} MB and renders slightly larger than this file`,
       });
     }
   }

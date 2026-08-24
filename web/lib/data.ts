@@ -6,6 +6,7 @@ import {
   fundByTicker, fundGroupsForSector, groupsForSector, sectorBySlug,
   type CompanyGroup, type FundGroup,
 } from "./registry";
+import { SECTOR_FACT_METRICS } from "./comps";
 import { packFormD } from "./formd";
 import { packRows } from "./wire";
 import { MACRO_POINT_COLUMNS, PRICE_COLUMNS } from "./types";
@@ -251,7 +252,7 @@ export async function getIndustryPayload(slug: string): Promise<WireIndustryPayl
       sql`SELECT series_id,date::text AS date,value::float FROM macro_series
           WHERE series_id = ANY(${macroIds}) OR (${includeEia} AND series_id LIKE 'EIA:%') OR series_id LIKE ${`BLS:${slug}:%`} ORDER BY series_id,date`,
       sql`SELECT cf.cik,cf.ticker,cf.fiscal_period,cf.metric,cf.value::float,cf.filed_date::text AS filed_date FROM company_facts cf
-          WHERE cf.ticker IN (
+          WHERE cf.metric = ANY(${SECTOR_FACT_METRICS}) AND cf.ticker IN (
             SELECT constituent_ticker FROM holdings
             WHERE fund_ticker=${sector.primary_etf} AND as_of=(
               SELECT as_of FROM holdings WHERE fund_ticker=${sector.primary_etf}
