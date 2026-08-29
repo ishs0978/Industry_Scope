@@ -12,3 +12,6 @@ web/tsconfig.tsbuildinfo
 
 # Generated at deploy time by web/scripts/export-data.ts.
 web/data/
+
+# graphify knowledge graph (local index, not source)
+graphify-out/
