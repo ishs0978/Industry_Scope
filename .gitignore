@@ -15,3 +15,8 @@ web/data/
 
 # graphify knowledge graph (local index, not source)
 graphify-out/
+
+# Personal resume material. These sit in the working tree but are not part of the
+# project, and this repository has other contributors, so `git add -A` must not
+# sweep them into a shared history.
+IndustryScope_*Bullets*
