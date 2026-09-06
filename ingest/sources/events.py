@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 import json
 from pathlib import Path
@@ -16,11 +17,28 @@ MAX_EVENTS = 80
 # A hand-curated file has no upstream to fail, so nothing announces that it has
 # stopped being maintained. It simply rots, which is what happened between
 # September 2024 and this pass.
+#
+# What rots is the curation, not the events. An embargo in 1973 does not expire,
+# and a quarter in which no new event qualifies is a normal quarter, not a
+# lapsed one. The alarm therefore reads the date a curator last went through the
+# file, which the file records itself, rather than the newest start date, which
+# is a fact about the world. Reading the start date made the check unsatisfiable
+# without padding the registry: on 2026-09-05 the newest entry was 96 days old
+# and still in force, its end date running to 2027.
 STALE_AFTER_DAYS = 90
 
 
-def load_events(path: Path = EVENTS_PATH) -> list[dict[str, Any]]:
-    events = json.loads(path.read_text(encoding="utf-8"))
+@dataclass(frozen=True)
+class Registry:
+    """The curated file: when it was last gone through, and what it holds."""
+
+    reviewed_through: date
+    events: list[dict[str, Any]]
+
+
+def load_registry(path: Path = EVENTS_PATH, today: date | None = None) -> Registry:
+    document = json.loads(path.read_text(encoding="utf-8"))
+    events = document["events"]
     if not MIN_EVENTS <= len(events) <= MAX_EVENTS:
         raise ValueError(
             f"events registry must contain {MIN_EVENTS}–{MAX_EVENTS} entries; found {len(events)}"
@@ -31,7 +49,27 @@ def load_events(path: Path = EVENTS_PATH) -> list[dict[str, Any]]:
     blank = [event["id"] for event in events if not str(event.get("blurb", "")).strip()]
     if blank:
         raise ValueError(f"every event needs a blurb; missing for {sorted(blank)}")
-    return events
+    reviewed_through = date.fromisoformat(document["reviewed_through"])
+    # Both bounds exist because the watermark is hand-maintained and a hand-typed
+    # date is the one thing here that no upstream contradicts. A future date is
+    # the shape a bump made to quiet the alarm takes; a date behind the newest
+    # entry means the reviewer added an event and forgot to move the watermark.
+    if reviewed_through > (today or date.today()):
+        raise ValueError(f"the registry cannot be reviewed through {reviewed_through}, which is in the future")
+    newest = max(date.fromisoformat(event["start"]) for event in events)
+    if reviewed_through < newest:
+        raise ValueError(
+            f"registry is reviewed through {reviewed_through} but lists {newest}; move the watermark"
+        )
+    return Registry(reviewed_through=reviewed_through, events=events)
+
+
+def load_events(path: Path = EVENTS_PATH) -> list[dict[str, Any]]:
+    return load_registry(path).events
+
+
+def days_since_review(registry: Registry, today: date) -> int:
+    return (today - registry.reviewed_through).days
 
 
 def days_since_newest_event(events: list[dict[str, Any]], today: date) -> int:
@@ -40,11 +78,15 @@ def days_since_newest_event(events: list[dict[str, Any]], today: date) -> int:
 
 def run(connection: Any) -> None:
     with logged_run(connection, "events") as result:
-        events = load_events()
-        stale_days = days_since_newest_event(events, date.today())
+        today = date.today()
+        registry = load_registry(today=today)
+        events = registry.events
+        stale_days = days_since_review(registry, today)
         result.details = {
             "event_count": len(events),
-            "days_since_newest_event": stale_days,
+            "reviewed_through": registry.reviewed_through.isoformat(),
+            "days_since_review": stale_days,
+            "days_since_newest_event": days_since_newest_event(events, today),
             "stale_after_days": STALE_AFTER_DAYS,
         }
         rows = [
@@ -68,7 +110,8 @@ def run(connection: Any) -> None:
         # out of date.
         if stale_days > STALE_AFTER_DAYS:
             raise SourceUnavailable(
-                f"newest curated event is {stale_days} days old "
-                f"(threshold {STALE_AFTER_DAYS}); add recent entries to ingest/config/events.json"
+                f"the curated registry was last reviewed {stale_days} days ago "
+                f"(threshold {STALE_AFTER_DAYS}); re-read ingest/config/events.json, add anything "
+                "that qualifies, and move reviewed_through - a review that adds nothing still counts"
             )
 
