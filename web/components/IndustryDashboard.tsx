@@ -591,6 +591,20 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       <WorkbookButton payload={payload} start={start} end={end} />
     </div>
 
+    {/* One control silently recomputes every panel below it. Sighted users see
+        eight charts redraw; a screen-reader user got nothing at all, because
+        aria-pressed only speaks when focus is on the button that changed and
+        says nothing about what the new window is. This is the page's status
+        message (WCAG 2.1 SC 4.1.3): polite, so it waits for a pause, and
+        rendered on every pass so the region exists in the tree before its text
+        changes - a region created at the same moment as its content is missed
+        by several screen readers. */}
+    <p aria-live="polite" className="visually-hidden">
+      {preset === "Custom"
+        ? `Showing a custom range, ${fullDate(start)} to ${fullDate(end)}.`
+        : `Showing ${preset}, ${fullDate(start)} to ${fullDate(end)}.`}
+    </p>
+
     {payload.errors.length > 0 && <details className="source-errors-summary">
       <summary><strong>{payload.errors.length} data {payload.errors.length === 1 ? "source is" : "sources are"} temporarily unavailable</strong> · failed data is automatically suppressed</summary>
       <div className="source-errors-list">{payload.errors.map((error) => <div key={`${error.source}:${error.reason}`}><strong>{error.source}</strong>: {readableError(error.reason)}</div>)}</div>
