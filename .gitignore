@@ -20,3 +20,7 @@ graphify-out/
 # project, and this repository has other contributors, so `git add -A` must not
 # sweep them into a shared history.
 IndustryScope_*Bullets*
+
+# Playwright output
+web/test-results/
+web/playwright-report/
