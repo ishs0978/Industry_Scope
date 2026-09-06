@@ -39,12 +39,29 @@ export function databaseUrl(): string | undefined {
   return process.env.DATABASE_URL?.trim() || undefined;
 }
 
+/**
+ * TLS on unless the connection string itself opts out.
+ *
+ * Neon speaks TLS only, so "require" is the right default and "prefer" is the
+ * wrong one: prefer would silently fall back to plaintext the day a proxy
+ * broke the handshake, which is not a thing to discover from a graph. But the
+ * deployment is not the only reader. Anyone running this against a Postgres
+ * they started themselves has no certificate to present, and today that fails
+ * with "socket disconnected before secure TLS connection was established",
+ * which reads like a network fault rather than a configuration choice.
+ * `?sslmode=disable` in the URL is the one opt-out, because it is written
+ * where the local connection is written and cannot be inherited by accident.
+ */
+export function sslSetting(url: string | undefined): "require" | false {
+  return /[?&]sslmode=disable(&|$)/.test(url ?? "") ? false : "require";
+}
+
 let pool: ReturnType<typeof postgres> | null = null;
 
 function db() {
   if (!pool) {
     pool = postgres(databaseUrl()!, {
-      ssl: "require", max: 10, idle_timeout: 30, connect_timeout: 30,
+      ssl: sslSetting(databaseUrl()), max: 10, idle_timeout: 30, connect_timeout: 30,
     });
   }
   return pool;

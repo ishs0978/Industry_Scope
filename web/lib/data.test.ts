@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gateMacroByFreshness, macroSourceAllowed, serializable, isDatabaseUnreachable, databaseUrl } from "./data";
+import { gateMacroByFreshness, macroSourceAllowed, serializable, isDatabaseUnreachable, databaseUrl, sslSetting } from "./data";
 
 describe("macro source gates", () => {
   it("test_eia_energy_only", () => {
@@ -68,5 +68,26 @@ describe("connection string hygiene", () => {
     expect(databaseUrl()).toBeUndefined();
     delete process.env.DATABASE_URL;
     expect(databaseUrl()).toBeUndefined();
+  });
+});
+
+describe("TLS setting", () => {
+  it("keeps TLS on for anything that does not ask to turn it off", () => {
+    // Neon speaks TLS only. Nothing about a deployed URL should ever reach
+    // the plaintext path, including one that names a mode of its own.
+    expect(sslSetting("postgres://u:p@h/db?sslmode=require")).toBe("require");
+    expect(sslSetting("postgres://u:p@h/db")).toBe("require");
+    expect(sslSetting(undefined)).toBe("require");
+    // "disabled" is not "disable", and a database literally called
+    // sslmode=disable is not an instruction either.
+    expect(sslSetting("postgres://u:p@h/db?sslmode=disabled")).toBe("require");
+    expect(sslSetting("postgres://u:p@h/sslmode=disable")).toBe("require");
+  });
+
+  it("turns it off for a local Postgres that says so", () => {
+    // A Postgres you started yourself has no certificate, and the failure
+    // without this reads as a network fault rather than a configuration one.
+    expect(sslSetting("postgres://u:p@localhost:5432/db?sslmode=disable")).toBe(false);
+    expect(sslSetting("postgres://u:p@localhost:5432/db?sslmode=disable&application_name=x")).toBe(false);
   });
 });
