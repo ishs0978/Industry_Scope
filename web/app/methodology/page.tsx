@@ -347,6 +347,14 @@ export default function MethodologyPage() {
       <h2>Known limits</h2>
       <div className="method-body">
 <ul>
+      <li>The macro series on a sector page is there because it describes that industry, not because
+      it predicts the fund. That has been tested rather than assumed. Each sector&rsquo;s paired
+      monthly indicator was used to forecast the next month&rsquo;s fund return in an expanding-window
+      backtest, with every reading held back until its actual release date, against the benchmark of
+      forecasting the average return so far. Sixteen of the eighteen pairings forecast worse than that
+      benchmark, and none of the eighteen is significant once the size of the sweep is accounted for.
+      Read the pairing as context for what an industry does, not as a signal about what its fund will
+      do next.</li>
       <li>An ETF is not an industry. Funds are built by their issuers to different definitions, so two
       funds covering the same theme will hold different companies.</li>
       <li>Some funds appear inside others. Semiconductor, software, cybersecurity and AI funds all hold
