@@ -7,8 +7,11 @@ from ingest.sources.events import (
     MAX_EVENTS,
     MIN_EVENTS,
     STALE_AFTER_DAYS,
+    Registry,
     days_since_newest_event,
+    days_since_review,
     load_events,
+    load_registry,
 )
 
 
@@ -63,10 +66,18 @@ def test_required_event_families_are_present():
     }.issubset(ids)
 
 
-def test_registry_is_not_stale():
+def test_the_review_is_not_stale():
     # The file sat at September 2024 for nearly two years because nothing
     # measured this.
-    assert days_since_newest_event(load_events(), date.today()) <= STALE_AFTER_DAYS
+    assert days_since_review(load_registry(), date.today()) <= STALE_AFTER_DAYS
+
+
+def test_staleness_is_measured_from_the_review_not_from_the_world():
+    # A quarter in which nothing qualifying happens is not a curation failure.
+    # The old check read the newest start date, so a reviewed registry went red
+    # for the sole reason that no new event had begun.
+    registry = Registry(reviewed_through=date(2026, 6, 30), events=[{"id": "a", "start": "2024-09-18"}])
+    assert days_since_review(registry, date(2026, 7, 29)) == 29
 
 
 def test_staleness_is_measured_from_the_newest_event():
@@ -75,14 +86,35 @@ def test_staleness_is_measured_from_the_newest_event():
 
 
 def test_load_rejects_a_blurbless_event(tmp_path):
+    with pytest.raises(ValueError, match="needs a blurb"):
+        load_registry(_registry_file(tmp_path, "2026-02-01", blurbless=True))
+
+
+def test_load_rejects_a_review_dated_in_the_future(tmp_path):
+    # Nobody reviews next month's news, so a watermark ahead of today is a typo
+    # or a bump made to silence the alarm.
+    with pytest.raises(ValueError, match="cannot be reviewed through"):
+        load_registry(_registry_file(tmp_path, "2026-03-02"), today=date(2026, 3, 1))
+
+
+def test_load_rejects_a_review_older_than_the_newest_event(tmp_path):
+    # Claiming coverage through January while listing a February event means one
+    # of the two dates is wrong.
+    with pytest.raises(ValueError, match="reviewed through 2026-01-01"):
+        load_registry(_registry_file(tmp_path, "2026-01-01"), today=date(2026, 3, 1))
+
+
+def _registry_file(tmp_path, reviewed_through: str, *, blurbless: bool = False):
     import json
 
     path = tmp_path / "events.json"
-    path.write_text(json.dumps([
-        {"id": f"e{index}", "start": "2026-01-01", "end": "2026-01-01", "sectors": ["all"],
-         "title": "t", "blurb": "" if index == 0 else "text", "source_url": "https://example.test",
-         "impact": "mixed"}
-        for index in range(MIN_EVENTS)
-    ]))
-    with pytest.raises(ValueError, match="needs a blurb"):
-        load_events(path)
+    path.write_text(json.dumps({
+        "reviewed_through": reviewed_through,
+        "events": [
+            {"id": f"e{index}", "start": "2026-02-01", "end": "2026-02-01", "sectors": ["all"],
+             "title": "t", "blurb": "" if blurbless and index == 0 else "text",
+             "source_url": "https://example.test", "impact": "mixed"}
+            for index in range(MIN_EVENTS)
+        ],
+    }))
+    return path

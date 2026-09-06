@@ -401,6 +401,13 @@ export default function MethodologyPage() {
       <h2>Changelog</h2>
       <div className="method-body">
 <ul>
+      <li><strong>September 5, 2026</strong> The curated event file was called stale once its newest
+      entry passed ninety days old, which measures the world rather than the file. On that test the
+      registry went red while its newest entry was still in force with a schedule running to 2027,
+      and the only way to clear the alarm was to pad the file. The file now records the date a
+      curator last read it through, the alarm reads that date, and the loader rejects a review date
+      that is in the future or that sits behind an entry the file already lists. A review that adds
+      nothing still counts as a review.</li>
       <li><strong>August 22, 2026</strong> Headlines came from the NYT Archive alone, which
       publishes a month at a time and only once that month has completed, so coverage was
       structurally weeks behind and, mid-month, closer to seven. GDELT indexes publishers
