@@ -17,7 +17,7 @@ import { validatedFundHoldings } from "@/lib/holdings";
 import { coIssuerLabel, coverageNote, debtSplit, DOMINANCE_THRESHOLD, formDCounts, groupOfferings, largestShare, raisedOfferings, totalRaised, unpackFormD, type Coverage, type DebtSplit, type FormDCounts, type Offering } from "@/lib/formd";
 import { distinctMonthTicks, placeName, plural, verb, formatMoney as money, formatNumber as number, formatPercent as percent, formatPrice as price, formatPriceChange as priceChange, formatSignedPercent as signedPercent, formatUnitValue as unitValue, isStale, readableError, relativeTime, stamp, stampDate } from "@/lib/format";
 import { unpackRows } from "@/lib/wire";
-import { Unavailable } from "@/components/DetailUi";
+import { ChartTable, Unavailable } from "@/components/DetailUi";
 import type { CompanyMeta, FundComparison, IndustryPayload, MacroMeta, SectorGroup, WireIndustryPayload } from "@/lib/types";
 import WorkbookButton from "./WorkbookButton";
 
@@ -125,11 +125,13 @@ function EventWindowReturns({ payload, event, onClose }: {
       <button aria-label="Close" className="event-window-close" onClick={onClose}>×</button>
     </div>
     <p className="event-window-blurb">{event.blurb}</p>
-    <div className="chart-title">Return over this window</div>
-    <table className="event-window-table"><tbody>
-      <tr><td>{fund}</td><td>{percent(sector)}</td></tr>
-      <tr><td>S&amp;P 500</td><td>{percent(benchmark)}</td></tr>
-      <tr className="event-window-relative"><td>Relative</td><td>{percent(relative)}</td></tr>
+    <h4 className="chart-title">Return over this window</h4>
+    <table className="event-window-table">
+      <caption className="visually-hidden">Total return over this event window for the sector fund, for the S&amp;P 500, and the difference between them.</caption>
+      <tbody>
+      <tr><th scope="row">{fund}</th><td>{percent(sector)}</td></tr>
+      <tr><th scope="row">S&amp;P 500</th><td>{percent(benchmark)}</td></tr>
+      <tr className="event-window-relative"><th scope="row">Relative</th><td>{percent(relative)}</td></tr>
     </tbody></table>
     <p className="event-window-note">Returns over an event window are coincident, not causal. Many things move a sector at once.</p>
     {event.source_url && <a href={event.source_url} target="_blank" rel="noreferrer">Source ↗</a>}
@@ -157,7 +159,7 @@ function EventRail({ events, start, end, onSelect }: {
         style={{ left: `${Math.min(Math.max(offset, 0), 100)}%` }}
         title={`${event.start_date} · ${event.title}`}
       >
-        <span className="visually-hidden">{event.title}</span>
+        <span className="visually-hidden">{event.start_date} · {event.title}</span>
       </button>;
     })}
   </div>;
@@ -262,19 +264,28 @@ function ChartCaption({ lines, more }: { lines: string; more?: string }) {
 }
 
 /** A title answers "what am I looking at"; the term line keeps the vocabulary. */
-function ChartHeading({ title, term, definition }: { title: string; term?: string; definition?: string }) {
+function ChartHeading({ title, term, definition, asLabel }: { title: string; term?: string; definition?: string; asLabel?: boolean }) {
   const [open, setOpen] = useState(false);
+  // The title is what a reader navigating by heading is looking for, so it is a
+  // heading. Where it also opens the definition, the heading wraps the button
+  // rather than sitting inside it: a button's children are presentational, so a
+  // heading nested in one is dropped from the accessibility tree.
   if (!definition) {
     return <div className="chart-heading">
-      <div className="chart-title">{title}</div>
+      <h3 className="chart-title">{title}</h3>
       {term && <div className="chart-term">{term}</div>}
     </div>;
   }
+  const toggle = <button aria-expanded={open} className="term-toggle" onClick={() => setOpen(!open)}>
+    <span className="chart-title">{title}</span>
+    {term && <span className="chart-term">{term}</span>}
+  </button>;
+  // asLabel is the two hero stat cells. They are cells in a stat row rather
+  // than charts, and they sit above the page's first h2, so a heading there
+  // opens the outline with two stat labels and jumps h1 straight to h3, which
+  // is what axe's heading-order rule caught.
   return <div className="chart-heading">
-    <button aria-expanded={open} className="term-toggle" onClick={() => setOpen(!open)}>
-      <span className="chart-title">{title}</span>
-      {term && <span className="chart-term">{term}</span>}
-    </button>
+    {asLabel ? toggle : <h3 className="chart-heading-title">{toggle}</h3>}
     {open && <div className="term-body">{definition}</div>}
   </div>;
 }
@@ -544,7 +555,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
     target?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
   };
 
-  return <main>
+  return <main id="main-content" tabIndex={-1}>
     <section className="industry-hero">
       <div className="eyebrow">{payload.sector.primary_etf} · NAICS {payload.sector.naics_code}</div>
       <h1>{payload.sector.name}</h1>
@@ -552,27 +563,30 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       <div className="hero-meta">{tickers.map((ticker) => <span className="pill" key={ticker}>{ticker}{ticker === payload.sector.primary_etf ? " · primary" : ""}</span>)}</div>
       {quote && <div className="hero-stats">
         <div className="hero-stat">
-          <ChartHeading title="Close" term={`${payload.sector.primary_etf} · ${closeDay(quote.date)}`} definition={CLOSE_DEFINITION} />
+          <ChartHeading asLabel title="Close" term={`${payload.sector.primary_etf} · ${closeDay(quote.date)}`} definition={CLOSE_DEFINITION} />
           <div className="hero-stat-value">{price(quote.close)}</div>
         </div>
         <div className="hero-stat">
           <div className="hero-stat-label">Day change</div>
-          <div className="hero-stat-value">{quote.change === null ? "—" : <span className={quote.change >= 0 ? "up" : "down"}>{priceChange(quote.change)} ({signedPercent(quote.changePercent)})</span>}</div>
+          <div className="hero-stat-value">{quote.change === null ? "-" : <span className={quote.change >= 0 ? "up" : "down"}>{priceChange(quote.change)} ({signedPercent(quote.changePercent)})</span>}</div>
         </div>
         <div className="hero-stat">
           <div className="hero-stat-label">Year to date</div>
           <div className="hero-stat-value">{percent(ytdReturn)}</div>
         </div>
         <div className="hero-stat">
-          <ChartHeading title="52-week range" term="Closing basis" definition={RANGE_DEFINITION} />
-          <div className="hero-stat-value">{price(quote.low)} — {price(quote.high)}</div>
+          <ChartHeading asLabel title="52-week range" term="Closing basis" definition={RANGE_DEFINITION} />
+          <div className="hero-stat-value">{price(quote.low)} - {price(quote.high)}</div>
         </div>
       </div>}
     </section>
 
-    <div className="range-bar" aria-label="Date range">
-      {(["1Y", "3Y", "5Y", "10Y", "Max"] as Preset[]).map((value) => <button className={preset === value ? "active" : ""} key={value} onClick={() => setPreset(value)}>{value}</button>)}
-      <button className={preset === "Custom" ? "active" : ""} onClick={() => setPreset("Custom")}>Custom</button>
+    {/* A bare div takes no aria-label: with no role there is nothing for the
+        name to name, and assistive technology drops it. The buttons carried
+        their selected state in a class, which is styling, not state. */}
+    <div className="range-bar" role="group" aria-label="Date range">
+      {(["1Y", "3Y", "5Y", "10Y", "Max"] as Preset[]).map((value) => <button aria-pressed={preset === value} className={preset === value ? "active" : ""} key={value} onClick={() => setPreset(value)}>{value}</button>)}
+      <button aria-pressed={preset === "Custom"} className={preset === "Custom" ? "active" : ""} onClick={() => setPreset("Custom")}>Custom</button>
       {preset === "Custom" && <><input aria-label="Start date" type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} /><input aria-label="End date" type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} /></>}
       <WorkbookButton payload={payload} start={start} end={end} />
     </div>
@@ -586,7 +600,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
     <section className="panel" id="performance">
       <SectionHead index="01" title="Price and risk" term="Total return, volatility, drawdown" description="Adjusted-close performance and risk metrics recalculate in the browser whenever the date range changes." asOf={asOfLabel(payload.prices.map((row) => row.date))} />
       <div className="insight-grid">
-        <div className="insight-card"><div className="insight-label">What happened</div><p><strong>$100 invested in {payload.sector.primary_etf}</strong> became <strong>{primaryInvestment.length ? money(primaryInvestment.at(-1)!.value) : "—"}</strong> over the selected window.</p>{spyInvestment.length > 0 && <p className="insight-detail">The same $100 in SPY became {money(spyInvestment.at(-1)!.value)}.</p>}</div>
+        <div className="insight-card"><div className="insight-label">What happened</div><p><strong>$100 invested in {payload.sector.primary_etf}</strong> became <strong>{primaryInvestment.length ? money(primaryInvestment.at(-1)!.value) : "-"}</strong> over the selected window.</p>{spyInvestment.length > 0 && <p className="insight-detail">The same $100 in SPY became {money(spyInvestment.at(-1)!.value)}.</p>}</div>
       </div>
       <div className="stat-grid">
         <Stat label="Total return" value={percent(cumulativeReturn(primary))} />
@@ -596,9 +610,9 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       </div>
       <div className="chart-shell"><ChartHeading title="How each fund has performed" term="Rebased to 100, dividends reinvested" definition={CHART_COPY.growth.definition} />
         {peerTickers.length > 0 && <div className="peer-chips">{peerTickers.map((ticker) => <button aria-pressed={activePeers.includes(ticker)} className={`chip${activePeers.includes(ticker) ? " active" : ""}`} key={ticker} onClick={() => setActivePeers(activePeers.includes(ticker) ? activePeers.filter((item) => item !== ticker) : [...activePeers, ticker])}>{ticker}</button>)}</div>}
-        {performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" ticks={distinctMonthTicks(performance.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => Math.round(Number(value)).toString()} tick={{ fontSize: 10 }} width={48} /><Tooltip formatter={(value, name) => [`${Math.round(Number(value))} (${signedPercent(Number(value) / 100 - 1)})`, String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} /><Legend /><ReferenceLine y={100} stroke="#c9cdc2" strokeDasharray="3 3" /><EventBands events={payload.events} start={start} end={end} />{shownTickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}<Line key="SPY" dataKey="SPY" dot={false} connectNulls stroke={BENCHMARK_STROKE} strokeWidth={1.2} strokeDasharray="4 3" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.growth.lines} more={CHART_COPY.growth.more} /><FundLinks tickers={[payload.sector.primary_etf, ...peerTickers]} primary={payload.sector.primary_etf} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
+        {performance.length ? <ResponsiveContainer width="100%" height={320}><LineChart data={performance} role="img" aria-label={`Line chart. ${CHART_COPY.growth.lines}`}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" ticks={distinctMonthTicks(performance.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => Math.round(Number(value)).toString()} tick={{ fontSize: 10 }} width={48} /><Tooltip formatter={(value, name) => [`${Math.round(Number(value))} (${signedPercent(Number(value) / 100 - 1)})`, String(name)]} itemSorter={byValueDescending} labelFormatter={(value) => fullDate(String(value))} /><Legend /><ReferenceLine y={100} stroke="#c9cdc2" strokeDasharray="3 3" /><EventBands events={payload.events} start={start} end={end} />{shownTickers.map((ticker, index) => <Line key={ticker} dataKey={ticker} dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={ticker === payload.sector.primary_etf ? 2.4 : 1.3} />)}<Line key="SPY" dataKey="SPY" dot={false} connectNulls stroke={BENCHMARK_STROKE} strokeWidth={1.2} strokeDasharray="4 3" /></LineChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.growth.lines} more={CHART_COPY.growth.more} /><FundLinks tickers={[payload.sector.primary_etf, ...peerTickers]} primary={payload.sector.primary_etf} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
       <div className="chart-grid">
-        <div className="chart-shell"><ChartHeading title="How far below its last peak" term="Drawdown" definition={CHART_COPY.drawdown.definition} />{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" ticks={distinctMonthTicks(drawdown.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} labelFormatter={(value) => fullDate(String(value))} /><ReferenceLine y={0} stroke="#c9cdc2" strokeDasharray="3 3" /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.drawdown.lines} more={CHART_COPY.drawdown.more} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
+        <div className="chart-shell"><ChartHeading title="How far below its last peak" term="Drawdown" definition={CHART_COPY.drawdown.definition} />{drawdown.length ? <ResponsiveContainer width="100%" height={260}><AreaChart data={drawdown} role="img" aria-label={`Area chart. ${CHART_COPY.drawdown.lines}`}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" ticks={distinctMonthTicks(drawdown.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} labelFormatter={(value) => fullDate(String(value))} /><ReferenceLine y={0} stroke="#c9cdc2" strokeDasharray="3 3" /><Area dataKey="drawdown" stroke="#a4463f" fill="#a4463f" fillOpacity={.22} /></AreaChart></ResponsiveContainer> : <ChartEmpty source="Prices" />}<ChartCaption lines={CHART_COPY.drawdown.lines} more={CHART_COPY.drawdown.more} /><ChartFreshness payload={payload} source="prices" dataThrough={primary.at(-1)?.date} /></div>
       </div>
       {maximumDrawdown && <p className="panel-description">Maximum drawdown {percent(maximumDrawdown.maxDrawdown)} from {maximumDrawdown.peakDate} to {maximumDrawdown.troughDate}; {maximumDrawdown.recoveryDate
         ? `recovered ${maximumDrawdown.recoveryDate}, ${maximumDrawdown.durationDays} days from peak to recovery`
@@ -612,21 +626,21 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
       <SectionHead index="02" title="What the fund holds" term="Constituents and weights" description="Latest issuer-published snapshots. Unsupported issuers are hidden rather than represented by empty portfolios. Share classes of one company are combined, so a fund holding two lines of the same issuer counts it once." asOf={asOfLabel(selected.rows.map((row) => row.as_of))} />
       <SubstituteFundNote shown={fund} primary={payload.sector.primary_etf}
         reason={payload.etfMeta.find((meta) => meta.ticker === payload.sector.primary_etf)?.holdings_error ?? null} />
-      {compositionFunds.length > 0 && <select className="fund-selector" value={fund} onChange={(event) => setFund(event.target.value)}>{compositionFunds.map((ticker) => <option key={ticker}>{ticker}</option>)}</select>}
+      {compositionFunds.length > 0 && <select aria-label="Fund whose holdings are shown" className="fund-selector" value={fund} onChange={(event) => setFund(event.target.value)}>{compositionFunds.map((ticker) => <option key={ticker}>{ticker}</option>)}</select>}
       {selected.failure ? <div className="source-error">Holdings · {fund} · {selected.failure}</div> : <>
       {snapshotAgeDays !== null && snapshotAgeDays > 7 && <div className="source-error">Holdings · {fund} · stale snapshot dated {snapshotDate}.</div>}
       <div className="insight-grid">
         <div className="insight-card"><div className="insight-label">What the fund owns</div><p><strong>{fund}</strong> reports {selectedHoldings.length.toLocaleString()} holdings covering <strong>{percent(reportedWeightTotal)}</strong> of portfolio weight.{largestHolding && <> Its largest position is <strong>{largestHolding.constituent_ticker} at {percent(largestHolding.weight)}</strong>.</>}</p></div>
       </div>
       <div className="stat-grid">
-        <Stat label="Top 10 holdings" term="Share of portfolio" value={selectedHoldings.length ? percent(reportedTop10Weight) : "—"} />
-        <Stat label="Concentration" term="HHI, 0 to 10,000" value={selectedHoldings.length ? Math.round(concentrationStats.hhi * 10_000).toLocaleString() : "—"} />
+        <Stat label="Top 10 holdings" term="Share of portfolio" value={selectedHoldings.length ? percent(reportedTop10Weight) : "-"} />
+        <Stat label="Concentration" term="HHI, 0 to 10,000" value={selectedHoldings.length ? Math.round(concentrationStats.hhi * 10_000).toLocaleString() : "-"} />
         <Stat label="Expense ratio" term="Annual fee" value={payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio === null ? "Unavailable from Yahoo Finance" : percent(payload.etfMeta.find((item) => item.ticker === fund)?.expense_ratio ?? null, 2)} />
-        <Stat label="Assets" term="Total invested in the fund" value={payload.etfMeta.find((item) => item.ticker === fund)?.aum ? money(payload.etfMeta.find((item) => item.ticker === fund)!.aum!) : "—"} />
+        <Stat label="Assets" term="Total invested in the fund" value={payload.etfMeta.find((item) => item.ticker === fund)?.aum ? money(payload.etfMeta.find((item) => item.ticker === fund)!.aum!) : "-"} />
       </div>
       {selectedHoldings.length ? <>
         <p className="provenance">Every row is published by the fund&rsquo;s issuer in its own daily holdings file and stored as given. Weights are the issuer&rsquo;s, not recomputed here, which is why a complete snapshot sums to about 100%. A snapshot that fails validation is suppressed rather than shown in part.</p>
-        <div className="data-table-wrap"><table><thead><tr><th>Holding</th><th>Ticker</th><th>Weight</th></tr></thead><tbody>{(allHoldingsShown ? selectedHoldings : selectedHoldings.slice(0, 25)).map((holding) => <tr key={holding.constituent_ticker}><td>{holding.constituent_name ?? holding.constituent_ticker}</td><td>{holding.constituent_ticker}</td><td>{percent(holding.weight, 2)}</td></tr>)}</tbody></table></div>
+        <div className="data-table-wrap" tabIndex={0}><table><caption className="visually-hidden">Every position in the selected fund, with its ticker and its weight in the fund.</caption><thead><tr><th scope="col">Holding</th><th scope="col">Ticker</th><th scope="col">Weight</th></tr></thead><tbody>{(allHoldingsShown ? selectedHoldings : selectedHoldings.slice(0, 25)).map((holding) => <tr key={holding.constituent_ticker}><td>{holding.constituent_name ?? holding.constituent_ticker}</td><td>{holding.constituent_ticker}</td><td>{percent(holding.weight, 2)}</td></tr>)}</tbody></table></div>
         {selectedHoldings.length > 25 && <button className="chip show-more" onClick={() => setAllHoldingsShown(!allHoldingsShown)}>{allHoldingsShown ? `Show the largest 25 of ${selectedHoldings.length}` : `Show all ${selectedHoldings.length} holdings`}</button>}
         {!allHoldingsShown && selectedHoldings.length > 25 && <p className="provenance">Showing the largest 25 of {selectedHoldings.length.toLocaleString()}. The stats above are computed across all {selectedHoldings.length.toLocaleString()}, not just the rows displayed.</p>}
       </> : <div className="source-error">Holdings · {payload.etfMeta.find((item) => item.ticker === fund)?.holdings_error ?? "No issuer snapshot is available."}</div>}
@@ -656,7 +670,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
         <CompsCoverage coverage={factsCoverage(selectedHoldings, factsAsOfEnd)} />
         <CompsTable rows={comps} coverage={factsCoverage(selectedHoldings, factsAsOfEnd)} />
       </> : <div className="source-error">SEC XBRL: no company facts are available for the latest primary-fund constituents.</div>}
-      {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" definition={CHART_COPY.margins.definition} /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} itemSorter={byValueDescending} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer><ChartCaption lines={CHART_COPY.margins.lines} more={CHART_COPY.margins.more} /><ChartFreshness payload={payload} source="sec_xbrl" dataThrough={latestFactFiled} /></div>}
+      {marginTrends.length > 0 && <div className="chart-shell" style={{ marginTop: 16 }}><ChartHeading title="Profit margins for the typical company" term="Median gross, operating and net margin" definition={CHART_COPY.margins.definition} /><ResponsiveContainer width="100%" height={300}><LineChart data={marginTrends} role="img" aria-label={`Line chart. ${CHART_COPY.margins.lines}`}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => `${(Number(value) * 100).toFixed(2)}%`} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => percent(Number(value))} itemSorter={byValueDescending} /><Legend /><Line dataKey="gross" name="Gross margin" stroke="#1d6b4d" /><Line dataKey="operating" name="Operating margin" stroke="#143142" /><Line dataKey="net" name="Net margin" stroke="#b97816" /></LineChart></ResponsiveContainer><ChartTable caption="Median gross, operating and net margin by fiscal period" columns={["Period", "Gross margin", "Operating margin", "Net margin"]} rows={marginTrends.map((row) => [row.period, percent(row.gross), percent(row.operating), percent(row.net)])} /><ChartCaption lines={CHART_COPY.margins.lines} more={CHART_COPY.margins.more} /><ChartFreshness payload={payload} source="sec_xbrl" dataThrough={latestFactFiled} /></div>}
     </section>
 
     <section className="panel">
@@ -668,7 +682,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
 
     <section className="panel" id="private-capital">
       <SectionHead index="05" title="Reg D placements" term="SEC Form D filings" description="Reported Form D amounts, grouped into offerings by the file number EDGAR keeps constant across a filing and its amendments, and placed in the quarter each offering began rather than the quarter it was last amended. Filings without reported amounts contribute to counts, not dollars. An amendment restates an offering's cumulative total rather than adding to it, so dollar figures count each offering once at its latest reported figure. A fund raising capital is not an operating industry, so two kinds of pooled vehicle are excluded on the filer's own answers: those selecting Pooled Investment Fund as their industry, and those saying the security sold is an interest in a pooled investment fund, which is how insurance separate accounts filing under Insurance are caught. Vehicles are most Form D filings, so these counts are a minority of all filings. Amounts are unverified self-reports and the SEC does not check them. Which filings appear here is decided by the industry category the filer picked on the form, falling back to the issuer's SIC code in EDGAR where that category maps to no sector: only 5% of these filings carry a SIC code that resolves at all, so membership is mostly the filer's own idea of its industry rather than a classification of its business, and it is coarser than the fund definition used everywhere else on this page." asOf={asOfLabel(payload.formD.map((row) => row.filed_date))} />
-      <div className="stat-grid stat-grid-three"><Stat label="Form D filings" term="Distinct accessions" value={counts.filings.toLocaleString()} /><Stat label="Offerings" term="Distinct file numbers" value={counts.offerings.toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={offerings.some((row) => row.amountSold !== null) ? money(totalRaised(offerings.map((row) => row.latest))) : "—"} /><Stat label="Typical raise" term="Median offering that has taken money" value={medianReportedRaise === null ? "—" : money(medianReportedRaise)} /><Stat label="Raised as debt" term="Share of classified dollars" value={debt.share === null ? "—" : percent(debt.share)} /><Stat label="Offerings per quarter" term="Median quarter" value={offeringsPerQuarter === null ? "—" : Math.round(offeringsPerQuarter).toLocaleString()} /></div>
+      <div className="stat-grid stat-grid-three"><Stat label="Form D filings" term="Distinct accessions" value={counts.filings.toLocaleString()} /><Stat label="Offerings" term="Distinct file numbers" value={counts.offerings.toLocaleString()} /><Stat label="Total raised" term="Where an amount was reported" value={offerings.some((row) => row.amountSold !== null) ? money(totalRaised(offerings.map((row) => row.latest))) : "-"} /><Stat label="Typical raise" term="Median offering that has taken money" value={medianReportedRaise === null ? "-" : money(medianReportedRaise)} /><Stat label="Raised as debt" term="Share of classified dollars" value={debt.share === null ? "-" : percent(debt.share)} /><Stat label="Offerings per quarter" term="Median quarter" value={offeringsPerQuarter === null ? "-" : Math.round(offeringsPerQuarter).toLocaleString()} /></div>
       <FormDCoverage coverage={formDCoverage} start={start} end={end} />
       <FormDConcentration offerings={offerings} />
       {nothingSoldYet > 0 && <p className="provenance">
@@ -685,7 +699,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
           ? <div className="source-error">{privateCapital.length === 0
               ? "SEC Form D: no offering in this sector has a known start quarter inside the selected window."
               : `SEC Form D: ${privateCapital.length} quarter${privateCapital.length === 1 ? "" : "s"} of data here, which is too few to plot a trend. The offerings themselves are in the table below. Widen the date range to see the chart.`}</div>
-          : <ResponsiveContainer width="100%" height={320}><BarChart data={privateCapital}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, _name, item) => [`${money(Number(value))} across ${(item?.payload?.count ?? 0).toLocaleString()} offering${item?.payload?.count === 1 ? "" : "s"}`, "Amount sold"]} /><Bar dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /></BarChart></ResponsiveContainer>}
+          : <ResponsiveContainer width="100%" height={320}><BarChart data={privateCapital} role="img" aria-label={`Bar chart. ${CHART_COPY.formd.lines}`}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="quarter" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, _name, item) => [`${money(Number(value))} across ${(item?.payload?.count ?? 0).toLocaleString()} offering${item?.payload?.count === 1 ? "" : "s"}`, "Amount sold"]} /><Bar dataKey="raised" name="Form D amount sold" fill="#1d6b4d" /></BarChart></ResponsiveContainer>}
         <ChartCaption lines={CHART_COPY.formd.lines} more={CHART_COPY.formd.more} />
         <ChartFreshness payload={payload} source="form_d" dataThrough={formDCoverage.latest ?? undefined} />
       </div>
@@ -705,7 +719,7 @@ export default function IndustryDashboard({ initialPayload }: { initialPayload: 
     <section className="panel" id="timeline">
       <SectionHead index="07" title="News and events" term="GDELT volume, live coverage and NYT headlines" description="Quantitative GDELT activity above. Below it, human-curated events, then coverage from two feeds with different lags: GDELT indexes publishers continuously, while the NYT Archive publishes a month at a time once that month has completed." asOf={asOfLabel([...payload.newsVolume.map((row) => row.date), ...payload.headlines.map((row) => row.published_date)])} />
       {gdeltRun?.status === "failed" && <div className="source-error">GDELT · {readableError(gdeltRun.error_message)} · coverage below may be incomplete.</div>}
-      <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" definition={CHART_COPY.news.definition} />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} labelFormatter={(value) => fullDate(String(value))} /><Bar yAxisId="volume" dataKey="article_volume" fill="#b7e55c" /><EventBands events={payload.events} start={start} end={end} /><Line yAxisId="tone" dataKey="avg_tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}<EventRail events={timelineEvents} start={start} end={end} onSelect={selectEvent} /><ChartCaption lines={CHART_COPY.news.lines} more={CHART_COPY.news.more} /><ChartFreshness payload={payload} source="gdelt" dataThrough={newsInRange.at(-1)?.date} /></div>
+      <div className="chart-shell"><ChartHeading title="How much coverage, and how positive" term="GDELT article volume and average tone" definition={CHART_COPY.news.definition} />{newsInRange.length ? <ResponsiveContainer width="100%" height={300}><ComposedChart data={newsInRange} role="img" aria-label={`Combination chart. ${CHART_COPY.news.lines}`}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 10 }} tickFormatter={axisDate} /><YAxis yAxisId="volume" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><YAxis yAxisId="tone" orientation="right" tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 10 }} /><Tooltip formatter={(value, name) => [`${number(Number(value))}${String(name) === "article_volume" ? " articles" : " tone points"}`, String(name)]} labelFormatter={(value) => fullDate(String(value))} /><Legend /><Bar yAxisId="volume" dataKey="article_volume" name="Articles" fill="#b7e55c" /><EventBands events={payload.events} start={start} end={end} /><Line yAxisId="tone" dataKey="avg_tone" name="Average tone" dot={false} stroke="#143142" /></ComposedChart></ResponsiveContainer> : <ChartEmpty source="GDELT" />}<EventRail events={timelineEvents} start={start} end={end} onSelect={selectEvent} /><ChartCaption lines={CHART_COPY.news.lines} more={CHART_COPY.news.more} /><ChartFreshness payload={payload} source="gdelt" dataThrough={newsInRange.at(-1)?.date} /></div>
       {timelineEvents.length > 0 && <>
         <h3 className="timeline-group">Events</h3>
         <FeedNote>Events are written by hand against a source, not collected, so this list is only as current as its last review{curatedThrough ? `, which was ${curatedThrough}` : ""}. It is a record of things with a lasting effect on a sector, not a feed of what happened today; that is below.</FeedNote>
@@ -763,7 +777,7 @@ function FundComparisonPanel(
     <ChartHeading title={comparison.name} term="Growth of $10,000, dividends reinvested" />
     <p className="panel-description">{comparison.blurb}</p>
     {chart.length > 1
-      ? <ResponsiveContainer width="100%" height={300}><LineChart data={chart}>
+      ? <ResponsiveContainer width="100%" height={300}><LineChart data={chart} role="img" aria-label="Line chart. Growth of $10,000 in each fund, dividends reinvested. The same funds and their returns are listed in the table below the chart.">
           <CartesianGrid stroke="#e4e6df" vertical={false} />
           <XAxis dataKey="date" ticks={distinctMonthTicks(chart.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} />
           <YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} />
@@ -773,8 +787,9 @@ function FundComparisonPanel(
             dot={false} connectNulls stroke={COLORS[index % COLORS.length]} strokeWidth={1.6} />)}
         </LineChart></ResponsiveContainer>
       : <ChartEmpty source="Prices" />}
-    <div className="data-table-wrap"><table>
-      <thead><tr><th>Fund</th><th>Total return in range</th></tr></thead>
+    <div className="data-table-wrap" tabIndex={0}><table>
+      <caption className="visually-hidden">Total return over the selected date range for each fund in this comparison.</caption>
+      <thead><tr><th scope="col">Fund</th><th scope="col">Total return in range</th></tr></thead>
       <tbody>{comparison.series.map((entry) => <tr key={entry.ticker}>
         <td><Link href={`/etf/${entry.ticker}`}>{entry.ticker}</Link></td>
         <td>{percent(cumulativeReturn(entry.points.filter((point) => point.date >= start && point.date <= end)))}</td>
@@ -859,7 +874,7 @@ function CompanyGroupPanel({ group, start, end }: { group: SectorGroup; start: s
     {charted.length < members.length && <p className="grid-note">The chart draws the {charted.length} largest by market value; the table lists all {members.length}.</p>}
     <p className="panel-description">{group.blurb}</p>
     {chart.length > 1
-      ? <ResponsiveContainer width="100%" height={300}><LineChart data={chart}>
+      ? <ResponsiveContainer width="100%" height={300}><LineChart data={chart} role="img" aria-label="Line chart. Growth of $10,000 in each company in this group, dividends reinvested. The same companies and their returns are listed in the table below the chart.">
           <CartesianGrid stroke="#e4e6df" vertical={false} />
           <XAxis dataKey="date" ticks={distinctMonthTicks(chart.map((row) => String(row.date)))} tick={{ fontSize: 10 }} tickFormatter={axisDate} />
           <YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} width={72} />
@@ -869,14 +884,15 @@ function CompanyGroupPanel({ group, start, end }: { group: SectorGroup; start: s
             connectNulls stroke={COLORS[index]} strokeWidth={1.4} />)}
         </LineChart></ResponsiveContainer>
       : <ChartEmpty source="Weekly company prices" />}
-    <div className="data-table-wrap"><table>
-      <thead><tr><th>Company</th><th>Name</th><th>Market cap</th><th>Total return in range</th></tr></thead>
+    <div className="data-table-wrap" tabIndex={0}><table>
+      <caption className="visually-hidden">Each company in this group, with its market capitalisation and its total return over the selected date range.</caption>
+      <thead><tr><th scope="col">Company</th><th scope="col">Name</th><th scope="col">Market cap</th><th scope="col">Total return in range</th></tr></thead>
       <tbody>{shown.map((member) => {
         const windowed = member.weekly.filter((point) => point.date >= start && point.date <= end);
         return <tr key={member.ticker}>
           <td><Link href={`/company/${member.ticker}`}>{member.ticker}</Link></td>
-          <td>{member.name ?? "—"}</td>
-          <td>{member.market_cap === null ? "—" : money(member.market_cap)}</td>
+          <td>{member.name ?? "-"}</td>
+          <td>{member.market_cap === null ? "-" : money(member.market_cap)}</td>
           <td>{percent(cumulativeReturn(windowed))}</td>
         </tr>;
       })}</tbody>
@@ -886,8 +902,9 @@ function CompanyGroupPanel({ group, start, end }: { group: SectorGroup; start: s
     </button>}
     {group.funds.length > 0 && <>
       <ChartHeading title="Funds holding this group" term="Share of each fund, latest validated file" />
-      <div className="data-table-wrap"><table>
-        <thead><tr><th>Fund</th><th>Share of the fund</th><th>Members held</th><th>As of</th></tr></thead>
+      <div className="data-table-wrap" tabIndex={0}><table>
+        <caption className="visually-hidden">Each fund that holds companies from this group, with its share of the fund and how many members it holds.</caption>
+        <thead><tr><th scope="col">Fund</th><th scope="col">Share of the fund</th><th scope="col">Members held</th><th scope="col">As of</th></tr></thead>
         <tbody>{group.funds.map((row) => <tr key={row.fund_ticker}>
           <td><Link href={`/etf/${row.fund_ticker}`}>{row.fund_ticker}</Link></td>
           <td>{percent(row.weight)}</td>
@@ -1062,24 +1079,25 @@ function FormDIssuers({ offerings }: { offerings: Offering<IndustryPayload["form
   return <div style={{ marginTop: 24 }}>
     <ChartHeading title="Who raised it" term="One row per offering" definition="Every offering behind the totals above, largest first. An offering appears once: where a company amended its filing, the row shows the most recent figure it reported, not the sum of its filings. Started is the date of the original filing, so amending does not move an offering to a later date." />
     <p className="provenance">Grouped by the 021 file number EDGAR keeps constant across an offering and its amendments{amended ? `; ${plural(amended, "of these has", "of these have")} been amended at least once` : ""}{coIssued ? `, and ${coIssued.toLocaleString()} name co-issuers, shown once under the primary issuer` : ""}. Industry is the issuer&rsquo;s own selection on the form. Name pattern marks {flagged.toLocaleString()} offering{flagged === 1 ? "" : "s"} whose issuer is named like a pooled vehicle; unlike the two exclusions above, a name drops nothing, because plenty of operating businesses are limited partnerships.</p>
-    <div className="data-table-wrap"><table>
-      <thead><tr><th>Issuer</th><th>Started</th><th>Latest filing</th><th>Industry (self-selected)</th><th>Name pattern</th><th>Reported raised</th><th>Offering size</th><th>Place</th></tr></thead>
+    <div className="data-table-wrap" tabIndex={0}><table>
+      <caption className="visually-hidden">Every Form D offering behind the totals above, largest first, with its dates, self-selected industry and reported amounts.</caption>
+      <thead><tr><th scope="col">Issuer</th><th scope="col">Started</th><th scope="col">Latest filing</th><th scope="col">Industry (self-selected)</th><th scope="col">Name pattern</th><th scope="col">Reported raised</th><th scope="col">Offering size</th><th scope="col">Place</th></tr></thead>
       <tbody>{shown.map((row) => <tr key={row.key}>
-        <td>{row.latest.issuer_name}{row.latest.issuer_ticker && <span className="chip-inline" title="Already an SEC reporting company. A listed company placing securities privately files this same form."> listed · {row.latest.issuer_ticker}</span>}{coIssuerLabel(row.latest) && <span className="chip-inline"> {coIssuerLabel(row.latest)}</span>}</td>
+        <td>{row.latest.issuer_name}{row.latest.issuer_ticker && <Annotated className="chip-inline" note="Already an SEC reporting company. A listed company placing securities privately files this same form."> listed · {row.latest.issuer_ticker}</Annotated>}{coIssuerLabel(row.latest) && <span className="chip-inline"> {coIssuerLabel(row.latest)}</span>}</td>
         <td>{row.originUnknown
-          ? <span title="The original filing predates this data, so this is the date of the earliest amendment held here.">Before {row.startDate}<span className="chip-inline"> start unknown</span></span>
+          ? <Annotated note="The original filing predates this data, so this is the date of the earliest amendment held here.">Before {row.startDate}<span className="chip-inline"> start unknown</span></Annotated>
           : row.startDate}</td>
         <td>{row.latest.filed_date}{row.amendments ? <span className="chip-inline"> +{row.amendments} amendment{row.amendments === 1 ? "" : "s"}</span> : null}</td>
         <td>{row.latest.industry_group ?? "Not stated"}</td>
         <td>{row.latest.pooled_name_match
-          ? <span title="The name matches a pattern common among pooled vehicles. It is a hint only: nothing is excluded on the strength of a name, because plenty of operating businesses are limited partnerships.">{row.latest.pooled_name_match}</span>
-          : "—"}</td>
+          ? <Annotated note="The name matches a pattern common among pooled vehicles. It is a hint only: nothing is excluded on the strength of a name, because plenty of operating businesses are limited partnerships.">{row.latest.pooled_name_match}</Annotated>
+          : "-"}</td>
         <td>{row.amountSold === null ? "Not reported"
-          : row.amountSold === 0 ? <span title="The filer reported the offering but no securities sold as of this filing.">None yet</span>
+          : row.amountSold === 0 ? <Annotated note="The filer reported the offering but no securities sold as of this filing.">None yet</Annotated>
           : money(row.amountSold)}</td>
         <td>{row.latest.total_offering_amount === null ? "Not reported"
           : row.latest.total_offering_amount === 0
-            ? <span title="The filer reported no dollar amount. A Form D covers securities issued as consideration in an acquisition as well as securities sold for cash, and the first has no offering size.">No cash amount</span>
+            ? <Annotated note="The filer reported no dollar amount. A Form D covers securities issued as consideration in an acquisition as well as securities sold for cash, and the first has no offering size.">No cash amount</Annotated>
             : money(row.latest.total_offering_amount)}</td>
         <td>{placeName(row.latest.state)}</td>
       </tr>)}</tbody>
@@ -1103,7 +1121,7 @@ function CalendarTable({ payload, tickers, start, end }: { payload: IndustryPayl
     const entries = tickers.flatMap((ticker) => periods[ticker].filter((item) => item.year === year));
     return [year, entries.find((item) => item.partial)?.label ?? year];
   }));
-  return <><ChartHeading title="Return by calendar year" term="Calendar year total return" definition={CHART_COPY.calendar.definition} /><div className="data-table-wrap"><table><thead><tr><th>ETF</th>{years.map((year) => <th key={year}>{labels[year]}</th>)}</tr></thead><tbody>{tickers.map((ticker) => <tr key={ticker}><td>{ticker}</td>{years.map((year) => { const value = periods[ticker].find((item) => item.year === year)?.value; return <td className={value === undefined ? "" : value >= 0 ? "positive-cell" : "negative-cell"} key={year}>{value === undefined ? "—" : percent(value)}</td>; })}</tr>)}</tbody></table></div><ChartCaption lines={CHART_COPY.calendar.lines} more={CHART_COPY.calendar.more} /></>;
+  return <><ChartHeading title="Return by calendar year" term="Calendar year total return" definition={CHART_COPY.calendar.definition} /><div className="data-table-wrap" tabIndex={0}><table><caption className="visually-hidden">Total return per calendar year for each fund on this page.</caption><thead><tr><th scope="col">ETF</th>{years.map((year) => <th key={year} scope="col">{labels[year]}</th>)}</tr></thead><tbody>{tickers.map((ticker) => <tr key={ticker}><td>{ticker}</td>{years.map((year) => { const value = periods[ticker].find((item) => item.year === year)?.value; return <td className={value === undefined ? "" : value >= 0 ? "positive-cell" : "negative-cell"} key={year}>{value === undefined ? "-" : percent(value)}</td>; })}</tr>)}</tbody></table></div><ChartCaption lines={CHART_COPY.calendar.lines} more={CHART_COPY.calendar.more} /></>;
 }
 
 function OverlapMatrix({ matrix, funds }: { matrix: Record<string, Record<string, number>>; funds: string[] }) {
@@ -1111,7 +1129,14 @@ function OverlapMatrix({ matrix, funds }: { matrix: Record<string, Record<string
   if (valid.length < 2) return null;
   let best: [string, string, number] | null = null;
   valid.forEach((a, i) => valid.slice(i + 1).forEach((b) => { const value = matrix[a][b]; if (!best || value > best[2]) best = [a, b, value]; }));
-  return <div style={{ marginTop: 28 }}><ChartHeading title="How much these funds own the same stocks" term="Pairwise holdings overlap" definition={CHART_COPY.overlap.definition} />{best && <p className="panel-description">{best[0]} and {best[1]} share {(best[2] * 100).toFixed(2)}% of holdings by weight. Diagonal cells are self-comparisons.</p>}<div className="overlap-grid" style={{ gridTemplateColumns: `80px repeat(${valid.length}, minmax(54px, 132px))` }}><span />{valid.map((fund) => <strong key={fund}>{fund}</strong>)}{valid.flatMap((row) => [<strong key={`${row}:label`}>{row}</strong>, ...valid.map((column) => { const value = matrix[row][column]; const self = row === column; return <div className={`overlap-cell${self ? " self" : ""}`} title={self ? "Self-overlap is 100% by definition" : `${row} and ${column}: ${percent(value)}`} key={`${row}:${column}`} style={{ background: `rgba(29,107,77,${.08 + Math.min(value, 1) * .7})` }}>{self ? "Self" : percent(value)}</div>; })])}</div><ChartCaption lines={CHART_COPY.overlap.lines} more={CHART_COPY.overlap.more} /></div>;
+  // Was a grid of divs. Which pair of funds a cell belonged to lived only in a
+  // title attribute, so a screen reader got a flat run of tickers and
+  // percentages with no way to tell which was which, and a keyboard could not
+  // reach the title at all. A table carries the pairing in its own markup.
+  // The shading stops at 70% opacity because past that neither dark nor light
+  // text clears 4.5:1 against it, which is what the diagonal used to do.
+  const shade = (value: number) => `rgba(29,107,77,${(.06 + Math.min(value, 1) * .64).toFixed(3)})`;
+  return <div style={{ marginTop: 28 }}><ChartHeading title="How much these funds own the same stocks" term="Pairwise holdings overlap" definition={CHART_COPY.overlap.definition} />{best && <p className="panel-description">{best[0]} and {best[1]} share {(best[2] * 100).toFixed(2)}% of holdings by weight. Diagonal cells are self-comparisons.</p>}<div className="data-table-wrap" tabIndex={0}><table className="overlap-table"><caption className="visually-hidden">Share of holdings by weight that each pair of funds has in common. Each row is one fund compared with every column fund.</caption><thead><tr><td />{valid.map((fund) => <th key={fund} scope="col">{fund}</th>)}</tr></thead><tbody>{valid.map((row) => <tr key={row}><th scope="row">{row}</th>{valid.map((column) => { const value = matrix[row][column]; const self = row === column; return <td className={`overlap-cell${self ? " self" : ""}`} key={`${row}:${column}`} style={{ background: shade(value) }}>{self ? "Self" : percent(value)}</td>; })}</tr>)}</tbody></table></div><ChartCaption lines={CHART_COPY.overlap.lines} more={CHART_COPY.overlap.more} /></div>;
 }
 
 type CompRow = ReturnType<typeof compsRows>[number];
@@ -1155,8 +1180,22 @@ function marginNote(operating: number | null, net: number | null): string | null
     + "line, such as investment gains or a tax benefit, can exceed operating profit for the period.";
 }
 
+/**
+ * An annotation a keyboard and a screen reader can both get at.
+ *
+ * `title` reaches a mouse hover and nothing else: it is not focusable, it does
+ * not appear on touch, and support for announcing it is uneven. The same words
+ * now go into the accessibility tree as visually hidden text, and the tooltip
+ * stays for the mouse users who already have it.
+ */
+function Annotated({ className, note, children }: { className?: string; note: string; children: ReactNode }) {
+  return <span className={className} title={note}>{children}<span className="visually-hidden"> ({note})</span></span>;
+}
+
 function Marked({ value, note }: { value: string; note: string | null }) {
-  return note ? <span className="marked" title={note}>{value}<sup>*</sup></span> : <>{value}</>;
+  return note
+    ? <Annotated className="marked" note={note}>{value}<sup aria-hidden="true">*</sup></Annotated>
+    : <>{value}</>;
 }
 
 /**
@@ -1186,8 +1225,9 @@ function VendorMultiples(
   }
   const shown = open ? rows : rows.slice(0, 20);
   return <>
-    <div className="data-table-wrap"><table>
-      <thead><tr><th>Company</th><th>Weight</th><th>Trailing P/E</th><th>Forward P/E</th><th>Price to book</th><th>Dividend yield</th></tr></thead>
+    <div className="data-table-wrap" tabIndex={0}><table>
+      <caption className="visually-hidden">Valuation multiples and dividend yield for each company in the fund.</caption>
+      <thead><tr><th scope="col">Company</th><th scope="col">Weight</th><th scope="col">Trailing P/E</th><th scope="col">Forward P/E</th><th scope="col">Price to book</th><th scope="col">Dividend yield</th></tr></thead>
       <tbody>{shown.map((row) => <tr key={row.ticker}>
         <td><Link href={`/company/${row.ticker}`}>{row.ticker}</Link></td>
         <td>{percent(weights.get(row.ticker) ?? null, 2)}</td>
@@ -1203,9 +1243,35 @@ function VendorMultiples(
   </>;
 }
 
+/**
+ * A column header that sorts the table.
+ *
+ * The handler used to sit on the `th` itself: no keyboard could reach it
+ * (WCAG 2.1.1), and nothing on the page said which column the order was on. A
+ * real button carries Enter and Space without a key handler of its own, and
+ * `aria-sort` on the cell is what a screen reader reads when it enters the
+ * column.
+ */
+function SortHeader({ active, direction, label, onSort }: {
+  active: boolean; direction: "ascending" | "descending"; label: string; onSort: () => void;
+}) {
+  return <th aria-sort={active ? direction : "none"} scope="col">
+    <button className="sort-header" onClick={onSort} type="button">
+      {label}
+      <span aria-hidden="true" className="sort-arrow">{active ? (direction === "ascending" ? "\u2191" : "\u2193") : ""}</span>
+    </button>
+  </th>;
+}
+
 function CompsTable({ rows, coverage }: { rows: CompRow[]; coverage: FactsCoverage }) {
   const [sortKey, setSortKey] = useState<keyof CompRow>("marketCap");
-  const ordered = [...rows].sort((a, b) => ((b[sortKey] as number | null) ?? -Infinity) - ((a[sortKey] as number | null) ?? -Infinity));
+  // Company is a ticker, so it sorts A to Z; every other column is a number and
+  // sorts largest first. The ticker branch used to fall through to the numeric
+  // subtraction, which returns NaN for two strings: the rows only looked
+  // alphabetical because that comparator left the incoming order alone.
+  const ordered = [...rows].sort((a, b) => sortKey === "ticker"
+    ? String(a.ticker).localeCompare(String(b.ticker))
+    : ((b[sortKey] as number | null) ?? -Infinity) - ((a[sortKey] as number | null) ?? -Infinity));
   // Banks, Communication Services and Energy report no gross profit at all, so
   // the column was a full width of dashes on those pages.
   const metrics: (keyof CompRow)[] =
@@ -1220,9 +1286,26 @@ function CompsTable({ rows, coverage }: { rows: CompRow[]; coverage: FactsCovera
   ] : [];
   const metricsWithData = (metric: keyof CompRow) =>
     rows.filter((row) => typeof row[metric] === "number").length;
-  return <div className="data-table-wrap"><table><thead><tr><th onClick={() => setSortKey("ticker")}>Company</th><th>Period</th>{metrics.map((metric) => <th key={metric} onClick={() => setSortKey(metric)}>{METRIC_LABELS[metric] ?? metric}</th>)}</tr></thead><tbody>{summaries.map((summary) => <tr key={summary.ticker}><td><strong>{summary.ticker}</strong></td><td>—</td>{metrics.map((metric) => { const observations = metricsWithData(metric); const value = observations < MIN_QUARTILE_OBSERVATIONS ? null : quantile(rows.map((row) => typeof row[metric] === "number" ? row[metric] as number : null), summary.q); return <td key={metric} title={observations < MIN_QUARTILE_OBSERVATIONS ? `${plural(observations, "company")} in this fund reported it, too few for a percentile` : undefined}>{value === null ? "—" : metric === "marketCap" ? money(value) : percent(value)}</td>; })}</tr>)}{ordered.map((row) => <tr key={row.ticker}><td><Link href={`/company/${row.ticker}`}>{row.ticker}</Link></td><td>{row.period}</td><td>{row.marketCap === null ? "—" : money(row.marketCap)}</td><td><Marked value={percent(row.revenueGrowth)} note={growthNote(row.revenueGrowth)} /></td><td>{percent(row.grossMargin)}</td><td>{percent(row.operatingMargin)}</td><td><Marked value={percent(row.netMargin)} note={marginNote(row.operatingMargin, row.netMargin)} /></td></tr>)}</tbody></table></div>;
+  return <div className="data-table-wrap" tabIndex={0}><table><caption className="visually-hidden">Reported SEC XBRL fundamentals for every company in the fund, one row each, with the sector percentiles above them. Every column heading is a button that sorts the table.</caption><thead><tr><SortHeader active={sortKey === "ticker"} direction="ascending" label="Company" onSort={() => setSortKey("ticker")} /><th scope="col">Period</th>{metrics.map((metric) => <SortHeader active={sortKey === metric} direction="descending" key={metric} label={METRIC_LABELS[metric] ?? metric} onSort={() => setSortKey(metric)} />)}</tr></thead><tbody>{summaries.map((summary) => <tr key={summary.ticker}><td><strong>{summary.ticker}</strong></td><td>-</td>{metrics.map((metric) => { const observations = metricsWithData(metric); const value = observations < MIN_QUARTILE_OBSERVATIONS ? null : quantile(rows.map((row) => typeof row[metric] === "number" ? row[metric] as number : null), summary.q); return <td key={metric}>{value === null ? <Annotated note={`${plural(observations, "company")} in this fund reported it, too few for a percentile`}>-</Annotated> : metric === "marketCap" ? money(value) : percent(value)}</td>; })}</tr>)}{ordered.map((row) => <tr key={row.ticker}><td><Link href={`/company/${row.ticker}`}>{row.ticker}</Link></td><td>{row.period}</td><td>{row.marketCap === null ? "-" : money(row.marketCap)}</td><td><Marked value={percent(row.revenueGrowth)} note={growthNote(row.revenueGrowth)} /></td><td>{percent(row.grossMargin)}</td><td>{percent(row.operatingMargin)}</td><td><Marked value={percent(row.netMargin)} note={marginNote(row.operatingMargin, row.netMargin)} /></td></tr>)}</tbody></table></div>;
+}
+
+/**
+ * What the macro line does, in a sentence.
+ *
+ * These series run to tens of thousands of daily observations, so the tabular
+ * alternative the shorter charts get would be unreadable. The endpoints and the
+ * extremes are what a sighted reader takes from the shape, so those are stated.
+ */
+function describeSeries(points: SeriesPoint[], meta: MacroMeta) {
+  const values = points.map((point) => Number(point.value));
+  const first = points[0], last = points[points.length - 1];
+  const low = Math.min(...values), high = Math.max(...values);
+  return `From ${unitValue(Number(first.value), meta.units)} on ${fullDate(String(first.date))} `
+    + `to ${unitValue(Number(last.value), meta.units)} on ${fullDate(String(last.date))}, `
+    + `over ${plural(points.length, "observation")}. `
+    + `Lowest ${unitValue(low, meta.units)}, highest ${unitValue(high, meta.units)}.`;
 }
 
 function MacroChart({ meta, points }: { meta: MacroMeta; points: SeriesPoint[] }) {
-  return <div className="chart-shell"><ChartHeading title={meta.label} definition={meta.definition ?? undefined} />{points.length ? <ResponsiveContainer width="100%" height={220}><LineChart data={points}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 9 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 9 }} /><Tooltip formatter={(value) => unitValue(Number(value), meta.units)} labelFormatter={(value) => fullDate(String(value))} /><Line dataKey="value" dot={false} stroke="#1d6b4d" /></LineChart></ResponsiveContainer> : <ChartEmpty source={meta.source} />}{meta.blurb && <ChartCaption lines={meta.blurb} />}<div className="as-of" style={{ textAlign: "left" }}>{meta.source} · {meta.units ?? "units unavailable"}<br />Data through {stampDate(points.at(-1)?.date ?? null)}{meta.last_release_date && <> · Released {stampDate(meta.last_release_date)}</>} · Ingest: {stamp(meta.as_of)}</div></div>;
+  return <div className="chart-shell"><ChartHeading title={meta.label} definition={meta.definition ?? undefined} />{points.length ? <ResponsiveContainer width="100%" height={220}><LineChart data={points} role="img" aria-label={`Line chart of ${meta.label}${meta.units ? ` in ${meta.units}` : ""}. ${describeSeries(points, meta)}`}><CartesianGrid stroke="#e4e6df" vertical={false} /><XAxis dataKey="date" minTickGap={40} tick={{ fontSize: 9 }} tickFormatter={axisDate} /><YAxis tickFormatter={(value) => number(Number(value))} tick={{ fontSize: 9 }} /><Tooltip formatter={(value) => unitValue(Number(value), meta.units)} labelFormatter={(value) => fullDate(String(value))} /><Line dataKey="value" dot={false} stroke="#1d6b4d" /></LineChart></ResponsiveContainer> : <ChartEmpty source={meta.source} />}{meta.blurb && <ChartCaption lines={meta.blurb} />}<div className="as-of" style={{ textAlign: "left" }}>{meta.source} · {meta.units ?? "units unavailable"}<br />Data through {stampDate(points.at(-1)?.date ?? null)}{meta.last_release_date && <> · Released {stampDate(meta.last_release_date)}</>} · Ingest: {stamp(meta.as_of)}</div></div>;
 }

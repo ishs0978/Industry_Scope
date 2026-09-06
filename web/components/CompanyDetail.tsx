@@ -5,13 +5,13 @@ import { useMemo, useState } from "react";
 import {
   Bar, BarChart, CartesianGrid, LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { DetailHead, Heading, Stat, Unavailable } from "@/components/DetailUi";
+import { ChartTable, DetailHead, Heading, Stat, Unavailable } from "@/components/DetailUi";
 import { calendarPeriodReturns, cumulativeReturn, investmentValue, type SeriesPoint } from "@/lib/metrics";
 import { compsRows } from "@/lib/comps";
 import { formatMoney, formatNumber, formatPercent, formatPrice, stampDate } from "@/lib/format";
 import type { CompanyPayload } from "@/lib/types";
 
-const money = (value: number | null) => (value === null ? "—" : formatMoney(value));
+const money = (value: number | null) => (value === null ? "-" : formatMoney(value));
 const percent = (value: number | null) => formatPercent(value);
 const RANGES = ["1", "3", "5"] as const;
 
@@ -68,12 +68,12 @@ export default function CompanyDetail({ payload }: { payload: CompanyPayload }) 
     : null;
 
   if (payload.errors.length) {
-    return <main><section className="panel">
+    return <main id="main-content" tabIndex={-1}><section className="panel">
       <Unavailable>{payload.errors[0].source}: {payload.errors[0].reason}</Unavailable>
     </section></main>;
   }
 
-  return <main>
+  return <main id="main-content" tabIndex={-1}>
     <section className="industry-hero">
       <div className="eyebrow">
         {payload.sectorSlug
@@ -106,11 +106,11 @@ export default function CompanyDetail({ payload }: { payload: CompanyPayload }) 
       <div className="stat-grid">
         <Stat label="Dividend yield" value={percent(meta?.dividend_yield ?? null)} definition={DEFINITIONS["Dividend yield"]} />
         <Stat label="Analyst target" term={meta?.analyst_count ? `${meta.analyst_count} analysts` : "Average"}
-          value={meta?.target_mean_price ? formatPrice(meta.target_mean_price) : "—"} definition={DEFINITIONS["Analyst target"]} />
+          value={meta?.target_mean_price ? formatPrice(meta.target_mean_price) : "-"} definition={DEFINITIONS["Analyst target"]} />
         <Stat label="Implied from target" term="Against the latest close"
-          value={upside === null ? "—" : percent(upside)} />
+          value={upside === null ? "-" : percent(upside)} />
         <Stat label="Analyst view" term="Consensus"
-          value={meta?.recommendation ? (RECOMMENDATION_LABELS[meta.recommendation] ?? meta.recommendation) : "—"}
+          value={meta?.recommendation ? (RECOMMENDATION_LABELS[meta.recommendation] ?? meta.recommendation) : "-"}
           definition={DEFINITIONS["Analyst view"]} />
       </div>
       {!meta && <p className="provenance">No valuation or analyst figures have been collected for {payload.ticker} yet. The figures below come from the company&rsquo;s own SEC filings and do not depend on them.</p>}
@@ -139,12 +139,12 @@ export default function CompanyDetail({ payload }: { payload: CompanyPayload }) 
           <Stat label="Total return" term={`Over ${preset} years`} value={percent(cumulativeReturn(windowed))} definition={DEFINITIONS["Total return"]} />
           <Stat label="Weeks of history" value={series.length.toLocaleString()} />
           <Stat label="First week held" value={series[0].date} />
-          <Stat label="Latest close" value={latestPrice === null ? "—" : formatPrice(latestPrice)} />
+          <Stat label="Latest close" value={latestPrice === null ? "-" : formatPrice(latestPrice)} />
         </div>
         <div className="chart-shell">
           <Heading title="What $10,000 would have become" term={`${payload.ticker}, weekly`} />
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={growth}>
+            <LineChart data={growth} role="img" aria-label={`Line chart. Growth of $10,000 in ${payload.ticker}, dividends reinvested, over the selected window. The figures above the chart give the same total return.`}>
               <CartesianGrid stroke="#e4e6df" vertical={false} />
               <XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} />
               <YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} />
@@ -156,7 +156,7 @@ export default function CompanyDetail({ payload }: { payload: CompanyPayload }) 
         {years.length > 0 && <div className="chart-shell">
           <Heading title="Return by calendar year" term="Full history held" />
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={years}>
+            <BarChart data={years} role="img" aria-label="Bar chart. Total return for each calendar year. The same figures are listed in the table below the chart.">
               <CartesianGrid stroke="#e4e6df" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} />
               <YAxis tickFormatter={(value) => percent(Number(value))} tick={{ fontSize: 10 }} />
@@ -164,6 +164,9 @@ export default function CompanyDetail({ payload }: { payload: CompanyPayload }) 
               <Bar dataKey="value" name="Total return" fill="#1d6b4d" />
             </BarChart>
           </ResponsiveContainer>
+
+          <ChartTable caption="Total return by calendar year" columns={["Year", "Total return"]}
+            rows={years.map((year) => [year.label, percent(year.value)])} />
           <p className="provenance">A year the held history only partly covers is labelled with the dates it actually spans.</p>
         </div>}
       </> : <Unavailable>No weekly prices are held for {payload.ticker}.</Unavailable>}
@@ -172,8 +175,9 @@ export default function CompanyDetail({ payload }: { payload: CompanyPayload }) 
     {payload.heldBy.length > 0 && <section className="panel">
       <DetailHead eyebrow="04" title="Which funds hold it" subtitle="Latest published composition"
         description="Weights come from each issuer's own holdings file. A company can appear in several funds, and the same share of it counts once in each." />
-      <div className="data-table-wrap"><table>
-        <thead><tr><th>Fund</th><th>Weight in fund</th><th>As of</th></tr></thead>
+      <div className="data-table-wrap" tabIndex={0}><table>
+        <caption className="visually-hidden">Every fund that holds this company, with its weight in the fund and the date of the holdings file.</caption>
+        <thead><tr><th scope="col">Fund</th><th scope="col">Weight in fund</th><th scope="col">As of</th></tr></thead>
         <tbody>{payload.heldBy.map((row) => <tr key={row.fund_ticker}>
           <td><Link href={`/etf/${row.fund_ticker}`}>{row.fund_ticker}</Link></td>
           <td>{percent(row.weight)}</td>
