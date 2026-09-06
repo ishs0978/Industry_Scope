@@ -105,6 +105,47 @@ npm run dev
 Open `http://localhost:3000`. Without `DATABASE_URL`, pages render an explicit
 Neon error instead of placeholder charts or values.
 
+### Filling it without an account or a key
+
+That explicit error is honest, but it is also an empty application, and the
+credentials table above is a long way to walk before finding out whether any of
+this is worth running. Three of the sources were never behind a key at all:
+Yahoo and Stooq for prices, the iShares and State Street holdings files, and the
+curated event registry that ships in the repository. Those three fill enough of
+the database to make every price, risk and composition panel real, against a
+Postgres you start yourself:
+
+```bash
+docker run -d --name industryscope-db -p 5432:5432 \
+  -e POSTGRES_USER=industryscope -e POSTGRES_PASSWORD=industryscope \
+  -e POSTGRES_DB=industryscope postgres:16
+export DATABASE_URL='postgresql://industryscope:industryscope@localhost:5432/industryscope?sslmode=disable'
+
+source .venv/bin/activate
+python -m ingest.db
+python -c "
+import os, psycopg
+from ingest.sources import events, prices, holdings
+connection = psycopg.connect(os.environ['DATABASE_URL'])
+for module in (events, prices, holdings):
+    module.run(connection)
+connection.close()"
+
+cd web && npm ci && npm run dev
+```
+
+`sslmode=disable` is load-bearing and is the only thing in this file that turns
+TLS off. Neon speaks TLS only, so the web layer requires it unless the
+connection string says otherwise; a Postgres you started yourself has no
+certificate to present, and without the opt-out the failure arrives as "socket
+disconnected before secure TLS connection was established", which reads like a
+network fault rather than a setting.
+
+The ingest takes a couple of minutes and is all network wait. It leaves FRED,
+EIA, BLS, SEC XBRL, Form D and the news sources empty, and the pages name each
+missing source rather than closing the gap with anything invented, which is the
+same behaviour the deployment has on a day a source fails.
+
 ## Database and first ingest
 
 `python -m ingest.db` applies each SQL file in `ingest/migrations` once and
