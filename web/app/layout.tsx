@@ -18,6 +18,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        {/* WCAG 2.4.1. The header is three tab stops on every page and the
+            sector pages add seven more in the sticky range bar, so a keyboard
+            reader crossed ten controls before reaching anything they came
+            for. */}
+        <a className="skip-link" href="#main-content">Skip to content</a>
         <header className="site-header">
           <Link className="wordmark" href="/">Industry<span>Scope</span></Link>
           <nav aria-label="Primary navigation">

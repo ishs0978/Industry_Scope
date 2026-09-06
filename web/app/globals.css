@@ -2,21 +2,34 @@
 
 :root {
   --ink: #17221d;
-  --muted: #647269;
+  --muted: #5d6b62;
   --paper: #f4f2eb;
   --panel: #fbfaf6;
   --line: #d8ddd5;
   --green: #1d6b4d;
   --lime: #b7e55c;
-  --amber: #b97816;
+  --amber: #9d5c00;
   --red: #a4463f;
   --navy: #143142;
 }
 
 * { box-sizing: border-box; }
-html { background: var(--paper); color: var(--ink); scroll-behavior: smooth; }
+html { background: var(--paper); color: var(--ink); }
+/* `scrollIntoView({ behavior: "auto" })` defers to the element's computed
+   scroll-behavior, so while this was unconditional it overruled the
+   prefers-reduced-motion branch in IndustryDashboard and every event jump was
+   animated anyway. */
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
 a { color: inherit; text-decoration: none; }
+
+/* WCAG 2.4.1, the skip link. Off-screen until it takes focus, then the first
+   thing on the page. `main` is not focusable on its own, so every one of them
+   carries tabIndex={-1}; the ring is left off the landing target itself, which
+   is the usual convention for a programmatic destination. */
+.skip-link { background: var(--ink); color: var(--paper); font-size: 14px; left: 8px; padding: 10px 16px; position: fixed; top: -60px; transition: top .15s ease; z-index: 100; }
+.skip-link:focus { outline: 2px solid var(--lime); outline-offset: 2px; top: 8px; }
+main:focus { outline: none; }
 button, input, select { font: inherit; }
 
 .site-header, footer {
@@ -72,6 +85,9 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .event-window-blurb { font-size: 14px; margin: 10px 0 16px; }
 .event-window-table { font-size: 14px; margin: 6px 0 12px; width: 100%; }
 .event-window-table td { padding: 4px 0; }
+/* The row labels became real row headers; the sticky, uppercase, shaded `th`
+   used by the data tables would repaint this two-column list. */
+.event-window-table th { background: none; font-size: inherit; font-weight: inherit; letter-spacing: normal; padding: 4px 0; position: static; text-align: left; text-transform: none; }
 .event-window-table td:last-child { font-variant-numeric: tabular-nums; text-align: right; }
 .event-window-relative td { border-top: 1px solid var(--line); font-weight: 600; }
 .event-window-note { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
@@ -101,6 +117,10 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .range-bar button { background: transparent; border: 1px solid #ffffff44; border-radius: 2px; color: white; cursor: pointer; padding: 8px 12px; }
 .range-bar button.active { background: var(--lime); border-color: var(--lime); color: var(--ink); }
 .range-bar input { background: #ffffff12; border: 1px solid #ffffff44; color: white; padding: 7px; }
+/* Every other focus ring in the app is --green, which measures 2.54:1 against
+   the bar's --ink and so does not clear the 3:1 of WCAG 1.4.11. Chrome's own
+   default (#005fcc) is 2.74:1 and no better. --lime is 11.2:1. */
+.range-bar button:focus-visible, .range-bar input:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
 .download-button { margin-left: auto; }
 .source-errors-summary { background: #fff7e4; border: 1px solid #e5c882; color: #704a0f; font-size: 12px; }
 .source-errors-summary summary { cursor: pointer; padding: 12px 16px; }
@@ -123,7 +143,11 @@ h1 { font-family: Georgia, serif; font-size: clamp(48px, 8vw, 112px); font-weigh
 .as-of { color: var(--muted); font-size: 11px; text-align: right; }
 .chart-shell { background: var(--panel); border: 1px solid var(--line); min-height: 340px; padding: 20px 12px 6px; }
 .chart-heading { margin: 0 0 16px 8px; }
-.chart-title { font-size: 17px; font-weight: 500; }
+.chart-title { font-size: 17px; font-weight: 500; margin: 0; }
+/* The chart title is a heading now. The wrapper around a title that is also
+   a disclosure button must not repaint what it wraps, and h4 does not get the
+   `h1, h2, h3 { margin: 0 }` reset above. */
+.chart-heading h3.chart-heading-title { font-size: inherit; font-weight: inherit; margin: 0; }
 .chart-term { color: var(--muted); font-size: 11px; letter-spacing: .08em; margin-top: 2px; text-transform: uppercase; }
 .chart-empty { align-items: center; color: var(--muted); display: flex; min-height: 280px; justify-content: center; padding: 30px; text-align: center; }
 .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin-top: 16px; }
@@ -141,12 +165,20 @@ table { border-collapse: collapse; font-size: 13px; width: 100%; }
 th { background: #e8ece5; cursor: default; font-size: 10px; letter-spacing: .08em; position: sticky; text-transform: uppercase; top: 0; }
 th, td { border-bottom: 1px solid var(--line); padding: 11px 12px; text-align: right; white-space: nowrap; }
 th:first-child, td:first-child, .left { text-align: left; }
+/* Sortable column headers. The click handler used to sit on the `th`, which is
+   not focusable and gave no sign it could be clicked; the button is reachable
+   from the keyboard and the arrow says which column the order is on. The arrow
+   slot keeps its width when empty so the labels do not shift on sort. */
+.sort-header { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; padding: 0; text-align: inherit; text-transform: inherit; width: 100%; }
+.sort-header:hover { color: var(--green); }
+.sort-header:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.sort-arrow { display: inline-block; margin-left: 4px; min-width: 8px; text-align: left; }
 .positive-cell { background: #dff0d8; }
 .negative-cell { background: #f4dcd7; }
 .fund-selector { border: 1px solid var(--line); padding: 10px; }
-.overlap-grid { display: grid; gap: 2px; justify-content: start; margin-top: 14px; overflow-x: auto; }
-.overlap-cell { align-items: center; aspect-ratio: 1.4; display: flex; font-size: 12px; justify-content: center; }
-.overlap-cell.self { color: white; font-size: 11px; font-weight: 700; }
+.overlap-table td { min-width: 54px; text-align: center; }
+.overlap-cell { font-size: 12px; }
+.overlap-cell.self { font-size: 11px; font-weight: 700; }
 .small-multiples { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
 .timeline-list { border-left: 1px solid var(--line); margin-left: 12px; padding-left: 24px; }
 .timeline-item { margin-bottom: 22px; position: relative; }
@@ -168,7 +200,10 @@ th:first-child, td:first-child, .left { text-align: left; }
   .stat-grid { grid-template-columns: repeat(2,1fr); }
 }
 @media (max-width: 640px) {
-  .site-header, footer { align-items: flex-start; }
+  /* The wordmark and the nav together are wider than a phone, and neither can
+     shrink, so the whole page scrolled sideways by about 30px. Letting the row
+     wrap costs one line of header and removes the horizontal scroll. */
+  .site-header, footer { align-items: flex-start; flex-wrap: wrap; gap: 10px; }
   nav { gap: 12px; }
   .sector-grid, .chart-grid, .small-multiples, .insight-grid { grid-template-columns: 1fr; }
   .panel-head { display: block; }
@@ -186,12 +221,16 @@ th:first-child, td:first-child, .left { text-align: left; }
 .term-toggle .chart-title, .term-toggle .stat-label { border-bottom: 1px dotted var(--muted); display: inline-block; }
 .term-toggle .chart-term { display: block; }
 .term-body { border-left: 2px solid var(--green); color: var(--muted); font-size: 14px; line-height: 1.55; margin-top: 8px; max-width: 62ch; padding-left: 12px; }
+.chart-table { margin: 8px 8px 0; }
+.chart-table summary { color: var(--muted); cursor: pointer; font-size: 12px; padding: 6px 0; }
+.chart-table summary:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.chart-table .data-table-wrap { margin-top: 8px; max-height: 320px; }
 .chart-caption { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 10px 8px 6px; max-width: 62ch; }
 .chart-caption p { margin: 0; }
 .caption-more { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; height: 24px; line-height: 1; padding: 0 6px; }
 .caption-more:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .caption-more-body { margin-top: 6px !important; }
-@media (prefers-reduced-motion: reduce) { .term-body, .caption-more-body { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .term-body, .caption-more-body, .skip-link { transition: none; } }
 
 .peer-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 8px 12px; }
 .chip { background: none; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); cursor: pointer; font-size: 12px; padding: 6px 12px; }
@@ -225,13 +264,42 @@ th:first-child, td:first-child, .left { text-align: left; }
 .source-stale, .freshness-item.stale strong { color: var(--amber); }
 .source-stale::before { content: "⚠ "; }
 
+/* WCAG 1.4.1. `a { color: inherit; text-decoration: none }` left a link inside a
+   sentence with no distinction at all, not even colour. Scoped to prose on
+   purpose: nav items, the wordmark, sector cards, chips, search rows and table
+   cells are whole targets inside their own container rather than runs of text
+   in a sentence, and underlining those would repaint the site to no purpose.
+
+   Measured rather than guessed: `p a` covers all 12 prose links on the seven
+   pages checked, because .provenance and .panel-description are themselves
+   paragraphs. The event window's source link is the one that is not in a
+   paragraph. `li a` matches nothing today and is here because the methodology
+   page's lists are the same kind of running text as its paragraphs. */
+p a, li a, .event-window a { text-decoration: underline; text-underline-offset: 2px; }
+
 .visually-hidden { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 .event-rail { border-top: 1px solid var(--line); height: 26px; margin: 6px 8px 0; position: relative; }
-.event-marker { background: var(--muted); border: 0; border-radius: 2px; cursor: pointer; height: 14px; padding: 0; position: absolute; top: 6px; transform: translateX(-50%); width: 4px; }
-.event-marker.negative { background: var(--red); }
-.event-marker.positive { background: var(--green); }
-.event-marker.mixed { background: var(--amber); }
-.event-marker:hover, .event-marker:focus-visible { height: 20px; outline: 2px solid var(--green); outline-offset: 2px; top: 3px; }
+/* WCAG 2.5.8. The marker was a 4x14 button, which is the mark itself; the
+   target is now 24x24 and the mark is drawn by a pseudo-element, so the tick
+   sits in exactly the same 14 pixels of the 26px rail as before.
+
+   Markers are positioned by date, so events days apart sit pixels apart and no
+   size satisfies 2.5.8's spacing exception. Measured on /industry/energy and
+   /industry/semiconductors: at 1280 the same 6/7 and 7/7 markers are hit-
+   testable at their own centre before and after; at 375, where the smallest
+   centre gap falls to 0.27px, one marker per page becomes covered by its
+   neighbour (6/7 -> 5/7 and 7/7 -> 6/7). All 7 stay tab stops in every case,
+   and every event also appears in the timeline list below the rail. */
+.event-marker { background: none; border: 0; color: var(--muted); cursor: pointer; height: 24px; padding: 0; position: absolute; top: 1px; transform: translateX(-50%); width: 24px; }
+.event-marker::before { background: currentColor; border-radius: 2px; content: ""; height: 14px; left: 50%; position: absolute; top: 5px; transform: translateX(-50%); width: 4px; }
+.event-marker.negative { color: var(--red); }
+.event-marker.positive { color: var(--green); }
+.event-marker.mixed { color: var(--amber); }
+.event-marker:hover::before, .event-marker:focus-visible::before { height: 20px; top: 2px; }
+/* Hover keeps the outline it had, drawn round the mark so it looks unchanged;
+   the focus ring goes round the button, because that is the target. */
+.event-marker:hover::before { outline: 2px solid var(--green); outline-offset: 2px; }
+.event-marker:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .timeline-group { border-bottom: 1px solid var(--ink); font-family: Georgia, serif; font-size: 20px; font-weight: 500; margin: 28px 0 12px; padding-bottom: 8px; }
 .timeline-item.event { border-left: 2px solid var(--muted); padding-left: 14px; }
 .timeline-item.event.negative { border-left-color: var(--red); }

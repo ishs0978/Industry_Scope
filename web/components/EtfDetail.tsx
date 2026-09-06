@@ -6,7 +6,7 @@ import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from "recharts";
-import { DetailHead, Heading, Stat, Unavailable } from "@/components/DetailUi";
+import { ChartTable, DetailHead, Heading, Stat, Unavailable } from "@/components/DetailUi";
 import {
   annualizedVolatility, beta, cagr, calendarPeriodReturns, concentration,
   cumulativeReturn, investmentValue, maxDrawdown, sharpeRatio, type SeriesPoint,
@@ -14,7 +14,7 @@ import {
 import { formatMoney, formatNumber, formatPercent, formatPrice, stampDate } from "@/lib/format";
 import type { EtfPayload } from "@/lib/types";
 
-const money = (value: number | null) => (value === null ? "—" : formatMoney(value));
+const money = (value: number | null) => (value === null ? "-" : formatMoney(value));
 const percent = (value: number | null) => formatPercent(value);
 const RANGES = ["1", "3", "5", "Max"] as const;
 
@@ -69,12 +69,12 @@ export default function EtfDetail({ payload }: { payload: EtfPayload }) {
   const asOf = payload.prices.at(-1)?.date ?? null;
 
   if (payload.errors.length) {
-    return <main><section className="panel">
+    return <main id="main-content" tabIndex={-1}><section className="panel">
       <Unavailable>{payload.errors[0].source}: {payload.errors[0].reason}</Unavailable>
     </section></main>;
   }
 
-  return <main>
+  return <main id="main-content" tabIndex={-1}>
     <section className="industry-hero">
       <div className="eyebrow">
         <Link href={`/industry/${payload.sectorSlug}`}>← {payload.sectorName}</Link>
@@ -109,7 +109,7 @@ export default function EtfDetail({ payload }: { payload: EtfPayload }) {
       <div className="stat-grid">
         <Stat label="Beta vs S&P 500" value={formatNumber(beta(fund, benchmark))} definition={DEFINITIONS["Beta vs S&P 500"]} />
         <Stat label="Max drawdown" term={drawdown ? `${drawdown.peakDate} to ${drawdown.troughDate}` : undefined}
-          value={drawdown ? percent(drawdown.maxDrawdown) : "—"} definition={DEFINITIONS["Max drawdown"]} />
+          value={drawdown ? percent(drawdown.maxDrawdown) : "-"} definition={DEFINITIONS["Max drawdown"]} />
         <Stat label="Expense ratio" term="Annual fee" value={percent(payload.meta?.expense_ratio ?? null)} definition={DEFINITIONS["Expense ratio"]} />
         <Stat label="Assets" term="Fund total" value={money(payload.meta?.aum ?? null)} definition={DEFINITIONS["Assets"]} />
       </div>
@@ -117,7 +117,7 @@ export default function EtfDetail({ payload }: { payload: EtfPayload }) {
       <div className="chart-shell">
         <Heading title="What $10,000 would have become" term={`${payload.ticker} against the S&P 500`} />
         {growth.length > 1 ? <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={growth}>
+          <LineChart data={growth} role="img" aria-label={`Line chart. Growth of $10,000 in ${payload.ticker} against the S and P 500, dividends reinvested. The figures above the chart give the same total returns.`}>
             <CartesianGrid stroke="#e4e6df" vertical={false} />
             <XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 10 }} />
             <YAxis tickFormatter={(value) => money(Number(value))} tick={{ fontSize: 10 }} />
@@ -133,7 +133,7 @@ export default function EtfDetail({ payload }: { payload: EtfPayload }) {
       {years.length > 0 && <div className="chart-shell">
         <Heading title="Return by calendar year" term="Total return per year in range" />
         <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={years}>
+          <BarChart data={years} role="img" aria-label="Bar chart. Total return for each calendar year. The same figures are listed in the table below the chart.">
             <CartesianGrid stroke="#e4e6df" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 10 }} />
             <YAxis tickFormatter={(value) => percent(Number(value))} tick={{ fontSize: 10 }} />
@@ -141,6 +141,9 @@ export default function EtfDetail({ payload }: { payload: EtfPayload }) {
             <Bar dataKey="value" name="Total return" fill="#1d6b4d" />
           </BarChart>
         </ResponsiveContainer>
+
+        <ChartTable caption="Total return by calendar year" columns={["Year", "Total return"]}
+          rows={years.map((year) => [year.label, percent(year.value)])} />
         <p className="provenance">A year the range only partly covers is labelled with the dates it actually spans, so a short bar is not mistaken for a weak year.</p>
       </div>}
     </section>
@@ -157,11 +160,12 @@ export default function EtfDetail({ payload }: { payload: EtfPayload }) {
           <Stat label="Largest position" term={payload.holdings[0]?.constituent_ticker}
             value={percent(payload.holdings[0]?.weight ?? null)} />
         </div>
-        <div className="data-table-wrap"><table>
-          <thead><tr><th>Company</th><th>Name</th><th>Weight</th></tr></thead>
+        <div className="data-table-wrap" tabIndex={0}><table>
+          <caption className="visually-hidden">The largest positions in this fund, with each company&rsquo;s name and its weight in the fund.</caption>
+          <thead><tr><th scope="col">Company</th><th scope="col">Name</th><th scope="col">Weight</th></tr></thead>
           <tbody>{top.map((row) => <tr key={row.constituent_ticker}>
             <td><Link href={`/company/${row.constituent_ticker}`}>{row.constituent_ticker}</Link></td>
-            <td>{row.constituent_name ?? "—"}</td>
+            <td>{row.constituent_name ?? "-"}</td>
             <td>{percent(row.weight)}</td>
           </tr>)}</tbody>
         </table></div>

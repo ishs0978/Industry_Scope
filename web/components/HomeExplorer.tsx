@@ -53,8 +53,10 @@ function Explore(
         <h3>Every fund</h3>
         <p>Fees, risk against the S&amp;P 500, drawdown and full composition, one page each.</p>
         <div className="explore-links">
+          {/* The chip showed a ticker and put the sector in a title attribute,
+              which reaches a mouse hover and nothing else. */}
           {funds.map((fund) => <Link href={`/etf/${fund.ticker}`} key={fund.ticker} title={fund.sector.name}>
-            {fund.ticker}
+            {fund.ticker}<span className="visually-hidden"> · {fund.sector.name}</span>
           </Link>)}
         </div>
       </div>
@@ -73,7 +75,7 @@ function Explore(
         {companies.length
           ? <div className="explore-links">
               {companies.map((company) => <Link href={`/company/${company.ticker}`} key={company.ticker} title={company.name ?? company.ticker}>
-                {company.ticker}
+                {company.ticker}{company.name && <span className="visually-hidden"> · {company.name}</span>}
               </Link>)}
             </div>
           // An empty row reads as a broken column rather than a missing list.
@@ -101,11 +103,11 @@ export default function HomeExplorer({ sectors, performance, pricesThrough, last
   const shown = search.matches.length ? search.matches : search.suggestions;
 
   return (
-    <main>
+    <main id="main-content" tabIndex={-1}>
       <section className="home-hero">
         <div className="eyebrow">Built only from public data</div>
         <h1>See the whole industry.</h1>
-        <p>Market performance, fund composition, SEC fundamentals, private capital, macro indicators, and sourced events—aligned to one date range.</p>
+        <p>Market performance, fund composition, SEC fundamentals, private capital, macro indicators, and sourced events-aligned to one date range.</p>
         <div className="search-wrap">
           <input aria-label="Search industries" placeholder="Search semiconductors, banking, renewable energy…" value={query} onChange={(event) => setQuery(event.target.value)} />
           {query && <div className="search-results">
@@ -150,7 +152,7 @@ export default function HomeExplorer({ sectors, performance, pricesThrough, last
               {/* Recharts defaults the y-domain to [0, dataMax], which compressed a
                   $290 fund's 56% move against the top of a box starting at zero.
                   Amplitude then encoded price level rather than return. */}
-              <div className="mini-chart">{prices.length > 1 && <ResponsiveContainer width="100%" height="100%"><LineChart data={prices}><YAxis hide domain={["dataMin", "dataMax"]} /><Line dataKey="value" dot={false} stroke={ytd !== null && ytd < 0 ? "#a4463f" : "#1d6b4d"} strokeWidth={1.6} /></LineChart></ResponsiveContainer>}</div>
+              <div className="mini-chart">{prices.length > 1 && <ResponsiveContainer width="100%" height="100%"><LineChart data={prices} aria-hidden={true} tabIndex={-1}><YAxis hide domain={["dataMin", "dataMax"]} /><Line dataKey="value" dot={false} stroke={ytd !== null && ytd < 0 ? "#a4463f" : "#1d6b4d"} strokeWidth={1.6} /></LineChart></ResponsiveContainer>}</div>
             </Link>;
           })}
         </div>

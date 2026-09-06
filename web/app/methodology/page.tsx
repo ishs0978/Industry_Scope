@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Methodology" };
 
 export default function MethodologyPage() {
-  return <main className="methodology">
+  return <main className="methodology" id="main-content" tabIndex={-1}>
     <div className="eyebrow">Methods and limits</div>
     <h1>How IndustryScope works.</h1>
 
@@ -71,9 +71,10 @@ export default function MethodologyPage() {
 <p>Sources publish on their own schedules. The job runs daily, but that does not make every
     number daily. This table is the honest version.</p>
 
-    <div className="data-table-wrap">
+    <div className="data-table-wrap" tabIndex={0}>
       <table>
-        <thead><tr><th>Source</th><th>What it provides</th><th>How often it changes</th></tr></thead>
+        <caption className="visually-hidden">Each data source, what it provides, and how often it changes.</caption>
+        <thead><tr><th scope="col">Source</th><th scope="col">What it provides</th><th scope="col">How often it changes</th></tr></thead>
         <tbody>
           <tr><td>Yahoo Finance</td><td>Daily prices, adjusted close, volume, fund assets, expense ratios</td><td>Each trading day after the US close</td></tr>
           <tr><td>State Street</td><td>Fund holdings and weights</td><td>Daily. Implemented for State Street funds only</td></tr>
