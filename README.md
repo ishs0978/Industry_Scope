@@ -1,5 +1,10 @@
 # IndustryScope
 
+**[Open the live explorer](https://industryscope.vercel.app/)** - search an
+industry, inspect its performance, holdings, companies, capital, macro signals,
+and source health, then change the date window without waiting for another API
+request.
+
 IndustryScope is a public, source-transparent tool for analyzing industry
 performance, ETF composition, SEC fundamentals, private capital, macro and
 operating indicators, and sourced events over one user-controlled date range.
