@@ -12,6 +12,18 @@ operating indicators, and sourced events over one user-controlled date range.
 The repository contains no synthetic market data. When an upstream source is
 missing or its last run failed, the API and UI identify the source and reason.
 
+## See it in 30 seconds
+
+- [Open the semiconductors dashboard](https://industryscope.vercel.app/industry/semiconductors)
+  to inspect performance, ETF holdings, public-company fundamentals, private
+  capital, macro indicators, events, headlines, and source health in one view.
+- [Read the same sector as JSON](https://industryscope.vercel.app/api/industry/semiconductors)
+  to inspect the public API contract and source metadata directly.
+- [Review the methodology](https://industryscope.vercel.app/methodology) for
+  metric definitions, data provenance, freshness rules, and known limitations.
+
+The live explorer and these direct links require no account.
+
 ## Architecture
 
 ```text
